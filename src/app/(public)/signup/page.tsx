@@ -4,7 +4,9 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
-import { Mail, Lock, User, Building, Loader2, Check } from 'lucide-react';
+import { Mail, Lock, User, Building, Loader2, Check, ShoppingCart, Store } from 'lucide-react';
+
+type AccountType = 'buyer' | 'seller' | 'both';
 
 export default function SignupPage() {
   const [formData, setFormData] = useState({
@@ -13,6 +15,7 @@ export default function SignupPage() {
     email: '',
     password: '',
     confirmPassword: '',
+    accountType: 'buyer' as AccountType,
   });
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -46,7 +49,7 @@ export default function SignupPage() {
     setLoading(true);
 
     try {
-      const { error } = await supabase.auth.signUp({
+      const { data, error } = await supabase.auth.signUp({
         email: formData.email,
         password: formData.password,
         options: {
@@ -60,10 +63,28 @@ export default function SignupPage() {
 
       if (error) {
         setError(error.message);
-      } else {
+      } else if (data.user) {
+        // Manually create profile if trigger doesn't work
+        const isSeller = formData.accountType === 'seller' || formData.accountType === 'both';
+        const { error: profileError } = await supabase
+          .from('profiles')
+          .upsert({
+            id: data.user.id,
+            email: formData.email,
+            full_name: formData.fullName,
+            company_name: formData.companyName,
+            is_seller: isSeller,
+          });
+
+        if (profileError) {
+          console.error('Profile creation error:', profileError);
+          // Don't block signup if profile creation fails
+        }
+
         setSuccess(true);
       }
-    } catch {
+    } catch (err) {
+      console.error('Signup error:', err);
       setError('An unexpected error occurred');
     } finally {
       setLoading(false);
@@ -131,6 +152,67 @@ export default function SignupPage() {
             </svg>
             Continue with Google
           </button>
+
+          {/* Account Type Selection */}
+          <div className="mb-6">
+            <label className="block text-sm font-medium text-gray-700 mb-3">
+              I want to...
+            </label>
+            <div className="grid grid-cols-3 gap-3">
+              <button
+                type="button"
+                onClick={() => setFormData(prev => ({ ...prev, accountType: 'buyer' }))}
+                className={`p-4 rounded-lg border-2 text-center transition-all ${
+                  formData.accountType === 'buyer'
+                    ? 'border-blue-600 bg-blue-50 text-blue-700'
+                    : 'border-gray-200 hover:border-gray-300 text-gray-600'
+                }`}
+              >
+                <ShoppingCart className={`h-6 w-6 mx-auto mb-2 ${
+                  formData.accountType === 'buyer' ? 'text-blue-600' : 'text-gray-400'
+                }`} />
+                <span className="text-sm font-medium">Buy</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setFormData(prev => ({ ...prev, accountType: 'seller' }))}
+                className={`p-4 rounded-lg border-2 text-center transition-all ${
+                  formData.accountType === 'seller'
+                    ? 'border-blue-600 bg-blue-50 text-blue-700'
+                    : 'border-gray-200 hover:border-gray-300 text-gray-600'
+                }`}
+              >
+                <Store className={`h-6 w-6 mx-auto mb-2 ${
+                  formData.accountType === 'seller' ? 'text-blue-600' : 'text-gray-400'
+                }`} />
+                <span className="text-sm font-medium">Sell</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setFormData(prev => ({ ...prev, accountType: 'both' }))}
+                className={`p-4 rounded-lg border-2 text-center transition-all ${
+                  formData.accountType === 'both'
+                    ? 'border-blue-600 bg-blue-50 text-blue-700'
+                    : 'border-gray-200 hover:border-gray-300 text-gray-600'
+                }`}
+              >
+                <div className="flex justify-center gap-1 mb-2">
+                  <ShoppingCart className={`h-5 w-5 ${
+                    formData.accountType === 'both' ? 'text-blue-600' : 'text-gray-400'
+                  }`} />
+                  <Store className={`h-5 w-5 ${
+                    formData.accountType === 'both' ? 'text-blue-600' : 'text-gray-400'
+                  }`} />
+                </div>
+                <span className="text-sm font-medium">Both</span>
+              </button>
+            </div>
+            <p className="text-xs text-gray-500 mt-2">
+              {formData.accountType === 'buyer' && 'Browse and bid on equipment listings'}
+              {formData.accountType === 'seller' && 'List and sell your equipment'}
+              {formData.accountType === 'both' && 'Buy equipment and sell your own'}
+            </p>
+          </div>
 
           <div className="relative mb-6">
             <div className="absolute inset-0 flex items-center">

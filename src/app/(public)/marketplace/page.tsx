@@ -1,241 +1,56 @@
 'use client';
 
 import Link from 'next/link';
-import { useState } from 'react';
+import { useState, useEffect, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 import {
   Search,
   Filter,
   Grid,
   List,
-  ChevronDown,
   Clock,
   MapPin,
   Heart,
-  Eye,
   Package,
-  X
+  X,
+  Loader2
 } from 'lucide-react';
+import { createClient } from '@/lib/supabase/client';
 
-interface MockListing {
+interface Listing {
   id: string;
   title: string;
-  category: string;
-  categorySlug: string;
   make: string;
   model: string;
   year: number | null;
-  listingType: 'auction' | 'fixed_price';
-  currentBid: number | null;
-  buyNowPrice: number | null;
-  startingPrice: number;
-  bidCount: number;
-  viewCount: number;
-  watchCount: number;
-  endsAt: string | null;
-  location: string;
+  listing_type: string;
+  current_bid: number | null;
+  buy_now_price: number | null;
+  fixed_price: number | null;
+  starting_price: number;
+  bid_count: number;
+  view_count: number;
+  watch_count: number;
+  end_time: string | null;
   condition: string;
-  equipmentStatus: string;
-  image: string | null;
-  hasReserve: boolean;
-  reserveMet: boolean;
+  equipment_status: string;
+  reserve_price: number | null;
+  status: string;
+  category?: {
+    name: string;
+    slug: string;
+  };
+  images?: {
+    url: string;
+    is_primary: boolean;
+  }[];
 }
 
-const mockListings: MockListing[] = [
-  {
-    id: '1',
-    title: '2019 Pitney Bowes DI950 6-Station Inserter',
-    category: 'Mailing & Fulfillment',
-    categorySlug: 'mailing-fulfillment',
-    make: 'Pitney Bowes',
-    model: 'DI950',
-    year: 2019,
-    listingType: 'auction',
-    currentBid: 12500,
-    buyNowPrice: 18000,
-    startingPrice: 5000,
-    bidCount: 8,
-    viewCount: 234,
-    watchCount: 12,
-    endsAt: '2024-02-15T18:00:00Z',
-    location: 'Chicago, IL',
-    condition: 'Excellent',
-    equipmentStatus: 'Palletized',
-    image: null,
-    hasReserve: true,
-    reserveMet: true,
-  },
-  {
-    id: '2',
-    title: 'Heidelberg SM52-2 Offset Press',
-    category: 'Printing',
-    categorySlug: 'printing',
-    make: 'Heidelberg',
-    model: 'SM52-2',
-    year: 2015,
-    listingType: 'auction',
-    currentBid: 35000,
-    buyNowPrice: null,
-    startingPrice: 15000,
-    bidCount: 15,
-    viewCount: 456,
-    watchCount: 28,
-    endsAt: '2024-02-16T20:00:00Z',
-    location: 'Dallas, TX',
-    condition: 'Good',
-    equipmentStatus: 'Installed - Idle',
-    image: null,
-    hasReserve: true,
-    reserveMet: false,
-  },
-  {
-    id: '3',
-    title: 'MBO T49 4/4 Folder with Right Angle',
-    category: 'Bindery & Finishing',
-    categorySlug: 'bindery-finishing',
-    make: 'MBO',
-    model: 'T49',
-    year: 2017,
-    listingType: 'auction',
-    currentBid: 15750,
-    buyNowPrice: null,
-    startingPrice: 8000,
-    bidCount: 22,
-    viewCount: 312,
-    watchCount: 8,
-    endsAt: '2024-02-14T14:00:00Z',
-    location: 'Atlanta, GA',
-    condition: 'Excellent',
-    equipmentStatus: 'Deinstalled',
-    image: null,
-    hasReserve: false,
-    reserveMet: true,
-  },
-  {
-    id: '4',
-    title: 'Bell & Howell Mailstar 400 6-Station Inserter',
-    category: 'Mailing & Fulfillment',
-    categorySlug: 'mailing-fulfillment',
-    make: 'Bell & Howell',
-    model: 'Mailstar 400',
-    year: 2016,
-    listingType: 'fixed_price',
-    currentBid: null,
-    buyNowPrice: 9500,
-    startingPrice: 9500,
-    bidCount: 0,
-    viewCount: 145,
-    watchCount: 6,
-    endsAt: null,
-    location: 'Phoenix, AZ',
-    condition: 'Good',
-    equipmentStatus: 'Crated',
-    image: null,
-    hasReserve: false,
-    reserveMet: true,
-  },
-  {
-    id: '5',
-    title: 'Challenge 305 MC Paper Cutter',
-    category: 'Bindery & Finishing',
-    categorySlug: 'bindery-finishing',
-    make: 'Challenge',
-    model: '305 MC',
-    year: 2012,
-    listingType: 'auction',
-    currentBid: 4200,
-    buyNowPrice: 6500,
-    startingPrice: 2000,
-    bidCount: 6,
-    viewCount: 189,
-    watchCount: 5,
-    endsAt: '2024-02-17T12:00:00Z',
-    location: 'Denver, CO',
-    condition: 'Fair',
-    equipmentStatus: 'Palletized',
-    image: null,
-    hasReserve: false,
-    reserveMet: true,
-  },
-  {
-    id: '6',
-    title: 'Kern 3500 Multi-Mailer Inserter System',
-    category: 'Mailing & Fulfillment',
-    categorySlug: 'mailing-fulfillment',
-    make: 'Kern',
-    model: '3500',
-    year: 2018,
-    listingType: 'auction',
-    currentBid: 28000,
-    buyNowPrice: null,
-    startingPrice: 20000,
-    bidCount: 11,
-    viewCount: 287,
-    watchCount: 15,
-    endsAt: '2024-02-18T16:00:00Z',
-    location: 'Minneapolis, MN',
-    condition: 'Excellent',
-    equipmentStatus: 'In Production',
-    image: null,
-    hasReserve: true,
-    reserveMet: true,
-  },
-  {
-    id: '7',
-    title: 'Duplo DC-645 Slitter/Cutter/Creaser',
-    category: 'Bindery & Finishing',
-    categorySlug: 'bindery-finishing',
-    make: 'Duplo',
-    model: 'DC-645',
-    year: 2020,
-    listingType: 'fixed_price',
-    currentBid: null,
-    buyNowPrice: 12500,
-    startingPrice: 12500,
-    bidCount: 0,
-    viewCount: 178,
-    watchCount: 9,
-    endsAt: null,
-    location: 'Seattle, WA',
-    condition: 'Excellent',
-    equipmentStatus: 'Deinstalled',
-    image: null,
-    hasReserve: false,
-    reserveMet: true,
-  },
-  {
-    id: '8',
-    title: 'Polar 115 Programmable Paper Cutter',
-    category: 'Bindery & Finishing',
-    categorySlug: 'bindery-finishing',
-    make: 'Polar',
-    model: '115',
-    year: 2014,
-    listingType: 'auction',
-    currentBid: 22000,
-    buyNowPrice: 30000,
-    startingPrice: 12000,
-    bidCount: 18,
-    viewCount: 421,
-    watchCount: 22,
-    endsAt: '2024-02-15T10:00:00Z',
-    location: 'Boston, MA',
-    condition: 'Good',
-    equipmentStatus: 'Palletized',
-    image: null,
-    hasReserve: true,
-    reserveMet: true,
-  },
-];
-
-const categories = [
-  { id: 'all', name: 'All Categories' },
-  { id: 'mailing-fulfillment', name: 'Mailing & Fulfillment' },
-  { id: 'printing', name: 'Printing' },
-  { id: 'bindery-finishing', name: 'Bindery & Finishing' },
-  { id: 'packaging', name: 'Packaging' },
-  { id: 'material-handling', name: 'Material Handling' },
-  { id: 'parts-supplies', name: 'Parts & Supplies' },
-];
+interface Category {
+  id: string;
+  name: string;
+  slug: string;
+}
 
 const sortOptions = [
   { id: 'ending-soon', name: 'Ending Soon' },
@@ -245,27 +60,130 @@ const sortOptions = [
   { id: 'most-bids', name: 'Most Bids' },
 ];
 
-export default function MarketplacePage() {
+function MarketplaceContent() {
+  const supabase = createClient();
+  const searchParams = useSearchParams();
+  const urlSearchQuery = searchParams.get('search') || '';
+  const urlCategory = searchParams.get('category') || 'all';
+
+  const [listings, setListings] = useState<Listing[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
-  const [selectedCategory, setSelectedCategory] = useState('all');
+  const [selectedCategory, setSelectedCategory] = useState(urlCategory);
   const [sortBy, setSortBy] = useState('ending-soon');
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState(urlSearchQuery);
   const [showFilters, setShowFilters] = useState(false);
   const [priceRange, setPriceRange] = useState({ min: '', max: '' });
   const [listingTypeFilter, setListingTypeFilter] = useState<'all' | 'auction' | 'fixed_price'>('all');
 
-  const filteredListings = mockListings.filter((listing) => {
-    const matchesCategory = selectedCategory === 'all' || listing.categorySlug === selectedCategory;
-    const matchesSearch = listing.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      listing.make.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      listing.model.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesType = listingTypeFilter === 'all' || listing.listingType === listingTypeFilter;
-    const matchesPrice = (
-      (!priceRange.min || (listing.currentBid || listing.buyNowPrice || 0) >= parseInt(priceRange.min)) &&
-      (!priceRange.max || (listing.currentBid || listing.buyNowPrice || 0) <= parseInt(priceRange.max))
-    );
-    return matchesCategory && matchesSearch && matchesType && matchesPrice;
-  });
+  // Update search query when URL changes
+  useEffect(() => {
+    setSearchQuery(urlSearchQuery);
+  }, [urlSearchQuery]);
+
+  // Update category when URL changes
+  useEffect(() => {
+    setSelectedCategory(urlCategory);
+  }, [urlCategory]);
+
+  useEffect(() => {
+    async function loadData() {
+      // Load categories
+      const { data: catData } = await supabase
+        .from('categories')
+        .select('id, name, slug')
+        .eq('is_active', true)
+        .order('sort_order');
+
+      if (catData) {
+        setCategories(catData);
+      }
+
+      // Build listing query
+      let query = supabase
+        .from('listings')
+        .select(`
+          *,
+          category:categories(name, slug),
+          images:listing_images(url, is_primary)
+        `)
+        .in('status', ['active', 'scheduled']);
+
+      // Apply category filter
+      if (selectedCategory !== 'all') {
+        const cat = catData?.find(c => c.slug === selectedCategory);
+        if (cat) {
+          query = query.eq('primary_category_id', cat.id);
+        }
+      }
+
+      // Apply listing type filter
+      if (listingTypeFilter === 'auction') {
+        query = query.in('listing_type', ['auction', 'auction_buy_now']);
+      } else if (listingTypeFilter === 'fixed_price') {
+        query = query.in('listing_type', ['fixed_price', 'fixed_price_offers']);
+      }
+
+      // Apply sorting
+      switch (sortBy) {
+        case 'ending-soon':
+          query = query.order('end_time', { ascending: true, nullsFirst: false });
+          break;
+        case 'newest':
+          query = query.order('created_at', { ascending: false });
+          break;
+        case 'price-low':
+          query = query.order('starting_price', { ascending: true });
+          break;
+        case 'price-high':
+          query = query.order('starting_price', { ascending: false });
+          break;
+        case 'most-bids':
+          query = query.order('bid_count', { ascending: false });
+          break;
+      }
+
+      const { data: listingData } = await query;
+
+      if (listingData) {
+        // Apply client-side filters
+        let filtered = listingData as unknown as Listing[];
+
+        // Search filter
+        if (searchQuery) {
+          const search = searchQuery.toLowerCase();
+          filtered = filtered.filter(l =>
+            l.title?.toLowerCase().includes(search) ||
+            l.make?.toLowerCase().includes(search) ||
+            l.model?.toLowerCase().includes(search)
+          );
+        }
+
+        // Price filter
+        if (priceRange.min) {
+          const minPrice = parseInt(priceRange.min);
+          filtered = filtered.filter(l => {
+            const price = l.current_bid || l.fixed_price || l.buy_now_price || l.starting_price || 0;
+            return price >= minPrice;
+          });
+        }
+        if (priceRange.max) {
+          const maxPrice = parseInt(priceRange.max);
+          filtered = filtered.filter(l => {
+            const price = l.current_bid || l.fixed_price || l.buy_now_price || l.starting_price || 0;
+            return price <= maxPrice;
+          });
+        }
+
+        setListings(filtered);
+      }
+
+      setLoading(false);
+    }
+
+    loadData();
+  }, [supabase, selectedCategory, sortBy, listingTypeFilter, searchQuery, priceRange]);
 
   const getTimeRemaining = (endsAt: string | null) => {
     if (!endsAt) return null;
@@ -286,8 +204,35 @@ export default function MarketplacePage() {
     const end = new Date(endsAt);
     const now = new Date();
     const diff = end.getTime() - now.getTime();
-    return diff > 0 && diff < 24 * 60 * 60 * 1000; // Less than 24 hours
+    return diff > 0 && diff < 24 * 60 * 60 * 1000;
   };
+
+  const getPrimaryImage = (listing: Listing) => {
+    if (!listing.images || listing.images.length === 0) return null;
+    const primary = listing.images.find(img => img.is_primary);
+    return primary?.url || listing.images[0]?.url;
+  };
+
+  const getPrice = (listing: Listing) => {
+    if (listing.listing_type?.includes('fixed')) {
+      return listing.fixed_price || listing.buy_now_price || 0;
+    }
+    return listing.current_bid || listing.starting_price || 0;
+  };
+
+  const reserveMet = (listing: Listing) => {
+    if (!listing.reserve_price) return true;
+    const currentBid = listing.current_bid || listing.starting_price || 0;
+    return currentBid >= listing.reserve_price;
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -325,10 +270,7 @@ export default function MarketplacePage() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="flex flex-col lg:flex-row gap-8">
           {/* Sidebar Filters */}
-          <aside className={`
-            lg:w-64 flex-shrink-0
-            ${showFilters ? 'block' : 'hidden lg:block'}
-          `}>
+          <aside className={`lg:w-64 flex-shrink-0 ${showFilters ? 'block' : 'hidden lg:block'}`}>
             <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 sticky top-4">
               <div className="flex items-center justify-between mb-4 lg:hidden">
                 <h3 className="font-semibold text-gray-900">Filters</h3>
@@ -341,13 +283,23 @@ export default function MarketplacePage() {
               <div className="mb-6">
                 <h3 className="font-semibold text-gray-900 mb-3">Category</h3>
                 <div className="space-y-2">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="category"
+                      checked={selectedCategory === 'all'}
+                      onChange={() => setSelectedCategory('all')}
+                      className="text-blue-600 focus:ring-blue-500"
+                    />
+                    <span className="text-sm text-gray-700">All Categories</span>
+                  </label>
                   {categories.map((cat) => (
                     <label key={cat.id} className="flex items-center gap-2 cursor-pointer">
                       <input
                         type="radio"
                         name="category"
-                        checked={selectedCategory === cat.id}
-                        onChange={() => setSelectedCategory(cat.id)}
+                        checked={selectedCategory === cat.slug}
+                        onChange={() => setSelectedCategory(cat.slug)}
                         className="text-blue-600 focus:ring-blue-500"
                       />
                       <span className="text-sm text-gray-700">{cat.name}</span>
@@ -435,7 +387,7 @@ export default function MarketplacePage() {
             {/* Toolbar */}
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
               <p className="text-gray-600">
-                <span className="font-medium text-gray-900">{filteredListings.length}</span> listings found
+                <span className="font-medium text-gray-900">{listings.length}</span> listings found
               </p>
 
               <div className="flex items-center gap-4">
@@ -474,7 +426,7 @@ export default function MarketplacePage() {
             {/* Listings Grid */}
             {viewMode === 'grid' ? (
               <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-6">
-                {filteredListings.map((listing) => (
+                {listings.map((listing) => (
                   <Link
                     key={listing.id}
                     href={`/listing/${listing.id}`}
@@ -482,8 +434,8 @@ export default function MarketplacePage() {
                   >
                     {/* Image */}
                     <div className="aspect-[4/3] bg-gray-100 relative">
-                      {listing.image ? (
-                        <img src={listing.image} alt={listing.title} className="w-full h-full object-cover" />
+                      {getPrimaryImage(listing) ? (
+                        <img src={getPrimaryImage(listing)!} alt={listing.title} className="w-full h-full object-cover" />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center">
                           <Package className="h-12 w-12 text-gray-300" />
@@ -492,17 +444,17 @@ export default function MarketplacePage() {
 
                       {/* Badges */}
                       <div className="absolute top-3 left-3 flex flex-col gap-2">
-                        {listing.listingType === 'auction' && isEndingSoon(listing.endsAt) && (
+                        {listing.listing_type?.includes('auction') && isEndingSoon(listing.end_time) && (
                           <span className="bg-red-500 text-white text-xs font-medium px-2 py-1 rounded">
                             Ending Soon
                           </span>
                         )}
-                        {listing.listingType === 'fixed_price' && (
+                        {listing.listing_type?.includes('fixed') && (
                           <span className="bg-green-500 text-white text-xs font-medium px-2 py-1 rounded">
                             Buy Now
                           </span>
                         )}
-                        {listing.hasReserve && !listing.reserveMet && (
+                        {listing.reserve_price && !reserveMet(listing) && (
                           <span className="bg-yellow-500 text-white text-xs font-medium px-2 py-1 rounded">
                             Reserve Not Met
                           </span>
@@ -517,49 +469,46 @@ export default function MarketplacePage() {
 
                     {/* Content */}
                     <div className="p-4">
-                      <p className="text-sm text-blue-600 font-medium mb-1">{listing.category}</p>
+                      {listing.category && (
+                        <p className="text-sm text-blue-600 font-medium mb-1">{listing.category.name}</p>
+                      )}
                       <h3 className="font-semibold text-gray-900 mb-2 line-clamp-2 group-hover:text-blue-600">
                         {listing.title}
                       </h3>
 
-                      <div className="flex items-center gap-2 text-sm text-gray-500 mb-3">
-                        <MapPin className="h-4 w-4" />
-                        {listing.location}
-                      </div>
-
                       <div className="flex items-center justify-between">
                         <div>
-                          {listing.listingType === 'auction' ? (
+                          {listing.listing_type?.includes('auction') ? (
                             <>
                               <p className="text-xs text-gray-500">Current Bid</p>
                               <p className="text-lg font-bold text-gray-900">
-                                ${(listing.currentBid || listing.startingPrice).toLocaleString()}
+                                ${getPrice(listing).toLocaleString()}
                               </p>
-                              <p className="text-xs text-gray-500">{listing.bidCount} bids</p>
+                              <p className="text-xs text-gray-500">{listing.bid_count || 0} bids</p>
                             </>
                           ) : (
                             <>
                               <p className="text-xs text-gray-500">Price</p>
                               <p className="text-lg font-bold text-green-600">
-                                ${listing.buyNowPrice?.toLocaleString()}
+                                ${getPrice(listing).toLocaleString()}
                               </p>
                             </>
                           )}
                         </div>
 
-                        {listing.endsAt && (
+                        {listing.end_time && (
                           <div className="text-right">
                             <p className="text-xs text-gray-500">Time Left</p>
-                            <p className={`text-sm font-medium ${isEndingSoon(listing.endsAt) ? 'text-red-600' : 'text-gray-900'}`}>
-                              {getTimeRemaining(listing.endsAt)}
+                            <p className={`text-sm font-medium ${isEndingSoon(listing.end_time) ? 'text-red-600' : 'text-gray-900'}`}>
+                              {getTimeRemaining(listing.end_time)}
                             </p>
                           </div>
                         )}
                       </div>
 
-                      {listing.buyNowPrice && listing.listingType === 'auction' && (
+                      {listing.buy_now_price && listing.listing_type === 'auction_buy_now' && (
                         <p className="text-sm text-green-600 mt-2">
-                          Buy Now: ${listing.buyNowPrice.toLocaleString()}
+                          Buy Now: ${listing.buy_now_price.toLocaleString()}
                         </p>
                       )}
                     </div>
@@ -569,16 +518,16 @@ export default function MarketplacePage() {
             ) : (
               /* List View */
               <div className="space-y-4">
-                {filteredListings.map((listing) => (
+                {listings.map((listing) => (
                   <Link
                     key={listing.id}
                     href={`/listing/${listing.id}`}
                     className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 flex gap-4 hover:shadow-md transition-shadow"
                   >
                     {/* Image */}
-                    <div className="w-32 h-32 bg-gray-100 rounded-lg flex-shrink-0 flex items-center justify-center">
-                      {listing.image ? (
-                        <img src={listing.image} alt={listing.title} className="w-full h-full object-cover rounded-lg" />
+                    <div className="w-32 h-32 bg-gray-100 rounded-lg flex-shrink-0 flex items-center justify-center overflow-hidden">
+                      {getPrimaryImage(listing) ? (
+                        <img src={getPrimaryImage(listing)!} alt={listing.title} className="w-full h-full object-cover" />
                       ) : (
                         <Package className="h-8 w-8 text-gray-300" />
                       )}
@@ -588,41 +537,41 @@ export default function MarketplacePage() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-start justify-between gap-4">
                         <div>
-                          <p className="text-sm text-blue-600 font-medium">{listing.category}</p>
+                          {listing.category && (
+                            <p className="text-sm text-blue-600 font-medium">{listing.category.name}</p>
+                          )}
                           <h3 className="font-semibold text-gray-900 hover:text-blue-600">
                             {listing.title}
                           </h3>
                           <div className="flex items-center gap-4 mt-2 text-sm text-gray-500">
-                            <span className="flex items-center gap-1">
-                              <MapPin className="h-4 w-4" />
-                              {listing.location}
-                            </span>
-                            <span>{listing.condition}</span>
-                            <span>{listing.equipmentStatus}</span>
+                            {listing.condition && <span className="capitalize">{listing.condition}</span>}
+                            {listing.equipment_status && (
+                              <span className="capitalize">{listing.equipment_status.replace(/_/g, ' ')}</span>
+                            )}
                           </div>
                         </div>
 
                         <div className="text-right flex-shrink-0">
-                          {listing.listingType === 'auction' ? (
+                          {listing.listing_type?.includes('auction') ? (
                             <>
                               <p className="text-xs text-gray-500">Current Bid</p>
                               <p className="text-xl font-bold text-gray-900">
-                                ${(listing.currentBid || listing.startingPrice).toLocaleString()}
+                                ${getPrice(listing).toLocaleString()}
                               </p>
-                              <p className="text-xs text-gray-500">{listing.bidCount} bids</p>
+                              <p className="text-xs text-gray-500">{listing.bid_count || 0} bids</p>
                             </>
                           ) : (
                             <>
                               <p className="text-xs text-gray-500">Price</p>
                               <p className="text-xl font-bold text-green-600">
-                                ${listing.buyNowPrice?.toLocaleString()}
+                                ${getPrice(listing).toLocaleString()}
                               </p>
                             </>
                           )}
-                          {listing.endsAt && (
-                            <p className={`text-sm mt-1 ${isEndingSoon(listing.endsAt) ? 'text-red-600 font-medium' : 'text-gray-500'}`}>
+                          {listing.end_time && (
+                            <p className={`text-sm mt-1 ${isEndingSoon(listing.end_time) ? 'text-red-600 font-medium' : 'text-gray-500'}`}>
                               <Clock className="h-4 w-4 inline mr-1" />
-                              {getTimeRemaining(listing.endsAt)}
+                              {getTimeRemaining(listing.end_time)}
                             </p>
                           )}
                         </div>
@@ -634,26 +583,47 @@ export default function MarketplacePage() {
             )}
 
             {/* Empty state */}
-            {filteredListings.length === 0 && (
+            {listings.length === 0 && (
               <div className="text-center py-12">
                 <Package className="h-12 w-12 text-gray-300 mx-auto mb-4" />
                 <p className="text-gray-500 mb-2">No listings found</p>
-                <button
-                  onClick={() => {
-                    setSelectedCategory('all');
-                    setListingTypeFilter('all');
-                    setPriceRange({ min: '', max: '' });
-                    setSearchQuery('');
-                  }}
-                  className="text-blue-600 hover:text-blue-700 font-medium"
-                >
-                  Clear filters
-                </button>
+                <p className="text-sm text-gray-400 mb-4">Try adjusting your filters or create a new listing</p>
+                <div className="flex items-center justify-center gap-4">
+                  <button
+                    onClick={() => {
+                      setSelectedCategory('all');
+                      setListingTypeFilter('all');
+                      setPriceRange({ min: '', max: '' });
+                      setSearchQuery('');
+                    }}
+                    className="text-blue-600 hover:text-blue-700 font-medium"
+                  >
+                    Clear filters
+                  </button>
+                  <Link
+                    href="/sell"
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                  >
+                    Create Listing
+                  </Link>
+                </div>
               </div>
             )}
           </div>
         </div>
       </div>
     </div>
+  );
+}
+
+export default function MarketplacePage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+      </div>
+    }>
+      <MarketplaceContent />
+    </Suspense>
   );
 }

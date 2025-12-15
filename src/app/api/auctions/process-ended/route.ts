@@ -1,0 +1,256 @@
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { NextResponse } from 'next/server';
+
+// Lazy initialization to avoid build-time errors
+let supabase: SupabaseClient | null = null;
+
+function getSupabaseAdmin(): SupabaseClient {
+  if (!supabase) {
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+    if (!url || !key) {
+      throw new Error('Missing Supabase environment variables');
+    }
+
+    supabase = createClient(url, key);
+  }
+  return supabase;
+}
+
+const BUYER_PREMIUM_PERCENT = 5.0;
+const SELLER_COMMISSION_PERCENT = 8.0;
+
+export async function POST(request: Request) {
+  try {
+    // Optional: Add API key protection for cron jobs
+    const authHeader = request.headers.get('authorization');
+    const cronSecret = process.env.CRON_SECRET;
+
+    if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    // Find all active auctions that have ended
+    const now = new Date().toISOString();
+    const supabase = getSupabaseAdmin();
+
+    const { data: endedAuctions, error: fetchError } = await supabase
+      .from('listings')
+      .select(`
+        id,
+        title,
+        seller_id,
+        current_price,
+        starting_price,
+        reserve_price,
+        listing_type,
+        payment_due_days,
+        end_time
+      `)
+      .eq('status', 'active')
+      .in('listing_type', ['auction', 'auction_buy_now'])
+      .lt('end_time', now);
+
+    if (fetchError) {
+      console.error('Error fetching ended auctions:', fetchError);
+      return NextResponse.json({ error: fetchError.message }, { status: 500 });
+    }
+
+    if (!endedAuctions || endedAuctions.length === 0) {
+      return NextResponse.json({ message: 'No ended auctions to process', processed: 0 });
+    }
+
+    const results = [];
+
+    for (const auction of endedAuctions) {
+      try {
+        // Get the highest bid
+        const { data: winningBid } = await supabase
+          .from('bids')
+          .select('id, bidder_id, amount')
+          .eq('listing_id', auction.id)
+          .order('amount', { ascending: false })
+          .limit(1)
+          .single();
+
+        const currentPrice = auction.current_price || auction.starting_price || 0;
+        const reserveMet = !auction.reserve_price || currentPrice >= auction.reserve_price;
+
+        if (winningBid && reserveMet) {
+          // Auction has a winner!
+          const saleAmount = winningBid.amount;
+          const buyerPremium = saleAmount * (BUYER_PREMIUM_PERCENT / 100);
+          const totalAmount = saleAmount + buyerPremium;
+          const sellerCommission = saleAmount * (SELLER_COMMISSION_PERCENT / 100);
+          const sellerPayout = saleAmount - sellerCommission;
+
+          // Calculate payment due date
+          const paymentDueDate = new Date();
+          paymentDueDate.setDate(paymentDueDate.getDate() + (auction.payment_due_days || 7));
+
+          // Create invoice
+          const { data: invoice, error: invoiceError } = await supabase
+            .from('invoices')
+            .insert({
+              listing_id: auction.id,
+              seller_id: auction.seller_id,
+              buyer_id: winningBid.bidder_id,
+              sale_amount: saleAmount,
+              buyer_premium_percent: BUYER_PREMIUM_PERCENT,
+              buyer_premium_amount: buyerPremium,
+              total_amount: totalAmount,
+              seller_commission_percent: SELLER_COMMISSION_PERCENT,
+              seller_commission_amount: sellerCommission,
+              seller_payout_amount: sellerPayout,
+              status: 'pending',
+              fulfillment_status: 'awaiting_payment',
+              payment_due_date: paymentDueDate.toISOString().split('T')[0],
+            })
+            .select()
+            .single();
+
+          if (invoiceError) {
+            console.error('Error creating invoice:', invoiceError);
+            results.push({ listing_id: auction.id, status: 'error', error: invoiceError.message });
+            continue;
+          }
+
+          // Update listing status to 'sold'
+          await supabase
+            .from('listings')
+            .update({
+              status: 'sold',
+              ended_at: new Date().toISOString(),
+            })
+            .eq('id', auction.id);
+
+          // Update winning bid status
+          await supabase
+            .from('bids')
+            .update({ status: 'won' })
+            .eq('id', winningBid.id);
+
+          // Update other bids to 'lost'
+          await supabase
+            .from('bids')
+            .update({ status: 'lost' })
+            .eq('listing_id', auction.id)
+            .neq('id', winningBid.id);
+
+          // Notify the winner
+          await supabase.from('notifications').insert({
+            user_id: winningBid.bidder_id,
+            type: 'auction_won',
+            title: 'Congratulations! You won the auction!',
+            body: `You won "${auction.title}" with a bid of $${saleAmount.toLocaleString()}. Total due (including ${BUYER_PREMIUM_PERCENT}% buyer premium): $${totalAmount.toLocaleString()}. Payment is due by ${paymentDueDate.toLocaleDateString()}.`,
+            listing_id: auction.id,
+            invoice_id: invoice.id,
+          });
+
+          // Notify the seller
+          await supabase.from('notifications').insert({
+            user_id: auction.seller_id,
+            type: 'auction_ended',
+            title: 'Your auction has ended - SOLD!',
+            body: `"${auction.title}" sold for $${saleAmount.toLocaleString()}. Your payout after commission: $${sellerPayout.toLocaleString()}.`,
+            listing_id: auction.id,
+            invoice_id: invoice.id,
+          });
+
+          results.push({
+            listing_id: auction.id,
+            status: 'sold',
+            winner_id: winningBid.bidder_id,
+            sale_amount: saleAmount,
+            invoice_id: invoice.id,
+          });
+
+        } else {
+          // No winner (no bids or reserve not met)
+          const reason = !winningBid ? 'no_bids' : 'reserve_not_met';
+
+          // Update listing status to 'ended'
+          await supabase
+            .from('listings')
+            .update({
+              status: 'ended',
+              ended_at: new Date().toISOString(),
+            })
+            .eq('id', auction.id);
+
+          // Update all bids to 'lost' if any
+          if (winningBid) {
+            await supabase
+              .from('bids')
+              .update({ status: 'lost' })
+              .eq('listing_id', auction.id);
+          }
+
+          // Notify the seller
+          await supabase.from('notifications').insert({
+            user_id: auction.seller_id,
+            type: 'auction_ended',
+            title: 'Your auction has ended',
+            body: reason === 'no_bids'
+              ? `"${auction.title}" ended with no bids.`
+              : `"${auction.title}" ended but the reserve price was not met. Highest bid: $${currentPrice.toLocaleString()}.`,
+            listing_id: auction.id,
+          });
+
+          // Notify bidders if reserve not met
+          if (winningBid && reason === 'reserve_not_met') {
+            // Get all unique bidders
+            const { data: bidders } = await supabase
+              .from('bids')
+              .select('bidder_id')
+              .eq('listing_id', auction.id);
+
+            const uniqueBidderIds = [...new Set(bidders?.map(b => b.bidder_id) || [])];
+
+            for (const bidderId of uniqueBidderIds) {
+              await supabase.from('notifications').insert({
+                user_id: bidderId,
+                type: 'auction_ended',
+                title: 'Auction ended - Reserve not met',
+                body: `The auction for "${auction.title}" has ended but the reserve price was not met.`,
+                listing_id: auction.id,
+              });
+            }
+          }
+
+          results.push({
+            listing_id: auction.id,
+            status: 'ended',
+            reason,
+          });
+        }
+      } catch (err) {
+        console.error(`Error processing auction ${auction.id}:`, err);
+        results.push({
+          listing_id: auction.id,
+          status: 'error',
+          error: err instanceof Error ? err.message : 'Unknown error',
+        });
+      }
+    }
+
+    return NextResponse.json({
+      message: `Processed ${endedAuctions.length} ended auctions`,
+      processed: endedAuctions.length,
+      results,
+    });
+
+  } catch (error) {
+    console.error('Error in process-ended:', error);
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : 'Internal server error' },
+      { status: 500 }
+    );
+  }
+}
+
+// Also allow GET for easy testing
+export async function GET(request: Request) {
+  return POST(request);
+}

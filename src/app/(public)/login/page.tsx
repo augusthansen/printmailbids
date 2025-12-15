@@ -24,18 +24,22 @@ function LoginForm() {
     setLoading(true);
 
     try {
-      const { error } = await supabase.auth.signInWithPassword({
+      const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
 
       if (error) {
+        console.error('Login error:', error);
         setError(error.message);
+      } else if (data.user) {
+        // Use window.location for a full page reload to ensure fresh session
+        window.location.href = redirect;
       } else {
-        router.push(redirect);
-        router.refresh();
+        setError('Login failed - no user returned');
       }
-    } catch {
+    } catch (err) {
+      console.error('Login exception:', err);
       setError('An unexpected error occurred');
     } finally {
       setLoading(false);

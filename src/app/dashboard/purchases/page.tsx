@@ -1,7 +1,9 @@
 'use client';
 
 import Link from 'next/link';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useAuth } from '@/hooks/useAuth';
+import { createClient } from '@/lib/supabase/client';
 import {
   Search,
   Filter,
@@ -9,177 +11,148 @@ import {
   Package,
   Truck,
   CheckCircle,
-  Clock,
   CreditCard,
   AlertCircle,
-  MapPin
+  MapPin,
+  Loader2
 } from 'lucide-react';
 
-type PurchaseStatus = 'won' | 'payment_pending' | 'paid' | 'shipped' | 'delivered' | 'completed';
+type InvoiceStatus = 'pending' | 'paid' | 'overdue' | 'cancelled' | 'refunded';
+type FulfillmentStatus = 'awaiting_payment' | 'processing' | 'shipped' | 'delivered' | 'cancelled';
 
-interface MockPurchase {
+interface Purchase {
   id: string;
-  invoiceNumber: string;
+  listing_id: string;
+  sale_amount: number;
+  buyer_premium_amount: number;
+  total_amount: number;
+  status: InvoiceStatus;
+  fulfillment_status: FulfillmentStatus;
+  payment_due_date: string | null;
+  paid_at: string | null;
+  shipped_at: string | null;
+  tracking_number: string | null;
+  delivered_at: string | null;
+  created_at: string;
   listing: {
     id: string;
     title: string;
-    image: string | null;
-  };
+    city: string | null;
+    state: string | null;
+  } | null;
   seller: {
-    name: string;
-    company: string;
-    rating: number;
-  };
-  winningBid: number;
-  buyerPremium: number;
-  shippingCost: number | null;
-  totalAmount: number;
-  status: PurchaseStatus;
-  paymentDueDate: string | null;
-  paidAt: string | null;
-  shippedAt: string | null;
-  trackingNumber: string | null;
-  deliveredAt: string | null;
-  wonAt: string;
-  pickupLocation: string;
+    id: string;
+    full_name: string | null;
+    company_name: string | null;
+  } | null;
 }
 
-const mockPurchases: MockPurchase[] = [
-  {
-    id: '1',
-    invoiceNumber: '2024-000130',
-    listing: {
-      id: '10',
-      title: 'Kern 3500 Multi-Mailer Inserter',
-      image: null,
-    },
-    seller: {
-      name: 'Equipment Depot',
-      company: 'Equipment Depot Inc.',
-      rating: 4.8,
-    },
-    winningBid: 28000,
-    buyerPremium: 1400,
-    shippingCost: null,
-    totalAmount: 29400,
-    status: 'payment_pending',
-    paymentDueDate: '2024-02-17',
-    paidAt: null,
-    shippedAt: null,
-    trackingNumber: null,
-    deliveredAt: null,
-    wonAt: '2024-02-10T15:30:00Z',
-    pickupLocation: 'Chicago, IL',
-  },
-  {
-    id: '2',
-    invoiceNumber: '2024-000128',
-    listing: {
-      id: '11',
-      title: 'Heidelberg Speedmaster XL 75',
-      image: null,
-    },
-    seller: {
-      name: 'Press Sales USA',
-      company: 'Press Sales USA LLC',
-      rating: 4.9,
-    },
-    winningBid: 125000,
-    buyerPremium: 6250,
-    shippingCost: 8500,
-    totalAmount: 139750,
-    status: 'shipped',
-    paymentDueDate: '2024-02-12',
-    paidAt: '2024-02-08T10:00:00Z',
-    shippedAt: '2024-02-12T09:00:00Z',
-    trackingNumber: 'RDRK-2024-445566',
-    deliveredAt: null,
-    wonAt: '2024-02-05T18:00:00Z',
-    pickupLocation: 'Dallas, TX',
-  },
-  {
-    id: '3',
-    invoiceNumber: '2024-000115',
-    listing: {
-      id: '12',
-      title: 'Polar 92 Paper Cutter',
-      image: null,
-    },
-    seller: {
-      name: 'PrintTech Solutions',
-      company: 'PrintTech Solutions',
-      rating: 4.7,
-    },
-    winningBid: 12500,
-    buyerPremium: 625,
-    shippingCost: 1200,
-    totalAmount: 14325,
-    status: 'completed',
-    paymentDueDate: '2024-01-28',
-    paidAt: '2024-01-25T14:00:00Z',
-    shippedAt: '2024-01-28T11:00:00Z',
-    trackingNumber: 'RDRK-2024-112233',
-    deliveredAt: '2024-02-02T16:00:00Z',
-    wonAt: '2024-01-21T20:00:00Z',
-    pickupLocation: 'Atlanta, GA',
-  },
-  {
-    id: '4',
-    invoiceNumber: '2024-000110',
-    listing: {
-      id: '13',
-      title: 'Bell & Howell Inserter System',
-      image: null,
-    },
-    seller: {
-      name: 'Mail Equipment Co',
-      company: 'Mail Equipment Company',
-      rating: 4.5,
-    },
-    winningBid: 9800,
-    buyerPremium: 490,
-    shippingCost: 850,
-    totalAmount: 11140,
-    status: 'completed',
-    paymentDueDate: '2024-01-20',
-    paidAt: '2024-01-18T09:00:00Z',
-    shippedAt: '2024-01-20T14:00:00Z',
-    trackingNumber: 'RDRK-2024-998877',
-    deliveredAt: '2024-01-25T10:00:00Z',
-    wonAt: '2024-01-13T19:00:00Z',
-    pickupLocation: 'Phoenix, AZ',
-  },
-];
-
-const statusConfig = {
-  won: { label: 'Won', color: 'green', icon: CheckCircle },
-  payment_pending: { label: 'Payment Due', color: 'yellow', icon: CreditCard },
+const statusConfig: Record<string, { label: string; color: string; icon: React.ElementType }> = {
+  pending: { label: 'Payment Due', color: 'yellow', icon: CreditCard },
   paid: { label: 'Paid', color: 'blue', icon: CheckCircle },
+  overdue: { label: 'Overdue', color: 'red', icon: AlertCircle },
+  cancelled: { label: 'Cancelled', color: 'gray', icon: AlertCircle },
+  refunded: { label: 'Refunded', color: 'gray', icon: CheckCircle },
+};
+
+const fulfillmentConfig: Record<string, { label: string; color: string; icon: React.ElementType }> = {
+  awaiting_payment: { label: 'Awaiting Payment', color: 'yellow', icon: CreditCard },
+  processing: { label: 'Processing', color: 'blue', icon: Package },
   shipped: { label: 'In Transit', color: 'purple', icon: Truck },
-  delivered: { label: 'Delivered', color: 'green', icon: Package },
-  completed: { label: 'Completed', color: 'gray', icon: CheckCircle },
+  delivered: { label: 'Delivered', color: 'green', icon: CheckCircle },
+  cancelled: { label: 'Cancelled', color: 'gray', icon: AlertCircle },
 };
 
 export default function PurchasesPage() {
-  const [statusFilter, setStatusFilter] = useState<PurchaseStatus | 'all'>('all');
+  const { user } = useAuth();
+  const supabase = createClient();
+  const [purchases, setPurchases] = useState<Purchase[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [statusFilter, setStatusFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
 
-  const filteredPurchases = mockPurchases.filter((purchase) => {
-    const matchesStatus = statusFilter === 'all' || purchase.status === statusFilter;
+  useEffect(() => {
+    async function loadPurchases() {
+      if (!user?.id) return;
+
+      // First get invoices
+      const { data: invoicesData, error: invoicesError } = await supabase
+        .from('invoices')
+        .select(`
+          id,
+          listing_id,
+          seller_id,
+          sale_amount,
+          buyer_premium_amount,
+          total_amount,
+          status,
+          fulfillment_status,
+          payment_due_date,
+          paid_at,
+          shipped_at,
+          tracking_number,
+          delivered_at,
+          created_at
+        `)
+        .eq('buyer_id', user.id)
+        .order('created_at', { ascending: false });
+
+      if (invoicesError) {
+        console.error('Error loading invoices:', invoicesError);
+        setLoading(false);
+        return;
+      }
+
+      if (!invoicesData || invoicesData.length === 0) {
+        setPurchases([]);
+        setLoading(false);
+        return;
+      }
+
+      // Get listing details for each invoice
+      const listingIds = invoicesData.map(i => i.listing_id).filter(Boolean);
+      const sellerIds = invoicesData.map(i => i.seller_id).filter(Boolean);
+
+      const [listingsResult, sellersResult] = await Promise.all([
+        listingIds.length > 0
+          ? supabase.from('listings').select('id, title, city, state').in('id', listingIds)
+          : { data: [] },
+        sellerIds.length > 0
+          ? supabase.from('profiles').select('id, full_name, company_name').in('id', sellerIds)
+          : { data: [] }
+      ]);
+
+      const listingsMap = new Map((listingsResult.data || []).map(l => [l.id, l]));
+      const sellersMap = new Map((sellersResult.data || []).map(s => [s.id, s]));
+
+      const purchasesWithDetails = invoicesData.map(invoice => ({
+        ...invoice,
+        listing: listingsMap.get(invoice.listing_id) || null,
+        seller: sellersMap.get(invoice.seller_id) || null
+      }));
+
+      setPurchases(purchasesWithDetails as Purchase[]);
+      setLoading(false);
+    }
+
+    loadPurchases();
+  }, [user?.id, supabase]);
+
+  const filteredPurchases = purchases.filter((purchase) => {
+    const matchesStatus = statusFilter === 'all' || purchase.status === statusFilter || purchase.fulfillment_status === statusFilter;
     const matchesSearch =
-      purchase.listing.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      purchase.invoiceNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      purchase.seller.company.toLowerCase().includes(searchQuery.toLowerCase());
+      (purchase.listing?.title || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (purchase.seller?.company_name || '').toLowerCase().includes(searchQuery.toLowerCase());
     return matchesStatus && matchesSearch;
   });
 
-  const totalSpent = mockPurchases
-    .filter(p => p.status !== 'payment_pending')
-    .reduce((acc, p) => acc + p.totalAmount, 0);
+  const totalSpent = purchases
+    .filter(p => p.status === 'paid')
+    .reduce((acc, p) => acc + (p.total_amount || 0), 0);
 
-  const pendingPayment = mockPurchases
-    .filter(p => p.status === 'payment_pending')
-    .reduce((acc, p) => acc + p.totalAmount, 0);
+  const pendingPayment = purchases
+    .filter(p => p.status === 'pending')
+    .reduce((acc, p) => acc + (p.total_amount || 0), 0);
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('en-US', {
@@ -196,6 +169,14 @@ export default function PurchasesPage() {
     const diff = Math.ceil((due.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
     return diff;
   };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -214,7 +195,7 @@ export default function PurchasesPage() {
             </div>
             <div>
               <p className="text-sm text-gray-500">Total Purchases</p>
-              <p className="text-xl font-bold text-gray-900">{mockPurchases.length}</p>
+              <p className="text-xl font-bold text-gray-900">{purchases.length}</p>
             </div>
           </div>
         </div>
@@ -248,7 +229,7 @@ export default function PurchasesPage() {
             <div>
               <p className="text-sm text-gray-500">In Transit</p>
               <p className="text-xl font-bold text-gray-900">
-                {mockPurchases.filter(p => p.status === 'shipped').length}
+                {purchases.filter(p => p.fulfillment_status === 'shipped').length}
               </p>
             </div>
           </div>
@@ -256,14 +237,14 @@ export default function PurchasesPage() {
       </div>
 
       {/* Action Required Alert */}
-      {mockPurchases.some(p => p.status === 'payment_pending') && (
+      {purchases.some(p => p.status === 'pending') && (
         <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4">
           <div className="flex items-start gap-3">
             <AlertCircle className="h-5 w-5 text-yellow-600 flex-shrink-0 mt-0.5" />
             <div>
               <p className="font-medium text-yellow-800">Payment Required</p>
               <p className="text-sm text-yellow-700 mt-1">
-                You have {mockPurchases.filter(p => p.status === 'payment_pending').length} purchase(s)
+                You have {purchases.filter(p => p.status === 'pending').length} purchase(s)
                 awaiting payment totaling ${pendingPayment.toLocaleString()}
               </p>
             </div>
@@ -278,7 +259,7 @@ export default function PurchasesPage() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
             <input
               type="text"
-              placeholder="Search by invoice, item, or seller..."
+              placeholder="Search by item or seller..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -288,15 +269,14 @@ export default function PurchasesPage() {
             <Filter className="h-5 w-5 text-gray-400" />
             <select
               value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value as PurchaseStatus | 'all')}
+              onChange={(e) => setStatusFilter(e.target.value)}
               className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             >
               <option value="all">All Status</option>
-              <option value="payment_pending">Payment Due</option>
+              <option value="pending">Payment Due</option>
               <option value="paid">Paid</option>
               <option value="shipped">In Transit</option>
               <option value="delivered">Delivered</option>
-              <option value="completed">Completed</option>
             </select>
           </div>
         </div>
@@ -305,8 +285,10 @@ export default function PurchasesPage() {
       {/* Purchases list */}
       <div className="space-y-4">
         {filteredPurchases.map((purchase) => {
-          const status = statusConfig[purchase.status];
-          const daysUntilDue = getDaysUntilDue(purchase.paymentDueDate);
+          const status = statusConfig[purchase.status] || statusConfig.pending;
+          const fulfillment = fulfillmentConfig[purchase.fulfillment_status] || fulfillmentConfig.awaiting_payment;
+          const daysUntilDue = getDaysUntilDue(purchase.payment_due_date);
+          const location = [purchase.listing?.city, purchase.listing?.state].filter(Boolean).join(', ') || 'Location TBD';
 
           return (
             <div
@@ -328,27 +310,39 @@ export default function PurchasesPage() {
                         ${status.color === 'yellow' ? 'bg-yellow-100 text-yellow-700' : ''}
                         ${status.color === 'green' ? 'bg-green-100 text-green-700' : ''}
                         ${status.color === 'blue' ? 'bg-blue-100 text-blue-700' : ''}
-                        ${status.color === 'purple' ? 'bg-purple-100 text-purple-700' : ''}
+                        ${status.color === 'red' ? 'bg-red-100 text-red-700' : ''}
                         ${status.color === 'gray' ? 'bg-gray-100 text-gray-700' : ''}
                       `}>
                         <status.icon className="h-3 w-3" />
                         {status.label}
                       </span>
-                      <span className="text-sm text-gray-500">#{purchase.invoiceNumber}</span>
+                      {purchase.status === 'paid' && (
+                        <span className={`
+                          inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium
+                          ${fulfillment.color === 'yellow' ? 'bg-yellow-100 text-yellow-700' : ''}
+                          ${fulfillment.color === 'green' ? 'bg-green-100 text-green-700' : ''}
+                          ${fulfillment.color === 'blue' ? 'bg-blue-100 text-blue-700' : ''}
+                          ${fulfillment.color === 'purple' ? 'bg-purple-100 text-purple-700' : ''}
+                          ${fulfillment.color === 'gray' ? 'bg-gray-100 text-gray-700' : ''}
+                        `}>
+                          <fulfillment.icon className="h-3 w-3" />
+                          {fulfillment.label}
+                        </span>
+                      )}
                     </div>
                     <Link
-                      href={`/listing/${purchase.listing.id}`}
+                      href={`/listing/${purchase.listing_id}`}
                       className="text-lg font-medium text-gray-900 hover:text-blue-600 block truncate"
                     >
-                      {purchase.listing.title}
+                      {purchase.listing?.title || 'Listing'}
                     </Link>
                     <div className="flex flex-wrap items-center gap-4 mt-2 text-sm text-gray-500">
-                      <span>Seller: {purchase.seller.company}</span>
+                      <span>Seller: {purchase.seller?.company_name || purchase.seller?.full_name || 'Unknown'}</span>
                       <span className="flex items-center gap-1">
                         <MapPin className="h-4 w-4" />
-                        {purchase.pickupLocation}
+                        {location}
                       </span>
-                      <span>Won: {formatDate(purchase.wonAt)}</span>
+                      <span>Won: {formatDate(purchase.created_at)}</span>
                     </div>
                   </div>
 
@@ -357,15 +351,14 @@ export default function PurchasesPage() {
                     <div className="text-right">
                       <p className="text-sm text-gray-500">Total Amount</p>
                       <p className="text-xl font-bold text-gray-900">
-                        ${purchase.totalAmount.toLocaleString()}
+                        ${(purchase.total_amount || 0).toLocaleString()}
                       </p>
                       <p className="text-xs text-gray-500">
-                        Bid: ${purchase.winningBid.toLocaleString()} + Premium: ${purchase.buyerPremium.toLocaleString()}
-                        {purchase.shippingCost && ` + Shipping: $${purchase.shippingCost.toLocaleString()}`}
+                        Bid: ${(purchase.sale_amount || 0).toLocaleString()} + Premium: ${(purchase.buyer_premium_amount || 0).toLocaleString()}
                       </p>
                     </div>
 
-                    {purchase.status === 'payment_pending' && (
+                    {purchase.status === 'pending' && (
                       <div className="flex flex-col items-end gap-2">
                         {daysUntilDue !== null && (
                           <p className={`text-sm font-medium ${daysUntilDue <= 2 ? 'text-red-600' : 'text-yellow-600'}`}>
@@ -373,7 +366,7 @@ export default function PurchasesPage() {
                           </p>
                         )}
                         <Link
-                          href={`/dashboard/purchases/${purchase.id}/pay`}
+                          href={`/dashboard/invoices/${purchase.id}`}
                           className="inline-flex items-center gap-1 bg-blue-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-blue-700 transition-colors"
                         >
                           <CreditCard className="h-4 w-4" />
@@ -382,15 +375,15 @@ export default function PurchasesPage() {
                       </div>
                     )}
 
-                    {purchase.status === 'shipped' && purchase.trackingNumber && (
+                    {purchase.fulfillment_status === 'shipped' && purchase.tracking_number && (
                       <div className="text-right">
                         <p className="text-sm text-gray-500">Tracking</p>
-                        <p className="text-sm font-medium text-blue-600">{purchase.trackingNumber}</p>
+                        <p className="text-sm font-medium text-blue-600">{purchase.tracking_number}</p>
                       </div>
                     )}
 
                     <Link
-                      href={`/dashboard/purchases/${purchase.id}`}
+                      href={`/dashboard/invoices/${purchase.id}`}
                       className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-700 font-medium text-sm"
                     >
                       <Eye className="h-4 w-4" />
@@ -401,7 +394,7 @@ export default function PurchasesPage() {
               </div>
 
               {/* Progress bar for shipped items */}
-              {(purchase.status === 'shipped' || purchase.status === 'delivered') && (
+              {(purchase.fulfillment_status === 'shipped' || purchase.fulfillment_status === 'delivered') && (
                 <div className="px-4 sm:px-6 pb-4 sm:pb-6">
                   <div className="border-t border-gray-100 pt-4">
                     <div className="flex items-center justify-between text-xs text-gray-500 mb-2">
@@ -414,7 +407,7 @@ export default function PurchasesPage() {
                       <div
                         className="h-full bg-blue-600 rounded-full transition-all"
                         style={{
-                          width: purchase.status === 'shipped' ? '66%' : '100%'
+                          width: purchase.fulfillment_status === 'shipped' ? '66%' : '100%'
                         }}
                       />
                     </div>
@@ -428,7 +421,9 @@ export default function PurchasesPage() {
         {filteredPurchases.length === 0 && (
           <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-12 text-center">
             <Package className="h-12 w-12 text-gray-300 mx-auto mb-4" />
-            <p className="text-gray-500 mb-2">No purchases found</p>
+            <p className="text-gray-500 mb-2">
+              {purchases.length === 0 ? 'No purchases yet' : 'No purchases match your filters'}
+            </p>
             <Link
               href="/marketplace"
               className="text-blue-600 hover:text-blue-700 font-medium"

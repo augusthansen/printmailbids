@@ -13,19 +13,36 @@ import {
   User,
   LogOut,
   Menu,
-  X
+  X,
+  Gavel,
+  MessageSquare,
+  FlaskConical,
+  LucideIcon
 } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '@/hooks/useAuth';
+import { createClient } from '@/lib/supabase/client';
 
-const sidebarLinks = [
+interface SidebarLink {
+  href: string;
+  label: string;
+  icon: LucideIcon;
+  sellerOnly?: boolean;
+  buyerOnly?: boolean;
+  badgeKey?: 'notifications' | 'purchases' | 'messages';
+}
+
+const sidebarLinks: SidebarLink[] = [
   { href: '/dashboard', label: 'Overview', icon: LayoutDashboard },
-  { href: '/dashboard/listings', label: 'My Listings', icon: Package },
-  { href: '/dashboard/sales', label: 'Sales', icon: DollarSign },
-  { href: '/dashboard/purchases', label: 'Purchases', icon: ShoppingCart },
-  { href: '/dashboard/watchlist', label: 'Watchlist', icon: Heart },
-  { href: '/dashboard/notifications', label: 'Notifications', icon: Bell },
+  { href: '/dashboard/listings', label: 'My Listings', icon: Package, sellerOnly: true },
+  { href: '/dashboard/bids', label: 'My Bids', icon: Gavel, buyerOnly: true },
+  { href: '/dashboard/sales', label: 'Sales', icon: DollarSign, sellerOnly: true },
+  { href: '/dashboard/purchases', label: 'Purchases', icon: ShoppingCart, buyerOnly: true, badgeKey: 'purchases' },
+  { href: '/dashboard/watchlist', label: 'Watchlist', icon: Heart, buyerOnly: true },
+  { href: '/dashboard/messages', label: 'Messages', icon: MessageSquare, badgeKey: 'messages' },
+  { href: '/dashboard/notifications', label: 'Notifications', icon: Bell, badgeKey: 'notifications' },
   { href: '/dashboard/settings', label: 'Settings', icon: Settings },
+  { href: '/dashboard/test-auction', label: 'Test Auction', icon: FlaskConical, sellerOnly: true },
 ];
 
 export default function DashboardLayout({
@@ -36,9 +53,85 @@ export default function DashboardLayout({
   const pathname = usePathname();
   const { user, signOut } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [isSeller, setIsSeller] = useState(false);
+  const [profileName, setProfileName] = useState<string | null>(null);
+  const [badges, setBadges] = useState<Record<string, number>>({
+    notifications: 0,
+    purchases: 0,
+    messages: 0,
+  });
+  const supabase = createClient();
+
+  useEffect(() => {
+    async function loadProfile() {
+      if (!user?.id) return;
+
+      const { data } = await supabase
+        .from('profiles')
+        .select('is_seller, full_name, company_name')
+        .eq('id', user.id)
+        .single();
+
+      if (data) {
+        setIsSeller(data.is_seller || false);
+        setProfileName(data.full_name || data.company_name || null);
+      }
+    }
+
+    loadProfile();
+  }, [user?.id, supabase]);
+
+  // Load badge counts
+  useEffect(() => {
+    async function loadBadgeCounts() {
+      if (!user?.id) return;
+
+      const [notificationsResult, purchasesResult, messagesResult] = await Promise.all([
+        // Unread notifications count
+        supabase
+          .from('notifications')
+          .select('id', { count: 'exact', head: true })
+          .eq('user_id', user.id)
+          .eq('is_read', false),
+        // Pending purchases (invoices awaiting payment)
+        supabase
+          .from('invoices')
+          .select('id', { count: 'exact', head: true })
+          .eq('buyer_id', user.id)
+          .eq('status', 'pending'),
+        // Unread messages count
+        supabase
+          .from('messages')
+          .select('id', { count: 'exact', head: true })
+          .eq('recipient_id', user.id)
+          .eq('is_read', false),
+      ]);
+
+      setBadges({
+        notifications: notificationsResult.count || 0,
+        purchases: purchasesResult.count || 0,
+        messages: messagesResult.count || 0,
+      });
+    }
+
+    loadBadgeCounts();
+
+    // Refresh counts every 30 seconds
+    const interval = setInterval(loadBadgeCounts, 30000);
+    return () => clearInterval(interval);
+  }, [user?.id, supabase]);
+
+  // Filter links based on user role:
+  // - sellerOnly tabs: only show if user is a seller
+  // - buyerOnly tabs: only show if user is NOT a seller (pure seller accounts don't buy)
+  const filteredLinks = sidebarLinks.filter(link => {
+    if (link.sellerOnly && !isSeller) return false;
+    if (link.buyerOnly && isSeller) return false;
+    return true;
+  });
 
   return (
-    <div className="min-h-screen bg-gray-100">
+    <div className="h-screen bg-gray-100 flex overflow-hidden">
       {/* Mobile sidebar backdrop */}
       {sidebarOpen && (
         <div
@@ -50,7 +143,7 @@ export default function DashboardLayout({
       {/* Sidebar */}
       <aside className={`
         fixed top-0 left-0 z-50 h-full w-64 bg-white shadow-lg transform transition-transform duration-200 ease-in-out
-        lg:translate-x-0 lg:static lg:z-auto
+        lg:relative lg:translate-x-0 lg:z-auto lg:flex-shrink-0
         ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
       `}>
         <div className="flex flex-col h-full">
@@ -78,23 +171,26 @@ export default function DashboardLayout({
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-gray-900 truncate">
-                  {user?.email || 'User'}
+                  {profileName || user?.email || 'User'}
                 </p>
-                <p className="text-xs text-gray-500">Seller Account</p>
+                <p className="text-xs text-gray-500">
+                  {isSeller ? 'Seller Account' : 'Buyer Account'}
+                </p>
               </div>
             </div>
           </div>
 
           {/* Navigation */}
           <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
-            {sidebarLinks.map((link) => {
+            {filteredLinks.map((link) => {
               const isActive = pathname === link.href;
+              const badgeCount = link.badgeKey ? badges[link.badgeKey] : 0;
               return (
                 <Link
                   key={link.href}
                   href={link.href}
                   className={`
-                    flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors
+                    flex items-center justify-between px-3 py-2 rounded-lg text-sm font-medium transition-colors
                     ${isActive
                       ? 'bg-blue-50 text-blue-600'
                       : 'text-gray-700 hover:bg-gray-50 hover:text-gray-900'
@@ -102,8 +198,21 @@ export default function DashboardLayout({
                   `}
                   onClick={() => setSidebarOpen(false)}
                 >
-                  <link.icon className="h-5 w-5" />
-                  {link.label}
+                  <span className="flex items-center gap-3">
+                    <link.icon className="h-5 w-5" />
+                    {link.label}
+                  </span>
+                  {badgeCount > 0 && (
+                    <span className={`
+                      min-w-[20px] h-5 px-1.5 rounded-full text-xs font-bold flex items-center justify-center
+                      ${link.badgeKey === 'purchases'
+                        ? 'bg-yellow-500 text-white'
+                        : 'bg-red-500 text-white'
+                      }
+                    `}>
+                      {badgeCount > 99 ? '99+' : badgeCount}
+                    </span>
+                  )}
                 </Link>
               );
             })}
@@ -123,9 +232,9 @@ export default function DashboardLayout({
       </aside>
 
       {/* Main content */}
-      <div className="lg:ml-64">
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {/* Mobile header */}
-        <header className="lg:hidden bg-white shadow-sm sticky top-0 z-30">
+        <header className="lg:hidden bg-white shadow-sm flex-shrink-0">
           <div className="flex items-center justify-between px-4 py-3">
             <button
               onClick={() => setSidebarOpen(true)}
@@ -148,7 +257,7 @@ export default function DashboardLayout({
         </header>
 
         {/* Page content */}
-        <main className="p-4 lg:p-8">
+        <main className="flex-1 overflow-y-auto p-4 lg:p-8">
           {children}
         </main>
       </div>

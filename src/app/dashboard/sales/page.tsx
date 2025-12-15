@@ -1,7 +1,9 @@
 'use client';
 
 import Link from 'next/link';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useAuth } from '@/hooks/useAuth';
+import { createClient } from '@/lib/supabase/client';
 import {
   Search,
   Filter,
@@ -12,167 +14,174 @@ import {
   Truck,
   CheckCircle,
   Clock,
-  AlertCircle,
-  XCircle
+  XCircle,
+  Loader2,
+  AlertCircle
 } from 'lucide-react';
 
-type InvoiceStatus = 'pending' | 'paid' | 'shipped' | 'delivered' | 'completed' | 'cancelled';
-type FulfillmentStatus = 'awaiting_payment' | 'paid' | 'packaging' | 'ready_for_pickup' | 'shipped' | 'delivered' | 'completed';
+type InvoiceStatus = 'pending' | 'paid' | 'overdue' | 'cancelled' | 'refunded';
+type FulfillmentStatus = 'awaiting_payment' | 'processing' | 'shipped' | 'delivered' | 'cancelled';
 
-interface MockSale {
+interface Sale {
   id: string;
-  invoiceNumber: string;
-  listing: {
+  listing_id: string;
+  buyer_id: string;
+  sale_amount: number;
+  buyer_premium_amount: number;
+  total_amount: number;
+  seller_payout_amount: number;
+  status: InvoiceStatus;
+  fulfillment_status: FulfillmentStatus;
+  payment_method: string | null;
+  paid_at: string | null;
+  shipped_at: string | null;
+  tracking_number: string | null;
+  delivered_at: string | null;
+  created_at: string;
+  listing?: {
     id: string;
     title: string;
   };
-  buyer: {
-    name: string;
-    company: string;
+  buyer?: {
+    full_name: string | null;
+    company_name: string | null;
+    email: string;
   };
-  saleAmount: number;
-  buyerPremium: number;
-  totalAmount: number;
-  sellerPayout: number;
-  status: InvoiceStatus;
-  fulfillmentStatus: FulfillmentStatus;
-  paymentMethod: string | null;
-  paidAt: string | null;
-  shippedAt: string | null;
-  createdAt: string;
 }
 
-const mockSales: MockSale[] = [
-  {
-    id: '1',
-    invoiceNumber: '2024-000125',
-    listing: {
-      id: '3',
-      title: 'MBO T49 4/4 Folder',
-    },
-    buyer: {
-      name: 'John Smith',
-      company: 'ABC Printing Co.',
-    },
-    saleAmount: 15750,
-    buyerPremium: 787.50,
-    totalAmount: 16537.50,
-    sellerPayout: 14490,
-    status: 'paid',
-    fulfillmentStatus: 'ready_for_pickup',
-    paymentMethod: 'credit_card',
-    paidAt: '2024-02-08T14:30:00Z',
-    shippedAt: null,
-    createdAt: '2024-02-05T10:00:00Z',
-  },
-  {
-    id: '2',
-    invoiceNumber: '2024-000124',
-    listing: {
-      id: '6',
-      title: 'Duplo DC-645 Slitter/Cutter/Creaser',
-    },
-    buyer: {
-      name: 'Sarah Johnson',
-      company: 'PrintWorks LLC',
-    },
-    saleAmount: 8200,
-    buyerPremium: 410,
-    totalAmount: 8610,
-    sellerPayout: 7544,
-    status: 'pending',
-    fulfillmentStatus: 'awaiting_payment',
-    paymentMethod: null,
-    paidAt: null,
-    shippedAt: null,
-    createdAt: '2024-02-10T09:00:00Z',
-  },
-  {
-    id: '3',
-    invoiceNumber: '2024-000120',
-    listing: {
-      id: '7',
-      title: 'Hasler IM5000 Mailing System',
-    },
-    buyer: {
-      name: 'Mike Wilson',
-      company: 'Mail Masters Inc.',
-    },
-    saleAmount: 3500,
-    buyerPremium: 175,
-    totalAmount: 3675,
-    sellerPayout: 3220,
-    status: 'completed',
-    fulfillmentStatus: 'completed',
-    paymentMethod: 'ach',
-    paidAt: '2024-01-28T11:00:00Z',
-    shippedAt: '2024-01-30T09:00:00Z',
-    createdAt: '2024-01-25T14:00:00Z',
-  },
-  {
-    id: '4',
-    invoiceNumber: '2024-000118',
-    listing: {
-      id: '8',
-      title: 'Polar 115 Paper Cutter',
-    },
-    buyer: {
-      name: 'David Lee',
-      company: 'Precision Print',
-    },
-    saleAmount: 22000,
-    buyerPremium: 1100,
-    totalAmount: 23100,
-    sellerPayout: 20240,
-    status: 'shipped',
-    fulfillmentStatus: 'shipped',
-    paymentMethod: 'wire',
-    paidAt: '2024-01-22T16:00:00Z',
-    shippedAt: '2024-02-01T10:00:00Z',
-    createdAt: '2024-01-20T08:00:00Z',
-  },
-];
-
-const statusConfig = {
+const statusConfig: Record<InvoiceStatus, { label: string; color: string; icon: typeof Clock }> = {
   pending: { label: 'Payment Pending', color: 'yellow', icon: Clock },
   paid: { label: 'Paid', color: 'green', icon: CheckCircle },
-  shipped: { label: 'Shipped', color: 'blue', icon: Truck },
-  delivered: { label: 'Delivered', color: 'purple', icon: Package },
-  completed: { label: 'Completed', color: 'gray', icon: CheckCircle },
-  cancelled: { label: 'Cancelled', color: 'red', icon: XCircle },
+  overdue: { label: 'Overdue', color: 'red', icon: AlertCircle },
+  cancelled: { label: 'Cancelled', color: 'gray', icon: XCircle },
+  refunded: { label: 'Refunded', color: 'purple', icon: XCircle },
 };
 
-const fulfillmentConfig = {
+const fulfillmentConfig: Record<FulfillmentStatus, { label: string; color: string }> = {
   awaiting_payment: { label: 'Awaiting Payment', color: 'yellow' },
-  paid: { label: 'Ready to Ship', color: 'green' },
-  packaging: { label: 'Packaging', color: 'blue' },
-  ready_for_pickup: { label: 'Ready for Pickup', color: 'purple' },
-  shipped: { label: 'In Transit', color: 'blue' },
+  processing: { label: 'Processing', color: 'blue' },
+  shipped: { label: 'Shipped', color: 'blue' },
   delivered: { label: 'Delivered', color: 'green' },
-  completed: { label: 'Completed', color: 'gray' },
+  cancelled: { label: 'Cancelled', color: 'gray' },
 };
 
 export default function SalesPage() {
+  const { user } = useAuth();
+  const [sales, setSales] = useState<Sale[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<InvoiceStatus | 'all'>('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const supabase = createClient();
 
-  const filteredSales = mockSales.filter((sale) => {
+  useEffect(() => {
+    async function loadSales() {
+      if (!user?.id) return;
+
+      setLoading(true);
+      setError(null);
+
+      try {
+        // Fetch invoices where user is the seller
+        const { data: invoicesData, error: invoicesError } = await supabase
+          .from('invoices')
+          .select(`
+            id,
+            listing_id,
+            buyer_id,
+            sale_amount,
+            buyer_premium_amount,
+            total_amount,
+            seller_payout_amount,
+            status,
+            fulfillment_status,
+            payment_method,
+            paid_at,
+            shipped_at,
+            tracking_number,
+            delivered_at,
+            created_at
+          `)
+          .eq('seller_id', user.id)
+          .order('created_at', { ascending: false });
+
+        if (invoicesError) {
+          throw invoicesError;
+        }
+
+        if (!invoicesData || invoicesData.length === 0) {
+          setSales([]);
+          setLoading(false);
+          return;
+        }
+
+        // Fetch listing and buyer details separately
+        const listingIds = [...new Set(invoicesData.map(inv => inv.listing_id))];
+        const buyerIds = [...new Set(invoicesData.map(inv => inv.buyer_id))];
+
+        const [listingsResult, buyersResult] = await Promise.all([
+          supabase
+            .from('listings')
+            .select('id, title')
+            .in('id', listingIds),
+          supabase
+            .from('profiles')
+            .select('id, full_name, company_name, email')
+            .in('id', buyerIds),
+        ]);
+
+        // Create lookup maps
+        const listingsMap = new Map(
+          (listingsResult.data || []).map(l => [l.id, l])
+        );
+        const buyersMap = new Map(
+          (buyersResult.data || []).map(b => [b.id, b])
+        );
+
+        // Merge data
+        const salesWithDetails: Sale[] = invoicesData.map(invoice => ({
+          ...invoice,
+          listing: listingsMap.get(invoice.listing_id) || { id: invoice.listing_id, title: 'Unknown Listing' },
+          buyer: buyersMap.get(invoice.buyer_id) || { full_name: null, company_name: null, email: 'Unknown' },
+        }));
+
+        setSales(salesWithDetails);
+      } catch (err) {
+        console.error('Error loading sales:', err);
+        setError('Failed to load sales data');
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    loadSales();
+  }, [user?.id, supabase]);
+
+  const filteredSales = sales.filter((sale) => {
     const matchesStatus = statusFilter === 'all' || sale.status === statusFilter;
+    const searchLower = searchQuery.toLowerCase();
     const matchesSearch =
-      sale.listing.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      sale.invoiceNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      sale.buyer.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      sale.buyer.company.toLowerCase().includes(searchQuery.toLowerCase());
+      (sale.listing?.title || '').toLowerCase().includes(searchLower) ||
+      sale.id.toLowerCase().includes(searchLower) ||
+      (sale.buyer?.full_name || '').toLowerCase().includes(searchLower) ||
+      (sale.buyer?.company_name || '').toLowerCase().includes(searchLower);
     return matchesStatus && matchesSearch;
   });
 
-  const totalRevenue = mockSales
-    .filter(s => s.status !== 'cancelled')
-    .reduce((acc, s) => acc + s.sellerPayout, 0);
+  const totalRevenue = sales
+    .filter(s => s.status !== 'cancelled' && s.status !== 'refunded')
+    .reduce((acc, s) => acc + (s.seller_payout_amount || 0), 0);
 
-  const pendingPayments = mockSales
+  const pendingPayments = sales
     .filter(s => s.status === 'pending')
-    .reduce((acc, s) => acc + s.sellerPayout, 0);
+    .reduce((acc, s) => acc + (s.seller_payout_amount || 0), 0);
+
+  const readyToShip = sales.filter(s =>
+    s.status === 'paid' &&
+    (s.fulfillment_status === 'awaiting_payment' || s.fulfillment_status === 'processing')
+  ).length;
+
+  const completedSales = sales.filter(s => s.fulfillment_status === 'delivered').length;
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('en-US', {
@@ -181,6 +190,36 @@ export default function SalesPage() {
       year: 'numeric',
     });
   };
+
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+    }).format(amount);
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center h-64 text-center">
+        <AlertCircle className="h-12 w-12 text-red-500 mb-4" />
+        <p className="text-red-600 font-medium">{error}</p>
+        <button
+          onClick={() => window.location.reload()}
+          className="mt-4 text-blue-600 hover:text-blue-700 font-medium"
+        >
+          Try Again
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -205,7 +244,7 @@ export default function SalesPage() {
             </div>
             <div>
               <p className="text-sm text-gray-500">Total Revenue</p>
-              <p className="text-xl font-bold text-gray-900">${totalRevenue.toLocaleString()}</p>
+              <p className="text-xl font-bold text-gray-900">{formatCurrency(totalRevenue)}</p>
             </div>
           </div>
         </div>
@@ -216,7 +255,7 @@ export default function SalesPage() {
             </div>
             <div>
               <p className="text-sm text-gray-500">Pending Payments</p>
-              <p className="text-xl font-bold text-gray-900">${pendingPayments.toLocaleString()}</p>
+              <p className="text-xl font-bold text-gray-900">{formatCurrency(pendingPayments)}</p>
             </div>
           </div>
         </div>
@@ -227,9 +266,7 @@ export default function SalesPage() {
             </div>
             <div>
               <p className="text-sm text-gray-500">Ready to Ship</p>
-              <p className="text-xl font-bold text-gray-900">
-                {mockSales.filter(s => s.fulfillmentStatus === 'ready_for_pickup' || s.fulfillmentStatus === 'paid').length}
-              </p>
+              <p className="text-xl font-bold text-gray-900">{readyToShip}</p>
             </div>
           </div>
         </div>
@@ -240,9 +277,7 @@ export default function SalesPage() {
             </div>
             <div>
               <p className="text-sm text-gray-500">Completed Sales</p>
-              <p className="text-xl font-bold text-gray-900">
-                {mockSales.filter(s => s.status === 'completed').length}
-              </p>
+              <p className="text-xl font-bold text-gray-900">{completedSales}</p>
             </div>
           </div>
         </div>
@@ -271,9 +306,9 @@ export default function SalesPage() {
               <option value="all">All Status</option>
               <option value="pending">Payment Pending</option>
               <option value="paid">Paid</option>
-              <option value="shipped">Shipped</option>
-              <option value="delivered">Delivered</option>
-              <option value="completed">Completed</option>
+              <option value="overdue">Overdue</option>
+              <option value="cancelled">Cancelled</option>
+              <option value="refunded">Refunded</option>
             </select>
           </div>
         </div>
@@ -311,38 +346,45 @@ export default function SalesPage() {
             </thead>
             <tbody className="divide-y divide-gray-100">
               {filteredSales.map((sale) => {
-                const status = statusConfig[sale.status];
-                const fulfillment = fulfillmentConfig[sale.fulfillmentStatus];
+                const status = statusConfig[sale.status] || statusConfig.pending;
+                const fulfillment = fulfillmentConfig[sale.fulfillment_status] || fulfillmentConfig.awaiting_payment;
+                const StatusIcon = status.icon;
                 return (
                   <tr key={sale.id} className="hover:bg-gray-50">
                     <td className="px-6 py-4">
                       <div>
-                        <p className="font-medium text-gray-900">#{sale.invoiceNumber}</p>
+                        <p className="font-medium text-gray-900 font-mono text-sm">
+                          #{sale.id.slice(0, 8)}
+                        </p>
                         <Link
-                          href={`/listing/${sale.listing.id}`}
+                          href={`/listing/${sale.listing_id}`}
                           className="text-sm text-blue-600 hover:text-blue-700 truncate block max-w-xs"
                         >
-                          {sale.listing.title}
+                          {sale.listing?.title || 'Unknown Listing'}
                         </Link>
-                        <p className="text-xs text-gray-500 mt-1">{formatDate(sale.createdAt)}</p>
+                        <p className="text-xs text-gray-500 mt-1">{formatDate(sale.created_at)}</p>
                       </div>
                     </td>
                     <td className="px-6 py-4">
                       <div>
-                        <p className="font-medium text-gray-900">{sale.buyer.name}</p>
-                        <p className="text-sm text-gray-500">{sale.buyer.company}</p>
+                        <p className="font-medium text-gray-900">
+                          {sale.buyer?.full_name || sale.buyer?.email || 'Unknown'}
+                        </p>
+                        {sale.buyer?.company_name && (
+                          <p className="text-sm text-gray-500">{sale.buyer.company_name}</p>
+                        )}
                       </div>
                     </td>
                     <td className="px-6 py-4">
                       <div>
-                        <p className="font-medium text-gray-900">${sale.totalAmount.toLocaleString()}</p>
+                        <p className="font-medium text-gray-900">{formatCurrency(sale.total_amount)}</p>
                         <p className="text-xs text-gray-500">
-                          Sale: ${sale.saleAmount.toLocaleString()} + Premium: ${sale.buyerPremium.toLocaleString()}
+                          Sale: {formatCurrency(sale.sale_amount)} + Premium: {formatCurrency(sale.buyer_premium_amount)}
                         </p>
                       </div>
                     </td>
                     <td className="px-6 py-4">
-                      <p className="font-medium text-green-600">${sale.sellerPayout.toLocaleString()}</p>
+                      <p className="font-medium text-green-600">{formatCurrency(sale.seller_payout_amount)}</p>
                     </td>
                     <td className="px-6 py-4">
                       <span className={`
@@ -354,7 +396,7 @@ export default function SalesPage() {
                         ${status.color === 'gray' ? 'bg-gray-100 text-gray-700' : ''}
                         ${status.color === 'red' ? 'bg-red-100 text-red-700' : ''}
                       `}>
-                        <status.icon className="h-3 w-3" />
+                        <StatusIcon className="h-3 w-3" />
                         {status.label}
                       </span>
                     </td>
@@ -372,7 +414,7 @@ export default function SalesPage() {
                     </td>
                     <td className="px-6 py-4 text-right">
                       <Link
-                        href={`/dashboard/sales/${sale.id}`}
+                        href={`/dashboard/invoices/${sale.id}`}
                         className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-700 font-medium text-sm"
                       >
                         <Eye className="h-4 w-4" />
@@ -389,14 +431,15 @@ export default function SalesPage() {
         {/* Mobile cards */}
         <div className="lg:hidden divide-y divide-gray-100">
           {filteredSales.map((sale) => {
-            const status = statusConfig[sale.status];
-            const fulfillment = fulfillmentConfig[sale.fulfillmentStatus];
+            const status = statusConfig[sale.status] || statusConfig.pending;
+            const fulfillment = fulfillmentConfig[sale.fulfillment_status] || fulfillmentConfig.awaiting_payment;
+            const StatusIcon = status.icon;
             return (
               <div key={sale.id} className="p-4">
                 <div className="flex items-start justify-between mb-3">
                   <div>
-                    <p className="font-medium text-gray-900">#{sale.invoiceNumber}</p>
-                    <p className="text-sm text-gray-500">{formatDate(sale.createdAt)}</p>
+                    <p className="font-medium text-gray-900 font-mono text-sm">#{sale.id.slice(0, 8)}</p>
+                    <p className="text-sm text-gray-500">{formatDate(sale.created_at)}</p>
                   </div>
                   <span className={`
                     inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium
@@ -405,27 +448,29 @@ export default function SalesPage() {
                     ${status.color === 'blue' ? 'bg-blue-100 text-blue-700' : ''}
                     ${status.color === 'purple' ? 'bg-purple-100 text-purple-700' : ''}
                     ${status.color === 'gray' ? 'bg-gray-100 text-gray-700' : ''}
+                    ${status.color === 'red' ? 'bg-red-100 text-red-700' : ''}
                   `}>
-                    <status.icon className="h-3 w-3" />
+                    <StatusIcon className="h-3 w-3" />
                     {status.label}
                   </span>
                 </div>
                 <Link
-                  href={`/listing/${sale.listing.id}`}
+                  href={`/listing/${sale.listing_id}`}
                   className="text-blue-600 hover:text-blue-700 font-medium block mb-2"
                 >
-                  {sale.listing.title}
+                  {sale.listing?.title || 'Unknown Listing'}
                 </Link>
                 <p className="text-sm text-gray-600 mb-3">
-                  Buyer: {sale.buyer.name} ({sale.buyer.company})
+                  Buyer: {sale.buyer?.full_name || sale.buyer?.email || 'Unknown'}
+                  {sale.buyer?.company_name && ` (${sale.buyer.company_name})`}
                 </p>
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm text-gray-500">Your Payout</p>
-                    <p className="font-bold text-green-600">${sale.sellerPayout.toLocaleString()}</p>
+                    <p className="font-bold text-green-600">{formatCurrency(sale.seller_payout_amount)}</p>
                   </div>
                   <Link
-                    href={`/dashboard/sales/${sale.id}`}
+                    href={`/dashboard/invoices/${sale.id}`}
                     className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-700 font-medium text-sm"
                   >
                     View Details
@@ -439,7 +484,19 @@ export default function SalesPage() {
         {filteredSales.length === 0 && (
           <div className="p-12 text-center">
             <DollarSign className="h-12 w-12 text-gray-300 mx-auto mb-4" />
-            <p className="text-gray-500">No sales found</p>
+            <p className="text-gray-500">
+              {sales.length === 0
+                ? "You haven't made any sales yet"
+                : 'No sales match your filters'}
+            </p>
+            {sales.length === 0 && (
+              <Link
+                href="/dashboard/listings"
+                className="mt-4 inline-block text-blue-600 hover:text-blue-700 font-medium"
+              >
+                Create a listing to start selling
+              </Link>
+            )}
           </div>
         )}
       </div>

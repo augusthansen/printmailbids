@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Plus,
   Search,
@@ -14,116 +14,121 @@ import {
   CheckCircle,
   XCircle,
   AlertCircle,
-  Package
+  Package,
+  Loader2,
+  RefreshCw
 } from 'lucide-react';
+import { createClient } from '@/lib/supabase/client';
+import { useAuth } from '@/hooks/useAuth';
 
-type ListingStatus = 'active' | 'draft' | 'ended' | 'sold';
+type ListingStatus = 'active' | 'draft' | 'pending' | 'ended' | 'sold' | 'cancelled';
 
-interface MockListing {
+interface Listing {
   id: string;
   title: string;
   status: ListingStatus;
-  listingType: 'auction' | 'fixed_price';
-  currentBid: number | null;
-  buyNowPrice: number | null;
-  bidCount: number;
-  viewCount: number;
-  watchCount: number;
-  endsAt: string | null;
-  createdAt: string;
-  image: string | null;
+  listing_type: string;
+  current_price: number | null;
+  starting_price: number | null;
+  buy_now_price: number | null;
+  fixed_price: number | null;
+  bid_count: number;
+  view_count: number;
+  watch_count: number;
+  end_time: string | null;
+  created_at: string;
+  images?: {
+    url: string;
+    is_primary: boolean;
+  }[];
 }
 
-// Mock data for listings
-const mockListings: MockListing[] = [
-  {
-    id: '1',
-    title: '2019 Pitney Bowes DI950 6-Station Inserter',
-    status: 'active',
-    listingType: 'auction',
-    currentBid: 12500,
-    buyNowPrice: 18000,
-    bidCount: 8,
-    viewCount: 234,
-    watchCount: 12,
-    endsAt: '2024-02-15T18:00:00Z',
-    createdAt: '2024-02-01T10:00:00Z',
-    image: null,
-  },
-  {
-    id: '2',
-    title: 'Heidelberg SM52-2 Offset Press',
-    status: 'active',
-    listingType: 'auction',
-    currentBid: 35000,
-    buyNowPrice: null,
-    bidCount: 15,
-    viewCount: 456,
-    watchCount: 28,
-    endsAt: '2024-02-16T20:00:00Z',
-    createdAt: '2024-02-02T14:00:00Z',
-    image: null,
-  },
-  {
-    id: '3',
-    title: 'MBO T49 4/4 Folder',
-    status: 'sold',
-    listingType: 'auction',
-    currentBid: 15750,
-    buyNowPrice: null,
-    bidCount: 22,
-    viewCount: 312,
-    watchCount: 8,
-    endsAt: null,
-    createdAt: '2024-01-20T09:00:00Z',
-    image: null,
-  },
-  {
-    id: '4',
-    title: 'Bell & Howell Mailstar 400 Inserter',
-    status: 'draft',
-    listingType: 'auction',
-    currentBid: null,
-    buyNowPrice: 9500,
-    bidCount: 0,
-    viewCount: 0,
-    watchCount: 0,
-    endsAt: null,
-    createdAt: '2024-02-10T11:00:00Z',
-    image: null,
-  },
-  {
-    id: '5',
-    title: 'Challenge 305 MC Paper Cutter',
-    status: 'ended',
-    listingType: 'auction',
-    currentBid: 4200,
-    buyNowPrice: null,
-    bidCount: 6,
-    viewCount: 189,
-    watchCount: 5,
-    endsAt: null,
-    createdAt: '2024-01-15T08:00:00Z',
-    image: null,
-  },
-];
-
-const statusConfig = {
+const statusConfig: Record<ListingStatus, { label: string; color: string; icon: typeof CheckCircle }> = {
   active: { label: 'Active', color: 'green', icon: CheckCircle },
   draft: { label: 'Draft', color: 'gray', icon: Edit },
+  pending: { label: 'Pending', color: 'yellow', icon: AlertCircle },
   ended: { label: 'Ended', color: 'yellow', icon: AlertCircle },
   sold: { label: 'Sold', color: 'blue', icon: CheckCircle },
+  cancelled: { label: 'Cancelled', color: 'red', icon: XCircle },
 };
 
 export default function ListingsPage() {
+  const supabase = createClient();
+  const { user } = useAuth();
+  const [listings, setListings] = useState<Listing[]>([]);
+  const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<ListingStatus | 'all'>('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
 
-  const filteredListings = mockListings.filter((listing) => {
-    const matchesStatus = statusFilter === 'all' || listing.status === statusFilter;
-    const matchesSearch = listing.title.toLowerCase().includes(searchQuery.toLowerCase());
-    return matchesStatus && matchesSearch;
+  const loadListings = async () => {
+    if (!user?.id) return;
+
+    setLoading(true);
+    let query = supabase
+      .from('listings')
+      .select(`
+        id,
+        title,
+        status,
+        listing_type,
+        current_price,
+        starting_price,
+        buy_now_price,
+        fixed_price,
+        bid_count,
+        view_count,
+        watch_count,
+        end_time,
+        created_at,
+        images:listing_images(url, is_primary)
+      `)
+      .eq('seller_id', user.id)
+      .order('created_at', { ascending: false });
+
+    if (statusFilter !== 'all') {
+      query = query.eq('status', statusFilter);
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      console.error('Error loading listings:', error);
+    } else {
+      setListings((data as unknown as Listing[]) || []);
+    }
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    loadListings();
+  }, [user?.id, statusFilter]);
+
+  const filteredListings = listings.filter((listing) => {
+    if (!searchQuery) return true;
+    return listing.title.toLowerCase().includes(searchQuery.toLowerCase());
   });
+
+  const handleDelete = async (listingId: string) => {
+    setDeletingId(listingId);
+
+    const { error } = await supabase
+      .from('listings')
+      .delete()
+      .eq('id', listingId)
+      .eq('seller_id', user?.id);
+
+    if (error) {
+      console.error('Error deleting listing:', error);
+      alert('Failed to delete listing');
+    } else {
+      setListings(prev => prev.filter(l => l.id !== listingId));
+    }
+
+    setDeletingId(null);
+    setShowDeleteConfirm(null);
+  };
 
   const getTimeRemaining = (endsAt: string | null) => {
     if (!endsAt) return null;
@@ -138,6 +143,34 @@ export default function ListingsPage() {
     return `${hours}h ${minutes}m`;
   };
 
+  const getPrimaryImage = (listing: Listing) => {
+    if (!listing.images || listing.images.length === 0) return null;
+    const primary = listing.images.find(img => img.is_primary);
+    return primary?.url || listing.images[0]?.url;
+  };
+
+  const getPrice = (listing: Listing) => {
+    if (listing.listing_type?.includes('fixed')) {
+      return listing.fixed_price || listing.buy_now_price || 0;
+    }
+    return listing.current_price || listing.starting_price || 0;
+  };
+
+  const stats = {
+    active: listings.filter(l => l.status === 'active').length,
+    draft: listings.filter(l => l.status === 'draft').length,
+    sold: listings.filter(l => l.status === 'sold').length,
+    totalViews: listings.reduce((acc, l) => acc + (l.view_count || 0), 0),
+  };
+
+  if (loading && listings.length === 0) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       {/* Page header */}
@@ -146,13 +179,22 @@ export default function ListingsPage() {
           <h1 className="text-2xl font-bold text-gray-900">My Listings</h1>
           <p className="text-gray-600">Manage your equipment listings</p>
         </div>
-        <Link
-          href="/sell"
-          className="inline-flex items-center justify-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-blue-700 transition-colors"
-        >
-          <Plus className="h-5 w-5" />
-          New Listing
-        </Link>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={loadListings}
+            className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg"
+            title="Refresh"
+          >
+            <RefreshCw className={`h-5 w-5 ${loading ? 'animate-spin' : ''}`} />
+          </button>
+          <Link
+            href="/sell"
+            className="inline-flex items-center justify-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-blue-700 transition-colors"
+          >
+            <Plus className="h-5 w-5" />
+            New Listing
+          </Link>
+        </div>
       </div>
 
       {/* Filters */}
@@ -181,8 +223,10 @@ export default function ListingsPage() {
               <option value="all">All Status</option>
               <option value="active">Active</option>
               <option value="draft">Draft</option>
+              <option value="pending">Pending</option>
               <option value="ended">Ended</option>
               <option value="sold">Sold</option>
+              <option value="cancelled">Cancelled</option>
             </select>
           </div>
         </div>
@@ -192,27 +236,19 @@ export default function ListingsPage() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
           <p className="text-sm text-gray-500">Active</p>
-          <p className="text-2xl font-bold text-green-600">
-            {mockListings.filter(l => l.status === 'active').length}
-          </p>
+          <p className="text-2xl font-bold text-green-600">{stats.active}</p>
         </div>
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
           <p className="text-sm text-gray-500">Drafts</p>
-          <p className="text-2xl font-bold text-gray-600">
-            {mockListings.filter(l => l.status === 'draft').length}
-          </p>
+          <p className="text-2xl font-bold text-gray-600">{stats.draft}</p>
         </div>
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
           <p className="text-sm text-gray-500">Sold</p>
-          <p className="text-2xl font-bold text-blue-600">
-            {mockListings.filter(l => l.status === 'sold').length}
-          </p>
+          <p className="text-2xl font-bold text-blue-600">{stats.sold}</p>
         </div>
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
           <p className="text-sm text-gray-500">Total Views</p>
-          <p className="text-2xl font-bold text-purple-600">
-            {mockListings.reduce((acc, l) => acc + l.viewCount, 0).toLocaleString()}
-          </p>
+          <p className="text-2xl font-bold text-purple-600">{stats.totalViews.toLocaleString()}</p>
         </div>
       </div>
 
@@ -245,13 +281,18 @@ export default function ListingsPage() {
             </thead>
             <tbody className="divide-y divide-gray-100">
               {filteredListings.map((listing) => {
-                const status = statusConfig[listing.status];
+                const status = statusConfig[listing.status] || statusConfig.draft;
+                const image = getPrimaryImage(listing);
                 return (
                   <tr key={listing.id} className="hover:bg-gray-50">
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
-                        <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                          <Package className="h-5 w-5 text-gray-400" />
+                        <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center flex-shrink-0 overflow-hidden">
+                          {image ? (
+                            <img src={image} alt="" className="w-full h-full object-cover" />
+                          ) : (
+                            <Package className="h-5 w-5 text-gray-400" />
+                          )}
                         </div>
                         <div className="min-w-0">
                           <Link
@@ -261,7 +302,7 @@ export default function ListingsPage() {
                             {listing.title}
                           </Link>
                           <p className="text-sm text-gray-500 capitalize">
-                            {listing.listingType.replace('_', ' ')}
+                            {listing.listing_type?.replace(/_/g, ' ') || 'Auction'}
                           </p>
                         </div>
                       </div>
@@ -273,6 +314,7 @@ export default function ListingsPage() {
                         ${status.color === 'gray' ? 'bg-gray-100 text-gray-700' : ''}
                         ${status.color === 'yellow' ? 'bg-yellow-100 text-yellow-700' : ''}
                         ${status.color === 'blue' ? 'bg-blue-100 text-blue-700' : ''}
+                        ${status.color === 'red' ? 'bg-red-100 text-red-700' : ''}
                       `}>
                         <status.icon className="h-3 w-3" />
                         {status.label}
@@ -280,22 +322,16 @@ export default function ListingsPage() {
                     </td>
                     <td className="px-6 py-4">
                       <div>
-                        {listing.currentBid ? (
-                          <>
-                            <p className="font-medium text-gray-900">
-                              ${listing.currentBid.toLocaleString()}
-                            </p>
-                            <p className="text-sm text-gray-500">{listing.bidCount} bids</p>
-                          </>
-                        ) : listing.buyNowPrice ? (
-                          <>
-                            <p className="font-medium text-gray-900">
-                              ${listing.buyNowPrice.toLocaleString()}
-                            </p>
-                            <p className="text-sm text-gray-500">Buy Now</p>
-                          </>
-                        ) : (
-                          <p className="text-gray-500">—</p>
+                        <p className="font-medium text-gray-900">
+                          ${getPrice(listing).toLocaleString()}
+                        </p>
+                        {listing.listing_type?.includes('auction') && (
+                          <p className="text-sm text-gray-500">{listing.bid_count || 0} bids</p>
+                        )}
+                        {listing.buy_now_price && listing.listing_type === 'auction_buy_now' && (
+                          <p className="text-xs text-green-600">
+                            Buy Now: ${listing.buy_now_price.toLocaleString()}
+                          </p>
                         )}
                       </div>
                     </td>
@@ -303,17 +339,17 @@ export default function ListingsPage() {
                       <div className="flex items-center gap-4 text-sm text-gray-500">
                         <span className="flex items-center gap-1">
                           <Eye className="h-4 w-4" />
-                          {listing.viewCount}
+                          {listing.view_count || 0}
                         </span>
-                        <span>{listing.watchCount} watching</span>
+                        <span>{listing.watch_count || 0} watching</span>
                       </div>
                     </td>
                     <td className="px-6 py-4">
-                      {listing.status === 'active' && listing.endsAt ? (
+                      {listing.status === 'active' && listing.end_time ? (
                         <div className="flex items-center gap-1 text-sm">
                           <Clock className="h-4 w-4 text-orange-500" />
                           <span className="text-orange-600 font-medium">
-                            {getTimeRemaining(listing.endsAt)}
+                            {getTimeRemaining(listing.end_time)}
                           </span>
                         </div>
                       ) : (
@@ -336,12 +372,31 @@ export default function ListingsPage() {
                         >
                           <Edit className="h-4 w-4" />
                         </Link>
-                        <button
-                          className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg"
-                          title="Delete"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
+                        {showDeleteConfirm === listing.id ? (
+                          <div className="flex items-center gap-1">
+                            <button
+                              onClick={() => handleDelete(listing.id)}
+                              disabled={deletingId === listing.id}
+                              className="px-2 py-1 text-xs bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50"
+                            >
+                              {deletingId === listing.id ? 'Deleting...' : 'Confirm'}
+                            </button>
+                            <button
+                              onClick={() => setShowDeleteConfirm(null)}
+                              className="px-2 py-1 text-xs bg-gray-200 text-gray-700 rounded hover:bg-gray-300"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => setShowDeleteConfirm(listing.id)}
+                            className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg"
+                            title="Delete"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -354,12 +409,17 @@ export default function ListingsPage() {
         {/* Mobile cards */}
         <div className="md:hidden divide-y divide-gray-100">
           {filteredListings.map((listing) => {
-            const status = statusConfig[listing.status];
+            const status = statusConfig[listing.status] || statusConfig.draft;
+            const image = getPrimaryImage(listing);
             return (
               <div key={listing.id} className="p-4">
                 <div className="flex items-start gap-3">
-                  <div className="w-16 h-16 bg-gray-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                    <Package className="h-6 w-6 text-gray-400" />
+                  <div className="w-16 h-16 bg-gray-100 rounded-lg flex items-center justify-center flex-shrink-0 overflow-hidden">
+                    {image ? (
+                      <img src={image} alt="" className="w-full h-full object-cover" />
+                    ) : (
+                      <Package className="h-6 w-6 text-gray-400" />
+                    )}
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-start justify-between gap-2">
@@ -369,7 +429,10 @@ export default function ListingsPage() {
                       >
                         {listing.title}
                       </Link>
-                      <button className="p-1 text-gray-400 hover:text-gray-600">
+                      <button
+                        onClick={() => setShowDeleteConfirm(showDeleteConfirm === listing.id ? null : listing.id)}
+                        className="p-1 text-gray-400 hover:text-gray-600"
+                      >
                         <MoreVertical className="h-5 w-5" />
                       </button>
                     </div>
@@ -380,34 +443,55 @@ export default function ListingsPage() {
                         ${status.color === 'gray' ? 'bg-gray-100 text-gray-700' : ''}
                         ${status.color === 'yellow' ? 'bg-yellow-100 text-yellow-700' : ''}
                         ${status.color === 'blue' ? 'bg-blue-100 text-blue-700' : ''}
+                        ${status.color === 'red' ? 'bg-red-100 text-red-700' : ''}
                       `}>
                         {status.label}
                       </span>
-                      {listing.status === 'active' && listing.endsAt && (
+                      {listing.status === 'active' && listing.end_time && (
                         <span className="text-xs text-orange-600">
-                          Ends in {getTimeRemaining(listing.endsAt)}
+                          Ends in {getTimeRemaining(listing.end_time)}
                         </span>
                       )}
                     </div>
                     <div className="flex items-center justify-between mt-2">
-                      <div>
-                        {listing.currentBid ? (
-                          <p className="font-medium text-gray-900">
-                            ${listing.currentBid.toLocaleString()} ({listing.bidCount} bids)
-                          </p>
-                        ) : listing.buyNowPrice ? (
-                          <p className="font-medium text-gray-900">
-                            ${listing.buyNowPrice.toLocaleString()} (Buy Now)
-                          </p>
-                        ) : null}
-                      </div>
+                      <p className="font-medium text-gray-900">
+                        ${getPrice(listing).toLocaleString()}
+                        {listing.listing_type?.includes('auction') && (
+                          <span className="text-sm text-gray-500 font-normal ml-1">
+                            ({listing.bid_count || 0} bids)
+                          </span>
+                        )}
+                      </p>
                       <div className="flex items-center gap-3 text-sm text-gray-500">
                         <span className="flex items-center gap-1">
                           <Eye className="h-4 w-4" />
-                          {listing.viewCount}
+                          {listing.view_count || 0}
                         </span>
                       </div>
                     </div>
+                    {showDeleteConfirm === listing.id && (
+                      <div className="flex items-center gap-2 mt-3 pt-3 border-t">
+                        <Link
+                          href={`/listing/${listing.id}`}
+                          className="flex-1 text-center py-2 text-sm text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200"
+                        >
+                          View
+                        </Link>
+                        <Link
+                          href={`/sell/edit/${listing.id}`}
+                          className="flex-1 text-center py-2 text-sm text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200"
+                        >
+                          Edit
+                        </Link>
+                        <button
+                          onClick={() => handleDelete(listing.id)}
+                          disabled={deletingId === listing.id}
+                          className="flex-1 text-center py-2 text-sm text-white bg-red-600 rounded-lg hover:bg-red-700 disabled:opacity-50"
+                        >
+                          {deletingId === listing.id ? 'Deleting...' : 'Delete'}
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -415,7 +499,7 @@ export default function ListingsPage() {
           })}
         </div>
 
-        {filteredListings.length === 0 && (
+        {filteredListings.length === 0 && !loading && (
           <div className="p-12 text-center">
             <Package className="h-12 w-12 text-gray-300 mx-auto mb-4" />
             <p className="text-gray-500">No listings found</p>
