@@ -111,8 +111,8 @@ export function Footer() {
             </ul>
             <div className="mt-6 pt-5 border-t border-slate-700/50">
               <p className="text-sm text-stone-500 mb-1">Need help?</p>
-              <a href="tel:1-888-555-0123" className="text-white font-semibold hover:text-blue-400 transition-colors">
-                1-888-555-0123
+              <a href="tel:1-877-450-7756" className="text-white font-semibold hover:text-blue-400 transition-colors">
+                (877) 450-7756
               </a>
             </div>
           </div>

@@ -183,7 +183,7 @@ export function Header() {
           <div className="flex items-center gap-4 text-sm">
             <Link href="/help" className="text-slate-400 hover:text-white transition-colors">Help</Link>
             <span className="text-slate-600">|</span>
-            <a href="tel:1-888-555-0123" className="text-slate-400 hover:text-white transition-colors">1-888-555-0123</a>
+            <a href="tel:1-877-450-7756" className="text-slate-400 hover:text-white transition-colors">(877) 450-7756</a>
           </div>
         </div>
       </div>
