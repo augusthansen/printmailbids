@@ -177,7 +177,7 @@ export default function DashboardLayout({
           <div className="flex items-center justify-between p-5 border-b border-slate-700/50">
             <Link href="/" className="flex items-center gap-2.5 group">
               <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/20 group-hover:shadow-blue-500/30 transition-shadow">
-                <span className="text-white font-bold text-lg">P</span>
+                <span className="text-white font-bold text-sm tracking-tight">PMB</span>
               </div>
               <div>
                 <span className="font-bold text-white">PrintMail</span>
@@ -297,7 +297,7 @@ export default function DashboardLayout({
             </button>
             <Link href="/" className="flex items-center gap-2">
               <div className="w-9 h-9 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/20">
-                <span className="text-white font-bold">P</span>
+                <span className="text-white font-bold text-sm tracking-tight">PMB</span>
               </div>
             </Link>
             <Link href="/dashboard/notifications" className="p-2 text-slate-700 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-colors relative">

@@ -40,7 +40,7 @@ export function Footer() {
           <div className="col-span-2 md:col-span-1">
             <Link href="/" className="flex items-center gap-2.5 mb-5 group">
               <div className="w-11 h-11 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/20 group-hover:shadow-blue-500/30 transition-shadow">
-                <span className="text-white font-bold text-xl">P</span>
+                <span className="text-white font-bold text-sm tracking-tight">PMB</span>
               </div>
               <div>
                 <span className="text-xl font-bold text-white">PrintMail</span>

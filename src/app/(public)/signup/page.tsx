@@ -149,7 +149,7 @@ export default function SignupPage() {
         <div className="relative z-10 flex flex-col justify-center px-12 lg:px-16">
           <Link href="/" className="flex items-center gap-3 mb-12">
             <div className="w-14 h-14 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center shadow-2xl shadow-blue-500/30">
-              <span className="text-white font-bold text-2xl">P</span>
+              <span className="text-white font-bold text-lg tracking-tight">PMB</span>
             </div>
             <div>
               <span className="text-2xl font-bold text-white">PrintMail</span>
@@ -197,7 +197,7 @@ export default function SignupPage() {
         <div className="absolute top-6 left-6 lg:hidden">
           <Link href="/" className="flex items-center gap-2">
             <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/20">
-              <span className="text-white font-bold text-xl">P</span>
+              <span className="text-white font-bold text-sm tracking-tight">PMB</span>
             </div>
           </Link>
         </div>
