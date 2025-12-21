@@ -202,13 +202,13 @@ export function Header() {
             </button>
 
             {/* Logo */}
-            <Link href="/" className="flex items-center gap-2.5 group">
+            <Link href="/" className="flex items-center gap-2 group">
               <div className="w-9 h-9 md:w-10 md:h-10 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/20 group-hover:shadow-blue-500/30 transition-shadow">
-                <span className="text-white font-bold text-lg md:text-xl">P</span>
+                <span className="text-white font-bold text-sm md:text-lg tracking-tight">PMB</span>
               </div>
-              <div className="hidden md:block">
-                <span className="text-xl font-bold text-slate-900">PrintMail</span>
-                <span className="text-xl font-bold text-blue-600">Bids</span>
+              <div>
+                <span className="text-lg md:text-xl font-bold text-slate-900">PrintMail</span>
+                <span className="text-lg md:text-xl font-bold text-blue-600">Bids</span>
               </div>
             </Link>
           </div>

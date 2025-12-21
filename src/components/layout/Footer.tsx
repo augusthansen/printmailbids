@@ -120,9 +120,10 @@ export function Footer() {
 
         {/* Bottom bar */}
         <div className="mt-14 pt-8 border-t border-slate-700/50 flex flex-col md:flex-row justify-between items-center gap-4">
-          <p className="text-sm text-stone-500">
-            © {new Date().getFullYear()} PrintMailBids. All rights reserved.
-          </p>
+          <div className="text-sm text-stone-500 text-center md:text-left">
+            <p>© {new Date().getFullYear()} PrintMailBids. All rights reserved.</p>
+            <p className="mt-1">Operated by Megabox Supply LLC</p>
+          </div>
           <div className="flex gap-6 text-sm">
             <Link href="/terms" className="text-stone-400 hover:text-blue-400 transition-colors">
               Terms of Service
