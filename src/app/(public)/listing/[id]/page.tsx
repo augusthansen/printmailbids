@@ -961,6 +961,12 @@ By placing a bid, you acknowledge that you have read, understood, and agree to t
               </div>
 
               <div className="flex flex-wrap items-center gap-3 text-xs text-gray-500">
+                {listing.location && (
+                  <span className="flex items-center gap-1">
+                    <MapPin className="h-3.5 w-3.5" />
+                    {listing.location}
+                  </span>
+                )}
                 <span className="flex items-center gap-1">
                   <Eye className="h-3.5 w-3.5" />
                   {listing.view_count || 0} views

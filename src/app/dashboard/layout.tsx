@@ -78,7 +78,7 @@ export default function DashboardLayout({
     const userId = user.id;
 
     async function loadBadgeCounts() {
-      const [notificationsResult, purchasesResult, offersResult, myOffersResult] = await Promise.all([
+      const [notificationsResult, purchasesResult, offersResult, myOffersResult, messagesResult] = await Promise.all([
         // Unread notifications count
         supabase
           .from('notifications')
@@ -105,12 +105,19 @@ export default function DashboardLayout({
           .eq('buyer_id', userId)
           .eq('status', 'pending')
           .not('parent_offer_id', 'is', null), // Counter-offers from sellers
+        // Unread messages count - get conversations where user is participant, then count unread messages
+        supabase
+          .from('messages')
+          .select('id, conversation:conversations!inner(participant_1_id, participant_2_id)', { count: 'exact', head: true })
+          .eq('is_read', false)
+          .neq('sender_id', userId)
+          .or(`participant_1_id.eq.${userId},participant_2_id.eq.${userId}`, { foreignTable: 'conversations' }),
       ]);
 
       setBadges({
         notifications: notificationsResult.count || 0,
         purchases: purchasesResult.count || 0,
-        messages: 0, // TODO: implement proper unread messages count
+        messages: messagesResult.count || 0,
         offers: offersResult.count || 0,
         myOffers: myOffersResult.count || 0,
       });

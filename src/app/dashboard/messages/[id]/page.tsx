@@ -70,16 +70,16 @@ export default function ConversationPage() {
       console.log('[Messages] Loading conversation:', conversationId, 'for user:', user.id);
 
       try {
-        // First verify the user's session is valid
-        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-        console.log('[Messages] Session check:', {
-          hasSession: !!session,
-          sessionUserId: session?.user?.id,
-          error: sessionError
+        // Verify the user's session is valid using getUser() (validates JWT with server)
+        const { data: { user: authUser }, error: authError } = await supabase.auth.getUser();
+        console.log('[Messages] Auth check:', {
+          hasUser: !!authUser,
+          authUserId: authUser?.id,
+          error: authError
         });
 
-        if (!session) {
-          console.error('[Messages] No active session');
+        if (!authUser || authError) {
+          console.error('[Messages] No authenticated user');
           setError('Your session has expired. Please log in again.');
           setLoading(false);
           return;
