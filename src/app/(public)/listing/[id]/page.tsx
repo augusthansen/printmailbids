@@ -28,7 +28,12 @@ import {
   FileText,
   Video,
   Plus,
-  Minus
+  Minus,
+  Copy,
+  Mail,
+  Facebook,
+  Twitter,
+  Linkedin
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
@@ -242,6 +247,16 @@ export default function ListingDetailPage() {
   const [videoPlayed, setVideoPlayed] = useState(false);
   const [showPhoneVerification, setShowPhoneVerification] = useState(false);
   const [userPhoneVerified, setUserPhoneVerified] = useState(false);
+  const [showShareMenu, setShowShareMenu] = useState(false);
+  const [shareToast, setShareToast] = useState<string | null>(null);
+
+  // Auto-dismiss share toast
+  useEffect(() => {
+    if (shareToast) {
+      const timer = setTimeout(() => setShareToast(null), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [shareToast]);
 
   useEffect(() => {
     async function loadListing() {
@@ -809,6 +824,16 @@ By placing a bid, you acknowledge that you have read, understood, and agree to t
 
   return (
     <div className="min-h-screen bg-gray-50">
+      {/* Share Toast Notification */}
+      {shareToast && (
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 animate-in fade-in slide-in-from-top-2 duration-300">
+          <div className="bg-gray-900 text-white px-4 py-2 rounded-lg shadow-lg flex items-center gap-2">
+            <Check className="h-4 w-4 text-green-400" />
+            {shareToast}
+          </div>
+        </div>
+      )}
+
       {/* Breadcrumb */}
       <div className="bg-white border-b">
         <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-2">
@@ -946,17 +971,116 @@ By placing a bid, you acknowledge that you have read, understood, and agree to t
                   >
                     <Heart className={`h-4 w-4 ${isWatching ? 'fill-current' : ''}`} />
                   </button>
-                  <button
-                    onClick={() => {
-                      if (listing) {
-                        trackShare(listing.id, user?.id, 'copy');
-                        navigator.clipboard.writeText(window.location.href);
-                      }
-                    }}
-                    className="p-1.5 rounded-lg border border-gray-200 text-gray-500"
-                  >
-                    <Share2 className="h-4 w-4" />
-                  </button>
+                  <div className="relative">
+                    <button
+                      onClick={() => setShowShareMenu(!showShareMenu)}
+                      className="p-1.5 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50"
+                    >
+                      <Share2 className="h-4 w-4" />
+                    </button>
+                    {showShareMenu && (
+                      <>
+                        <div
+                          className="fixed inset-0 z-40"
+                          onClick={() => setShowShareMenu(false)}
+                        />
+                        <div className="absolute right-0 top-full mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50">
+                          <button
+                            onClick={async () => {
+                              if (listing) {
+                                // Try native share API first (mobile)
+                                if (navigator.share) {
+                                  try {
+                                    await navigator.share({
+                                      title: listing.title,
+                                      text: `Check out this ${listing.make} ${listing.model} on PrintMailBids`,
+                                      url: window.location.href,
+                                    });
+                                    trackShare(listing.id, user?.id, 'native');
+                                  } catch (err) {
+                                    // User cancelled or share failed, fall back to copy
+                                    if ((err as Error).name !== 'AbortError') {
+                                      await navigator.clipboard.writeText(window.location.href);
+                                      trackShare(listing.id, user?.id, 'copy');
+                                      setShareToast('Link copied to clipboard!');
+                                    }
+                                  }
+                                } else {
+                                  await navigator.clipboard.writeText(window.location.href);
+                                  trackShare(listing.id, user?.id, 'copy');
+                                  setShareToast('Link copied to clipboard!');
+                                }
+                              }
+                              setShowShareMenu(false);
+                            }}
+                            className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-3"
+                          >
+                            <Copy className="h-4 w-4" />
+                            Copy Link
+                          </button>
+                          <button
+                            onClick={() => {
+                              if (listing) {
+                                const subject = encodeURIComponent(`Check out: ${listing.title}`);
+                                const body = encodeURIComponent(`I found this ${listing.make} ${listing.model} on PrintMailBids:\n\n${window.location.href}`);
+                                window.open(`mailto:?subject=${subject}&body=${body}`, '_blank');
+                                trackShare(listing.id, user?.id, 'email');
+                              }
+                              setShowShareMenu(false);
+                            }}
+                            className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-3"
+                          >
+                            <Mail className="h-4 w-4" />
+                            Email
+                          </button>
+                          <div className="border-t border-gray-100 my-1" />
+                          <button
+                            onClick={() => {
+                              if (listing) {
+                                const url = encodeURIComponent(window.location.href);
+                                window.open(`https://www.facebook.com/sharer/sharer.php?u=${url}`, '_blank', 'width=600,height=400');
+                                trackShare(listing.id, user?.id, 'facebook');
+                              }
+                              setShowShareMenu(false);
+                            }}
+                            className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-3"
+                          >
+                            <Facebook className="h-4 w-4" />
+                            Facebook
+                          </button>
+                          <button
+                            onClick={() => {
+                              if (listing) {
+                                const url = encodeURIComponent(window.location.href);
+                                const text = encodeURIComponent(`Check out this ${listing.make} ${listing.model} on @PrintMailBids`);
+                                window.open(`https://twitter.com/intent/tweet?url=${url}&text=${text}`, '_blank', 'width=600,height=400');
+                                trackShare(listing.id, user?.id, 'twitter');
+                              }
+                              setShowShareMenu(false);
+                            }}
+                            className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-3"
+                          >
+                            <Twitter className="h-4 w-4" />
+                            Twitter / X
+                          </button>
+                          <button
+                            onClick={() => {
+                              if (listing) {
+                                const url = encodeURIComponent(window.location.href);
+                                window.open(`https://www.linkedin.com/sharing/share-offsite/?url=${url}`, '_blank', 'width=600,height=400');
+                                trackShare(listing.id, user?.id, 'linkedin');
+                              }
+                              setShowShareMenu(false);
+                            }}
+                            className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-3"
+                          >
+                            <Linkedin className="h-4 w-4" />
+                            LinkedIn
+                          </button>
+                        </div>
+                      </>
+                    )}
+                  </div>
                 </div>
               </div>
 
