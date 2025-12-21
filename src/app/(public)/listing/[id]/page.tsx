@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { useParams, useRouter } from 'next/navigation';
 import {
   ArrowLeft,
@@ -22,10 +23,17 @@ import {
   User,
   Star,
   Info,
-  Loader2
+  Loader2,
+  X,
+  FileText,
+  Video,
+  Plus,
+  Minus
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
+import { useAnalytics } from '@/hooks/useAnalytics';
+import PhoneVerification from '@/components/PhoneVerification';
 
 // Helper to check if a listing has ended (sold or ended status)
 function isListingClosed(status: string): boolean {
@@ -36,6 +44,8 @@ interface Listing {
   id: string;
   title: string;
   description: string;
+  seller_terms: string | null;
+  shipping_info: string | null;
   make: string;
   model: string;
   year: number;
@@ -66,6 +76,8 @@ interface Listing {
   pickup_hours: string;
   pickup_notes: string;
   accept_offers: boolean;
+  auto_accept_price: number | null;
+  auto_decline_price: number | null;
   accepts_credit_card: boolean;
   accepts_ach: boolean;
   accepts_wire: boolean;
@@ -73,6 +85,7 @@ interface Listing {
   payment_due_days: number;
   seller_id: string;
   status: string;
+  video_url: string | null;
   primary_category_id: string;
   location: string;
   category?: {
@@ -83,8 +96,10 @@ interface Listing {
     id: string;
     full_name: string;
     company_name: string;
+    avatar_url: string | null;
     seller_rating: number;
     seller_review_count: number;
+    seller_terms: string | null;
     is_verified: boolean;
     created_at: string;
   };
@@ -99,9 +114,33 @@ interface Listing {
 interface Bid {
   id: string;
   amount: number;
+  max_bid: number;
   created_at: string;
   bidder_id: string;
   status: string;
+  is_auto_bid: boolean;
+  bidder?: {
+    email: string;
+  };
+}
+
+// Anonymize email for public display: john@example.com -> j***n@e***e.com
+function anonymizeEmail(email: string): string {
+  if (!email) return 'Anonymous';
+  const [local, domain] = email.split('@');
+  if (!domain) return 'Anonymous';
+
+  const anonymizeLocal = local.length <= 2
+    ? local[0] + '***'
+    : local[0] + '***' + local[local.length - 1];
+
+  const domainParts = domain.split('.');
+  const mainDomain = domainParts[0];
+  const anonymizeDomain = mainDomain.length <= 2
+    ? mainDomain[0] + '***'
+    : mainDomain[0] + '***' + mainDomain[mainDomain.length - 1];
+
+  return `${anonymizeLocal}@${anonymizeDomain}.${domainParts.slice(1).join('.')}`;
 }
 
 const bidIncrements = [
@@ -117,6 +156,19 @@ const SOFT_CLOSE_WINDOW_MS = 2 * 60 * 1000;
 function getMinNextBid(currentBid: number): number {
   const increment = bidIncrements.find(b => currentBid < b.max)?.increment || 100;
   return currentBid + increment;
+}
+
+// Format number with commas for display
+function formatWithCommas(value: string): string {
+  // Remove non-numeric characters except for the value itself
+  const numericValue = value.replace(/[^0-9]/g, '');
+  if (!numericValue) return '';
+  return parseInt(numericValue).toLocaleString();
+}
+
+// Parse formatted string back to number
+function parseFormattedNumber(value: string): number {
+  return parseInt(value.replace(/[^0-9]/g, '')) || 0;
 }
 
 function isInSoftCloseWindow(endTime: string): boolean {
@@ -135,18 +187,47 @@ function getExtensionCount(endTime: string, originalEndTime: string | null): num
   return Math.max(0, Math.round(diffMs / SOFT_CLOSE_WINDOW_MS));
 }
 
+// Extract YouTube video ID from various URL formats
+function getYouTubeVideoId(url: string): string | null {
+  if (!url) return null;
+
+  // Match various YouTube URL formats
+  const patterns = [
+    /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([^&\s?]+)/,
+    /youtube\.com\/v\/([^&\s?]+)/,
+    /youtube\.com\/shorts\/([^&\s?]+)/,
+  ];
+
+  for (const pattern of patterns) {
+    const match = url.match(pattern);
+    if (match && match[1]) {
+      return match[1];
+    }
+  }
+  return null;
+}
+
+// Extract Vimeo video ID
+function getVimeoVideoId(url: string): string | null {
+  if (!url) return null;
+  const match = url.match(/vimeo\.com\/(\d+)/);
+  return match ? match[1] : null;
+}
+
 export default function ListingDetailPage() {
   const params = useParams();
   const router = useRouter();
   const listingId = params.id as string;
   const { user, isSeller } = useAuth();
   const supabase = createClient();
+  const { trackView, trackVideoPlay, trackWatchlistAdd, trackBidClick, trackOfferClick, trackShare } = useAnalytics();
 
   const [listing, setListing] = useState<Listing | null>(null);
   const [bids, setBids] = useState<Bid[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [bidAmount, setBidAmount] = useState('');
+  const [maxBidAmount, setMaxBidAmount] = useState('');
   const [isWatching, setIsWatching] = useState(false);
   const [showBidHistory, setShowBidHistory] = useState(false);
   const [showMakeOffer, setShowMakeOffer] = useState(false);
@@ -154,19 +235,32 @@ export default function ListingDetailPage() {
   const [submittingBid, setSubmittingBid] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<'description' | 'terms' | 'shipping'>('description');
+  const [showTermsModal, setShowTermsModal] = useState(false);
+  const [termsAccepted, setTermsAccepted] = useState(false);
+  const [hasAcceptedTermsForListing, setHasAcceptedTermsForListing] = useState(false);
+  const [videoPlayed, setVideoPlayed] = useState(false);
+  const [showPhoneVerification, setShowPhoneVerification] = useState(false);
+  const [userPhoneVerified, setUserPhoneVerified] = useState(false);
 
   useEffect(() => {
     async function loadListing() {
+      console.log('Loading listing with ID:', listingId);
       const { data, error } = await supabase
         .from('listings')
         .select(`
           *,
-          category:categories(name, slug),
-          seller:profiles(id, full_name, company_name, seller_rating, seller_review_count, is_verified, created_at),
+          category:categories!listings_primary_category_id_fkey(name, slug),
+          seller:profiles(id, full_name, company_name, avatar_url, seller_rating, seller_review_count, seller_terms, is_verified, created_at),
           images:listing_images(id, url, is_primary, sort_order)
         `)
         .eq('id', listingId)
         .single();
+
+      console.log('Listing query result:', { data, error });
+      console.log('Seller data from query:', data?.seller);
+      console.log('Listing seller_terms:', data?.seller_terms);
+      console.log('Seller profile seller_terms:', data?.seller?.seller_terms);
 
       if (data && !error) {
         setListing(data as unknown as Listing);
@@ -178,18 +272,28 @@ export default function ListingDetailPage() {
           .from('listings')
           .update({ view_count: (data.view_count || 0) + 1 })
           .eq('id', listingId);
+
+        // Track analytics view event
+        trackView(listingId, user?.id);
       }
 
-      // Load bids
+      // Load bids with bidder email for anonymized display
       const { data: bidData } = await supabase
         .from('bids')
-        .select('*')
+        .select(`
+          *,
+          bidder:profiles!bids_bidder_id_fkey(email)
+        `)
         .eq('listing_id', listingId)
-        .order('amount', { ascending: false })
-        .limit(10);
+        .order('created_at', { ascending: false });
 
       if (bidData) {
         setBids(bidData);
+
+        // Check if current user has already bid on this listing (meaning they've accepted terms)
+        if (user?.id && bidData.some((b: Bid) => b.bidder_id === user.id)) {
+          setHasAcceptedTermsForListing(true);
+        }
       }
 
       // Check if user is watching
@@ -208,7 +312,7 @@ export default function ListingDetailPage() {
     }
 
     loadListing();
-  }, [listingId, supabase, user?.id]);
+  }, [listingId, supabase, user?.id, trackView]);
 
   // Real-time subscription for new bids
   useEffect(() => {
@@ -222,8 +326,8 @@ export default function ListingDetailPage() {
           table: 'bids',
           filter: `listing_id=eq.${listingId}`,
         },
-        async (payload) => {
-          const newBid = payload.new as Bid;
+        async (payload: { new: Record<string, unknown> }) => {
+          const newBid = payload.new as unknown as Bid;
 
           // Add the new bid to the list (keeping sorted order)
           setBids(currentBids => {
@@ -236,8 +340,8 @@ export default function ListingDetailPage() {
             .from('listings')
             .select(`
               *,
-              category:categories(name, slug),
-              seller:profiles(id, full_name, company_name, seller_rating, seller_review_count, is_verified, created_at),
+              category:categories!listings_primary_category_id_fkey(name, slug),
+              seller:profiles(id, full_name, company_name, avatar_url, seller_rating, seller_review_count, seller_terms, is_verified, created_at),
               images:listing_images(id, url, is_primary, sort_order)
             `)
             .eq('id', listingId)
@@ -270,9 +374,62 @@ export default function ListingDetailPage() {
     return () => clearInterval(timer);
   }, []);
 
+  // Check user's phone verification status
+  useEffect(() => {
+    async function checkPhoneVerification() {
+      if (!user?.id) {
+        setUserPhoneVerified(false);
+        return;
+      }
+
+      const { data } = await supabase
+        .from('profiles')
+        .select('phone_verified')
+        .eq('id', user.id)
+        .single();
+
+      setUserPhoneVerified(data?.phone_verified || false);
+    }
+
+    checkPhoneVerification();
+  }, [user?.id, supabase]);
+
   const currentBid = listing?.current_price || listing?.starting_price || 0;
   const minBid = getMinNextBid(currentBid);
   const reserveMet = listing?.reserve_price ? currentBid >= listing.reserve_price : true;
+
+  // Get user's current max bid on this listing (highest max_bid from their bids)
+  const userCurrentMaxBid = user?.id
+    ? bids
+        .filter(b => b.bidder_id === user.id)
+        .reduce((max, b) => Math.max(max, b.max_bid || 0), 0)
+    : 0;
+
+  // Check if user is currently the high bidder (find bid with highest amount)
+  const highestBid = bids.length > 0
+    ? bids.reduce((highest, bid) => bid.amount > highest.amount ? bid : highest, bids[0])
+    : null;
+  const userIsHighBidder = user?.id && highestBid?.bidder_id === user.id;
+
+  // Default platform terms if seller has no custom terms
+  const defaultPlatformTerms = `PRINTMAILBIDS STANDARD TERMS
+
+1. PAYMENT: Payment is due within 7 days of winning bid or accepted offer.
+
+2. BUYER PREMIUM: A 5% buyer premium will be added to the final sale price.
+
+3. PICKUP/SHIPPING: Buyer is responsible for arranging and paying for pickup or shipping unless otherwise specified by the seller.
+
+4. CONDITION: All equipment is sold AS-IS, WHERE-IS unless otherwise stated in the listing description.
+
+5. INSPECTION: Buyers are encouraged to inspect equipment prior to bidding when possible.
+
+6. TITLE: Title transfers upon receipt of full payment.
+
+By placing a bid, you acknowledge that you have read, understood, and agree to these terms.`;
+
+  // Get effective seller terms (listing-specific overrides profile, fallback to platform default)
+  const effectiveSellerTerms = listing?.seller_terms || listing?.seller?.seller_terms || defaultPlatformTerms;
 
   // Hide prices on closed listings for non-sellers
   const listingIsClosed = listing?.status ? isListingClosed(listing.status) : false;
@@ -311,7 +468,58 @@ export default function ListingDetailPage() {
         .from('watchlist')
         .insert({ user_id: user.id, listing_id: listing.id });
       setIsWatching(true);
+      // Track watchlist add
+      trackWatchlistAdd(listing.id, user.id);
     }
+  };
+
+  // Handler to initiate bid process - shows terms modal if terms exist
+  const handleBidClick = () => {
+    if (!user?.id || !listing) {
+      setError('You must be logged in to bid');
+      return;
+    }
+
+    // Prevent seller from bidding on their own listing
+    if (user.id === listing.seller_id) {
+      setError('You cannot bid on your own listing');
+      return;
+    }
+
+    // Check phone verification
+    if (!userPhoneVerified) {
+      setShowPhoneVerification(true);
+      return;
+    }
+
+    const maxBid = parseFormattedNumber(maxBidAmount);
+    if (!maxBid || maxBid < minBid) {
+      setError(`Minimum bid is $${minBid.toLocaleString()}`);
+      return;
+    }
+
+    // If user already has a max bid, their new max must be at least increment higher
+    if (userCurrentMaxBid > 0) {
+      const increment = bidIncrements.find(b => userCurrentMaxBid < b.max)?.increment || 100;
+      const minNewMaxBid = userCurrentMaxBid + increment;
+      if (maxBid < minNewMaxBid) {
+        setError(`To increase your max bid, enter at least $${minNewMaxBid.toLocaleString()} (minimum $${increment} increase)`);
+        return;
+      }
+    }
+
+    // Track bid button click
+    trackBidClick(listing.id, user.id);
+
+    // If there are seller terms and user hasn't accepted them for this listing, show modal
+    // Skip if user has already bid on this listing (they've already accepted)
+    if (effectiveSellerTerms && !termsAccepted && !hasAcceptedTermsForListing) {
+      setShowTermsModal(true);
+      return;
+    }
+
+    // Otherwise proceed with bid
+    handlePlaceBid();
   };
 
   const handlePlaceBid = async () => {
@@ -326,8 +534,8 @@ export default function ListingDetailPage() {
       return;
     }
 
-    const amount = parseInt(bidAmount);
-    if (amount < minBid) {
+    const userMaxBid = parseFormattedNumber(maxBidAmount);
+    if (!userMaxBid || userMaxBid < minBid) {
       setError(`Minimum bid is $${minBid.toLocaleString()}`);
       return;
     }
@@ -337,74 +545,31 @@ export default function ListingDetailPage() {
     setSuccessMessage(null);
 
     try {
-      // Create the bid
-      const { error: bidError } = await supabase.from('bids').insert({
-        listing_id: listing.id,
-        bidder_id: user.id,
-        amount: amount,
-        max_bid: amount,
-        status: 'active',
+      // Call the server-side API endpoint
+      const response = await fetch('/api/bids/place', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          listingId: listing.id,
+          maxBid: userMaxBid,
+        }),
       });
 
-      if (bidError) throw bidError;
+      const result = await response.json();
 
-      // Check for soft-close extension
-      const inSoftClose = listing.end_time && isInSoftCloseWindow(listing.end_time);
-      let newEndTime = listing.end_time;
-
-      if (inSoftClose) {
-        // Extend auction by 2 minutes from now
-        const extension = new Date();
-        extension.setTime(extension.getTime() + SOFT_CLOSE_WINDOW_MS);
-        newEndTime = extension.toISOString();
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to place bid');
       }
 
-      // Update listing current price (and end_time if soft-close triggered)
-      const updateData: Record<string, unknown> = {
-        current_price: amount,
-        bid_count: (listing.bid_count || 0) + 1,
-      };
-
-      if (inSoftClose) {
-        updateData.end_time = newEndTime;
-        // Store original end time if not already stored
-        if (!listing.original_end_time) {
-          updateData.original_end_time = listing.end_time;
-        }
-      }
-
-      await supabase
-        .from('listings')
-        .update(updateData)
-        .eq('id', listing.id);
-
-      // Notify seller of new bid
-      await supabase.from('notifications').insert({
-        user_id: listing.seller_id,
-        type: 'new_bid',
-        title: 'New bid on your listing',
-        body: `Someone bid $${amount.toLocaleString()} on "${listing.title}"`,
-        listing_id: listing.id,
-      });
-
-      // Notify previous high bidder they were outbid
-      if (bids.length > 0 && bids[0].bidder_id !== user.id) {
-        await supabase.from('notifications').insert({
-          user_id: bids[0].bidder_id,
-          type: 'outbid',
-          title: 'You have been outbid',
-          body: `Someone outbid you on "${listing.title}". New high bid: $${amount.toLocaleString()}`,
-          listing_id: listing.id,
-        });
-      }
-
-      // Reload listing
+      // Reload listing to get updated data
       const { data: updatedListing } = await supabase
         .from('listings')
         .select(`
           *,
-          category:categories(name, slug),
-          seller:profiles(id, full_name, company_name, seller_rating, seller_review_count, is_verified, created_at),
+          category:categories!listings_primary_category_id_fkey(name, slug),
+          seller:profiles(id, full_name, company_name, avatar_url, seller_rating, seller_review_count, seller_terms, is_verified, created_at),
           images:listing_images(id, url, is_primary, sort_order)
         `)
         .eq('id', listingId)
@@ -412,23 +577,28 @@ export default function ListingDetailPage() {
 
       if (updatedListing) {
         setListing(updatedListing as unknown as Listing);
-        setBidAmount(getMinNextBid(amount).toString());
       }
 
       // Reload bids
       const { data: bidData } = await supabase
         .from('bids')
-        .select('*')
+        .select(`
+          *,
+          bidder:profiles!bids_bidder_id_fkey(email)
+        `)
         .eq('listing_id', listingId)
-        .order('amount', { ascending: false })
-        .limit(10);
+        .order('created_at', { ascending: false });
 
       if (bidData) {
         setBids(bidData);
       }
 
-      const extensionMsg = inSoftClose ? ' Auction extended by 2 minutes!' : '';
-      setSuccessMessage(`Bid of $${amount.toLocaleString()} placed successfully!${extensionMsg}`);
+      // Mark that user has now accepted terms for this listing
+      setHasAcceptedTermsForListing(true);
+
+      // Clear the input and show message
+      setMaxBidAmount('');
+      setSuccessMessage(result.message);
       setTimeout(() => setSuccessMessage(null), 5000);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to place bid');
@@ -437,13 +607,68 @@ export default function ListingDetailPage() {
     }
   };
 
+  const [processingBuyNow, setProcessingBuyNow] = useState(false);
+
   const handleBuyNow = async () => {
-    if (!user?.id || !listing?.buy_now_price) return;
-    if (confirm(`Buy now for $${listing.buy_now_price.toLocaleString()}?`)) {
-      // TODO: Implement checkout flow
-      alert('Purchase confirmed! Checkout will be implemented soon.');
+    if (!user?.id || !listing) {
+      setError('You must be logged in to purchase');
+      return;
+    }
+
+    // Check phone verification
+    if (!userPhoneVerified) {
+      setShowPhoneVerification(true);
+      return;
+    }
+
+    const price = listing.buy_now_price || listing.fixed_price;
+    if (!price) return;
+
+    // Calculate buyer premium
+    const buyerPremium = price * 0.05;
+    const total = price + buyerPremium;
+
+    const confirmed = confirm(
+      `Buy Now for $${price.toLocaleString()}?\n\n` +
+      `Item Price: $${price.toLocaleString()}\n` +
+      `Buyer Premium (5%): $${buyerPremium.toLocaleString()}\n` +
+      `Total: $${total.toLocaleString()}\n\n` +
+      `You will be redirected to complete payment.`
+    );
+
+    if (!confirmed) return;
+
+    setProcessingBuyNow(true);
+    setError(null);
+
+    try {
+      const response = await fetch('/api/checkout/buy-now', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ listingId: listing.id }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to process purchase');
+      }
+
+      // Redirect to Stripe Checkout
+      if (result.sessionUrl) {
+        window.location.href = result.sessionUrl;
+      } else {
+        throw new Error('No checkout URL returned');
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to process purchase');
+      setProcessingBuyNow(false);
     }
   };
+
+  const [submittingOffer, setSubmittingOffer] = useState(false);
+  const [offerMessage, setOfferMessage] = useState('');
+  const [offerTermsAccepted, setOfferTermsAccepted] = useState(false);
 
   const handleMakeOffer = async () => {
     if (!user?.id || !listing) {
@@ -451,39 +676,61 @@ export default function ListingDetailPage() {
       return;
     }
 
-    const amount = parseInt(offerAmount);
+    // Check phone verification
+    if (!userPhoneVerified) {
+      setShowPhoneVerification(true);
+      return;
+    }
+
+    const amount = parseFormattedNumber(offerAmount);
     if (!amount || amount <= 0) {
       setError('Please enter a valid offer amount');
       return;
     }
 
+    if (!offerTermsAccepted) {
+      setError('You must agree to the offer terms to submit an offer');
+      return;
+    }
+
+    setSubmittingOffer(true);
+    setError(null);
+
     try {
-      const expiresAt = new Date();
-      expiresAt.setDate(expiresAt.getDate() + 2); // Offer expires in 2 days
-
-      await supabase.from('offers').insert({
-        listing_id: listing.id,
-        buyer_id: user.id,
-        seller_id: listing.seller_id,
-        amount: amount,
-        status: 'pending',
-        expires_at: expiresAt.toISOString(),
+      const response = await fetch('/api/offers/submit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          listingId: listing.id,
+          amount,
+          message: offerMessage || null,
+        }),
       });
 
-      // Notify seller of new offer
-      await supabase.from('notifications').insert({
-        user_id: listing.seller_id,
-        type: 'new_offer',
-        title: 'New offer received',
-        body: `You received an offer of $${amount.toLocaleString()} on "${listing.title}"`,
-        listing_id: listing.id,
-      });
+      const result = await response.json();
 
-      alert(`Offer of $${amount.toLocaleString()} submitted!`);
-      setShowMakeOffer(false);
-      setOfferAmount('');
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to submit offer');
+      }
+
+      if (result.autoAccepted) {
+        // Offer was auto-accepted, redirect to invoice
+        setSuccessMessage('Your offer was automatically accepted! Redirecting to payment...');
+        setTimeout(() => {
+          window.location.href = `/dashboard/invoices/${result.invoiceId}`;
+        }, 2000);
+      } else {
+        setSuccessMessage(result.message);
+        setShowMakeOffer(false);
+        setOfferAmount('');
+        setOfferMessage('');
+        setOfferTermsAccepted(false);
+        setTimeout(() => setSuccessMessage(null), 5000);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to submit offer');
+    } finally {
+      setSubmittingOffer(false);
     }
   };
 
@@ -499,16 +746,15 @@ export default function ListingDetailPage() {
     }
 
     try {
-      // Check if conversation already exists
-      const { data: existing } = await supabase
+      // Check if conversation already exists for this listing between these users
+      const { data: existingConvos } = await supabase
         .from('conversations')
         .select('id')
         .eq('listing_id', listing.id)
-        .or(`and(participant_1_id.eq.${user.id},participant_2_id.eq.${listing.seller_id}),and(participant_1_id.eq.${listing.seller_id},participant_2_id.eq.${user.id})`)
-        .single();
+        .or(`and(participant_1_id.eq.${user.id},participant_2_id.eq.${listing.seller_id}),and(participant_1_id.eq.${listing.seller_id},participant_2_id.eq.${user.id})`);
 
-      if (existing) {
-        router.push(`/dashboard/messages/${existing.id}`);
+      if (existingConvos && existingConvos.length > 0) {
+        router.push(`/dashboard/messages/${existingConvos[0].id}`);
         return;
       }
 
@@ -523,11 +769,15 @@ export default function ListingDetailPage() {
         .select()
         .single();
 
-      if (createError) throw createError;
+      if (createError) {
+        console.error('Error creating conversation:', createError);
+        setError('Failed to start conversation. Please try again.');
+        return;
+      }
 
       router.push(`/dashboard/messages/${newConvo.id}`);
     } catch (err) {
-      console.error('Error creating conversation:', err);
+      console.error('Error in contactSeller:', err);
       setError(err instanceof Error ? err.message : 'Failed to start conversation');
     }
   };
@@ -561,79 +811,63 @@ export default function ListingDetailPage() {
     <div className="min-h-screen bg-gray-50">
       {/* Breadcrumb */}
       <div className="bg-white border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
-          <div className="flex items-center gap-2 text-sm">
+        <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-2">
+          <div className="flex items-center gap-2 text-xs">
             <Link href="/marketplace" className="text-gray-500 hover:text-gray-700 flex items-center gap-1">
-              <ArrowLeft className="h-4 w-4" />
-              Back to Marketplace
+              <ArrowLeft className="h-3.5 w-3.5" />
+              Back
             </Link>
-            {listing.category && (
-              <>
-                <span className="text-gray-300">/</span>
-                <Link href={`/marketplace?category=${listing.category.slug}`} className="text-gray-500 hover:text-gray-700">
-                  {listing.category.name}
-                </Link>
-              </>
-            )}
           </div>
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {error && (
-          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-6">
-            {error}
-          </div>
-        )}
-        {successMessage && (
-          <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg mb-6">
-            {successMessage}
-          </div>
-        )}
-
-        <div className="grid lg:grid-cols-3 gap-8">
+      <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-3 sm:py-8">
+        <div className="grid lg:grid-cols-3 gap-3 sm:gap-8">
           {/* Left Column - Images and Details */}
-          <div className="lg:col-span-2 space-y-6">
+          <div className="lg:col-span-2 space-y-3 sm:space-y-6">
             {/* Image Gallery */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-              <div className="aspect-[4/3] bg-gray-100 relative">
+            <div className="bg-white rounded-lg sm:rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+              <div className="h-[250px] landscape:h-[35vh] sm:h-[350px] lg:h-[450px] bg-gray-50 relative flex items-center justify-center">
                 {images.length > 0 && images[currentImageIndex]?.url ? (
                   <img
                     src={images[currentImageIndex].url}
                     alt={listing.title}
-                    className="w-full h-full object-contain"
+                    className="max-w-full max-h-full object-contain"
                   />
                 ) : (
-                  <div className="w-full h-full flex items-center justify-center">
-                    <Package className="h-24 w-24 text-gray-300" />
-                  </div>
+                  <Package className="h-12 w-12 text-gray-300" />
                 )}
 
                 {images.length > 1 && (
                   <>
                     <button
                       onClick={() => setCurrentImageIndex(i => i === 0 ? images.length - 1 : i - 1)}
-                      className="absolute left-4 top-1/2 -translate-y-1/2 p-2 bg-white/80 hover:bg-white rounded-full shadow"
+                      className="absolute left-2 top-1/2 -translate-y-1/2 p-1.5 bg-white/90 hover:bg-white rounded-full shadow"
                     >
-                      <ChevronLeft className="h-6 w-6" />
+                      <ChevronLeft className="h-4 w-4 sm:h-5 sm:w-5" />
                     </button>
                     <button
                       onClick={() => setCurrentImageIndex(i => i === images.length - 1 ? 0 : i + 1)}
-                      className="absolute right-4 top-1/2 -translate-y-1/2 p-2 bg-white/80 hover:bg-white rounded-full shadow"
+                      className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 bg-white/90 hover:bg-white rounded-full shadow"
                     >
-                      <ChevronRight className="h-6 w-6" />
+                      <ChevronRight className="h-4 w-4 sm:h-5 sm:w-5" />
                     </button>
+                    {/* Image counter */}
+                    <div className="absolute bottom-2 left-1/2 -translate-x-1/2 bg-black/60 text-white text-xs px-2 py-1 rounded-full">
+                      {currentImageIndex + 1} / {images.length}
+                    </div>
                   </>
                 )}
               </div>
 
+              {/* Thumbnails - hidden on mobile, shown on sm+ */}
               {images.length > 1 && (
-                <div className="p-4 flex gap-2 overflow-x-auto">
+                <div className="hidden sm:flex p-2 gap-1.5 overflow-x-auto">
                   {images.map((img, index) => (
                     <button
                       key={img.id}
                       onClick={() => setCurrentImageIndex(index)}
-                      className={`w-20 h-20 flex-shrink-0 rounded-lg overflow-hidden border-2 ${
+                      className={`w-14 h-14 flex-shrink-0 rounded overflow-hidden border-2 ${
                         currentImageIndex === index ? 'border-blue-500' : 'border-transparent'
                       }`}
                     >
@@ -644,56 +878,166 @@ export default function ListingDetailPage() {
               )}
             </div>
 
-            {/* Title and quick info */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-              <div className="flex items-start justify-between gap-4 mb-4">
-                <div>
-                  {listing.category && (
-                    <p className="text-sm text-blue-600 font-medium mb-1">{listing.category.name}</p>
+            {/* Video Embed */}
+            {listing.video_url && (
+              <div className="bg-white rounded-lg sm:rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                <div
+                  className="aspect-video landscape:h-[30vh] landscape:aspect-auto bg-gray-900"
+                  onClick={() => {
+                    if (!videoPlayed) {
+                      trackVideoPlay(listing.id, user?.id);
+                      setVideoPlayed(true);
+                    }
+                  }}
+                >
+                  {getYouTubeVideoId(listing.video_url) ? (
+                    <iframe
+                      src={`https://www.youtube.com/embed/${getYouTubeVideoId(listing.video_url)}?enablejsapi=1`}
+                      title="Equipment Video"
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                      allowFullScreen
+                      className="w-full h-full"
+                    />
+                  ) : getVimeoVideoId(listing.video_url) ? (
+                    <iframe
+                      src={`https://player.vimeo.com/video/${getVimeoVideoId(listing.video_url)}`}
+                      title="Equipment Video"
+                      allow="autoplay; fullscreen; picture-in-picture"
+                      allowFullScreen
+                      className="w-full h-full"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-gray-400">
+                      <a
+                        href={listing.video_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-2 text-blue-400 hover:text-blue-300"
+                        onClick={() => {
+                          if (!videoPlayed) {
+                            trackVideoPlay(listing.id, user?.id);
+                            setVideoPlayed(true);
+                          }
+                        }}
+                      >
+                        <Video className="h-6 w-6" />
+                        Watch Video
+                      </a>
+                    </div>
                   )}
-                  <h1 className="text-2xl font-bold text-gray-900">{listing.title}</h1>
                 </div>
-                <div className="flex items-center gap-2">
+              </div>
+            )}
+
+            {/* Title and quick info */}
+            <div className="bg-white rounded-lg sm:rounded-xl shadow-sm border border-gray-100 p-3 sm:p-6">
+              <div className="flex items-start justify-between gap-2 mb-2 sm:mb-4">
+                <div className="min-w-0 flex-1">
+                  <h1 className="text-base sm:text-2xl font-bold text-gray-900 leading-tight">{listing.title}</h1>
+                </div>
+                <div className="flex items-center gap-1 flex-shrink-0">
                   <button
                     onClick={toggleWatchlist}
-                    className={`p-2 rounded-lg border ${
+                    className={`p-1.5 rounded-lg border ${
                       isWatching
                         ? 'bg-red-50 border-red-200 text-red-600'
-                        : 'border-gray-200 text-gray-500 hover:text-gray-700'
+                        : 'border-gray-200 text-gray-500'
                     }`}
                   >
-                    <Heart className={`h-5 w-5 ${isWatching ? 'fill-current' : ''}`} />
+                    <Heart className={`h-4 w-4 ${isWatching ? 'fill-current' : ''}`} />
                   </button>
-                  <button className="p-2 rounded-lg border border-gray-200 text-gray-500 hover:text-gray-700">
-                    <Share2 className="h-5 w-5" />
+                  <button
+                    onClick={() => {
+                      if (listing) {
+                        trackShare(listing.id, user?.id, 'copy');
+                        navigator.clipboard.writeText(window.location.href);
+                      }
+                    }}
+                    className="p-1.5 rounded-lg border border-gray-200 text-gray-500"
+                  >
+                    <Share2 className="h-4 w-4" />
                   </button>
                 </div>
               </div>
 
-              <div className="flex flex-wrap items-center gap-4 text-sm text-gray-500">
+              <div className="flex flex-wrap items-center gap-3 text-xs text-gray-500">
                 <span className="flex items-center gap-1">
-                  <Eye className="h-4 w-4" />
+                  <Eye className="h-3.5 w-3.5" />
                   {listing.view_count || 0} views
                 </span>
                 <span className="flex items-center gap-1">
-                  <Heart className="h-4 w-4" />
+                  <Heart className="h-3.5 w-3.5" />
                   {listing.watch_count || 0} watching
                 </span>
               </div>
             </div>
 
-            {/* Description */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">Description</h2>
-              <div className="prose prose-sm max-w-none text-gray-600 whitespace-pre-wrap">
-                {listing.description || 'No description provided.'}
+            {/* Description / Terms / Shipping Tabs */}
+            <div className="bg-white rounded-lg sm:rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+              {/* Tab Headers */}
+              <div className="flex border-b">
+                <button
+                  onClick={() => setActiveTab('description')}
+                  className={`flex-1 px-2 py-2 text-xs font-medium transition-colors ${
+                    activeTab === 'description'
+                      ? 'text-blue-600 border-b-2 border-blue-600 bg-blue-50/50'
+                      : 'text-gray-500'
+                  }`}
+                >
+                  Description
+                </button>
+                <button
+                  onClick={() => setActiveTab('terms')}
+                  className={`flex-1 px-2 py-2 text-xs font-medium transition-colors ${
+                    activeTab === 'terms'
+                      ? 'text-blue-600 border-b-2 border-blue-600 bg-blue-50/50'
+                      : 'text-gray-500'
+                  }`}
+                >
+                  Terms
+                </button>
+                <button
+                  onClick={() => setActiveTab('shipping')}
+                  className={`flex-1 px-2 py-2 text-xs font-medium transition-colors ${
+                    activeTab === 'shipping'
+                      ? 'text-blue-600 border-b-2 border-blue-600 bg-blue-50/50'
+                      : 'text-gray-500'
+                  }`}
+                >
+                  Shipping
+                </button>
+              </div>
+
+              {/* Tab Content */}
+              <div className="p-4 sm:p-6">
+                {activeTab === 'description' && (
+                  <div className="prose prose-sm max-w-none text-gray-600 whitespace-pre-wrap">
+                    {listing.description || 'No description provided.'}
+                  </div>
+                )}
+
+                {activeTab === 'terms' && (
+                  <div className="prose prose-sm max-w-none text-gray-600 whitespace-pre-wrap">
+                    {effectiveSellerTerms || (
+                      <p className="text-gray-400 italic">No seller terms specified for this listing.</p>
+                    )}
+                  </div>
+                )}
+
+                {activeTab === 'shipping' && (
+                  <div className="prose prose-sm max-w-none text-gray-600 whitespace-pre-wrap">
+                    {listing.shipping_info || (
+                      <p className="text-gray-400 italic">No shipping information provided. Contact seller for details.</p>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
 
             {/* Specifications */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">Specifications</h2>
-              <div className="grid sm:grid-cols-2 gap-4">
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 sm:p-6">
+              <h2 className="text-base sm:text-lg font-semibold text-gray-900 mb-3 sm:mb-4">Specifications</h2>
+              <div className="grid sm:grid-cols-2 gap-2 sm:gap-4">
                 {listing.make && (
                   <div className="flex justify-between py-2 border-b border-gray-100">
                     <span className="text-gray-500">Make</span>
@@ -752,13 +1096,13 @@ export default function ListingDetailPage() {
             </div>
 
             {/* Logistics */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                <Truck className="h-5 w-5 text-blue-600" />
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 sm:p-6">
+              <h2 className="text-base sm:text-lg font-semibold text-gray-900 mb-3 sm:mb-4 flex items-center gap-2">
+                <Truck className="h-4 w-4 sm:h-5 sm:w-5 text-blue-600" />
                 Pickup & Logistics
               </h2>
-              <div className="space-y-4">
-                <div className="grid sm:grid-cols-2 gap-4">
+              <div className="space-y-3 sm:space-y-4">
+                <div className="grid sm:grid-cols-2 gap-3 sm:gap-4">
                   {listing.removal_deadline && (
                     <div>
                       <p className="text-sm text-gray-500">Removal Deadline</p>
@@ -790,9 +1134,9 @@ export default function ListingDetailPage() {
           </div>
 
           {/* Right Column - Bidding and Seller */}
-          <div className="space-y-6">
+          <div className="space-y-4 sm:space-y-6">
             {/* Bidding Card */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 sticky top-4">
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 sm:p-6 lg:sticky lg:top-4">
               {/* Closed listing for non-sellers - hide price */}
               {hidePriceForNonSeller ? (
                 <div className="text-center py-4">
@@ -820,12 +1164,12 @@ export default function ListingDetailPage() {
                     <>
                       {/* Soft-close indicator */}
                       {listing.end_time && isInSoftCloseWindow(listing.end_time) && (
-                        <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 mb-4">
-                          <div className="flex items-center gap-2 text-orange-700 font-medium">
+                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
+                          <div className="flex items-center gap-2 text-blue-700 font-medium">
                             <Clock className="h-5 w-5 animate-pulse" />
                             SOFT CLOSE ACTIVE
                           </div>
-                          <p className="text-sm text-orange-600 mt-1">
+                          <p className="text-sm text-blue-600 mt-1">
                             Bids in the final 2 minutes extend the auction by 2 minutes
                           </p>
                         </div>
@@ -866,42 +1210,89 @@ export default function ListingDetailPage() {
                       )}
 
                       {/* Current bid / Final Price */}
-                      <div className="mb-6">
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="text-gray-500">{listingIsClosed ? 'Final Price' : 'Current Bid'}</span>
+                      <div className="mb-4 sm:mb-6">
+                        <div className="flex items-center justify-between mb-1 sm:mb-2">
+                          <span className="text-sm sm:text-base text-gray-500">{listingIsClosed ? 'Final Price' : 'Current Bid'}</span>
                           <button
                             onClick={() => setShowBidHistory(!showBidHistory)}
-                            className="text-sm text-blue-600 hover:text-blue-700"
+                            className="text-xs sm:text-sm text-blue-600 hover:text-blue-700"
                           >
                             {listing.bid_count || 0} bids
                           </button>
                         </div>
-                        <p className="text-3xl font-bold text-gray-900">
+                        <p className="text-2xl sm:text-3xl font-bold text-gray-900">
                           ${currentBid.toLocaleString()}
                         </p>
                         {listing.reserve_price && !listingIsClosed && (
-                          <p className={`text-sm mt-1 ${reserveMet ? 'text-green-600' : 'text-yellow-600'}`}>
+                          <p className={`text-xs sm:text-sm mt-1 ${reserveMet ? 'text-green-600' : 'text-yellow-600'}`}>
                             {reserveMet ? '✓ Reserve met' : 'Reserve not met'}
                           </p>
                         )}
                       </div>
 
-                      {/* Bid History */}
-                      {showBidHistory && bids.length > 0 && (
+                      {/* Bid History Timeline */}
+                      {showBidHistory && (
                         <div className="mb-6 border-t pt-4">
-                          <h3 className="font-medium text-gray-900 mb-3">Bid History</h3>
-                          <div className="space-y-2 max-h-48 overflow-y-auto">
-                            {bids.map((bid, index) => (
-                              <div key={bid.id} className="flex items-center justify-between text-sm">
-                                <span className="text-gray-600">Bidder {index + 1}</span>
-                                <span className={index === 0 ? 'font-medium text-green-600' : 'text-gray-900'}>
-                                  ${bid.amount.toLocaleString()}
-                                </span>
-                                <span className="text-gray-400 text-xs">
-                                  {new Date(bid.created_at).toLocaleDateString()}
-                                </span>
-                              </div>
-                            ))}
+                          <div className="flex items-center justify-between mb-3">
+                            <h3 className="font-medium text-gray-900 flex items-center gap-2">
+                              <Shield className="h-4 w-4 text-green-600" />
+                              Verified Bid History
+                            </h3>
+                            <span className="text-xs text-gray-500">{bids.length} total bids</span>
+                          </div>
+                          {bids.length > 0 ? (
+                            <div className="space-y-1 max-h-64 overflow-y-auto">
+                              {bids.map((bid, index) => {
+                                const isHighBid = index === 0 || (bids[0] && bid.amount === bids[0].amount);
+                                const isCurrentUser = user?.id === bid.bidder_id;
+                                const bidderEmail = bid.bidder?.email || '';
+                                return (
+                                  <div
+                                    key={bid.id}
+                                    className={`flex items-center gap-3 p-2 rounded-lg text-sm ${
+                                      isHighBid ? 'bg-green-50 border border-green-200' : 'bg-gray-50'
+                                    }`}
+                                  >
+                                    <div className="flex-1 min-w-0">
+                                      <div className="flex items-center gap-2">
+                                        <span className={`font-medium ${isHighBid ? 'text-green-700' : 'text-gray-900'}`}>
+                                          ${bid.amount.toLocaleString()}
+                                        </span>
+                                        {bid.is_auto_bid && (
+                                          <span className="text-xs bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded">
+                                            Auto
+                                          </span>
+                                        )}
+                                        {isHighBid && (
+                                          <span className="text-xs bg-green-100 text-green-700 px-1.5 py-0.5 rounded">
+                                            High Bid
+                                          </span>
+                                        )}
+                                      </div>
+                                      <div className="text-xs text-gray-500 mt-0.5">
+                                        {isCurrentUser ? (
+                                          <span className="text-blue-600 font-medium">You</span>
+                                        ) : (
+                                          <span>{anonymizeEmail(bidderEmail)}</span>
+                                        )}
+                                      </div>
+                                    </div>
+                                    <div className="text-right text-xs text-gray-400 flex-shrink-0">
+                                      <div>{new Date(bid.created_at).toLocaleDateString()}</div>
+                                      <div>{new Date(bid.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          ) : (
+                            <p className="text-sm text-gray-500 text-center py-4">No bids yet. Be the first!</p>
+                          )}
+                          <div className="mt-3 pt-3 border-t border-gray-100">
+                            <p className="text-xs text-gray-500 flex items-center gap-1">
+                              <Shield className="h-3 w-3 text-green-600" />
+                              All bids are verified and timestamped for transparency
+                            </p>
                           </div>
                         </div>
                       )}
@@ -909,35 +1300,119 @@ export default function ListingDetailPage() {
                       {/* Place bid - only for active listings */}
                       {!listingIsClosed && (
                         <div className="mb-4">
-                          <label className="block text-sm text-gray-600 mb-2">
-                            Your Bid (min ${minBid.toLocaleString()})
-                          </label>
-                          <div className="flex gap-2">
-                            <div className="relative flex-1">
-                              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
-                              <input
-                                type="number"
-                                value={bidAmount}
-                                onChange={(e) => setBidAmount(e.target.value)}
-                                min={minBid}
-                                className="w-full pl-8 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                              />
+                          {/* Show user's current max bid status */}
+                          {user?.id && userCurrentMaxBid > 0 && (
+                            <div className={`p-3 rounded-lg mb-4 ${
+                              userIsHighBidder
+                                ? 'bg-green-50 border border-green-200'
+                                : 'bg-yellow-50 border border-yellow-200'
+                            }`}>
+                              <div className="flex items-center justify-between">
+                                <span className={`text-sm font-medium ${
+                                  userIsHighBidder ? 'text-green-700' : 'text-yellow-700'
+                                }`}>
+                                  {userIsHighBidder ? 'You are the high bidder!' : 'You have been outbid'}
+                                </span>
+                              </div>
+                              <div className="mt-1 text-sm text-gray-600">
+                                Your max bid: <span className="font-semibold">${userCurrentMaxBid.toLocaleString()}</span>
+                              </div>
                             </div>
-                            <button
-                              onClick={handlePlaceBid}
-                              disabled={submittingBid}
-                              className="px-6 py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors disabled:opacity-50"
-                            >
-                              {submittingBid ? (
-                                <Loader2 className="h-5 w-5 animate-spin" />
-                              ) : (
-                                <Gavel className="h-5 w-5" />
-                              )}
-                            </button>
-                          </div>
-                          <p className="text-xs text-gray-500 mt-2">
-                            Enter max bid for proxy bidding. We&apos;ll bid for you up to this amount.
+                          )}
+
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            {userCurrentMaxBid > 0 ? 'Increase Your Maximum Bid' : 'Your Maximum Bid'}
+                          </label>
+                          <p className="text-xs text-gray-500 mb-3">
+                            Enter the most you&apos;re willing to pay. We&apos;ll bid the minimum needed to keep you ahead, up to your max.
                           </p>
+                          <div className="relative mb-3">
+                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
+                            <input
+                              type="text"
+                              inputMode="numeric"
+                              value={maxBidAmount}
+                              onChange={(e) => setMaxBidAmount(formatWithCommas(e.target.value))}
+                              placeholder={`Min: $${minBid.toLocaleString()}`}
+                              className="w-full pl-8 pr-20 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-lg"
+                            />
+                            {/* Increment/Decrement buttons */}
+                            <div className="absolute right-2 top-1/2 -translate-y-1/2 flex gap-1">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const currentValue = parseFormattedNumber(maxBidAmount) || (userCurrentMaxBid > 0 ? userCurrentMaxBid : minBid);
+                                  const increment = bidIncrements.find(b => currentValue < b.max)?.increment || 100;
+                                  const newValue = Math.max(minBid, currentValue - increment);
+                                  setMaxBidAmount(newValue.toLocaleString());
+                                }}
+                                className="p-1.5 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded transition-colors"
+                                title={`Decrease by $${(bidIncrements.find(b => (parseFormattedNumber(maxBidAmount) || minBid) < b.max)?.increment || 100).toLocaleString()}`}
+                              >
+                                <Minus className="h-4 w-4" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const currentValue = parseFormattedNumber(maxBidAmount) || (userCurrentMaxBid > 0 ? userCurrentMaxBid : minBid - (bidIncrements.find(b => minBid < b.max)?.increment || 100));
+                                  const increment = bidIncrements.find(b => currentValue < b.max)?.increment || 100;
+                                  setMaxBidAmount((currentValue + increment).toLocaleString());
+                                }}
+                                className="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                                title={`Increase by $${(bidIncrements.find(b => (parseFormattedNumber(maxBidAmount) || minBid) < b.max)?.increment || 100).toLocaleString()}`}
+                              >
+                                <Plus className="h-4 w-4" />
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Inline error/success messages for bid form */}
+                          {error && (
+                            <div className="bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded-lg mb-3 text-sm flex items-center gap-2">
+                              <X className="h-4 w-4 flex-shrink-0" />
+                              {error}
+                            </div>
+                          )}
+                          {successMessage && (
+                            <div className="bg-green-50 border border-green-200 text-green-700 px-3 py-2 rounded-lg mb-3 text-sm flex items-center gap-2">
+                              <Check className="h-4 w-4 flex-shrink-0" />
+                              {successMessage}
+                            </div>
+                          )}
+
+                          <button
+                            onClick={handleBidClick}
+                            disabled={submittingBid}
+                            className="w-full py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                          >
+                            {submittingBid ? (
+                              <>
+                                <Loader2 className="h-5 w-5 animate-spin" />
+                                Placing Bid...
+                              </>
+                            ) : (
+                              <>
+                                <Gavel className="h-5 w-5" />
+                                Place Bid
+                              </>
+                            )}
+                          </button>
+                          <div className="mt-3 p-3 bg-blue-50 rounded-lg space-y-2">
+                            <p className="text-xs text-blue-700 flex items-start gap-2">
+                              <Info className="h-4 w-4 flex-shrink-0 mt-0.5" />
+                              <span>
+                                <strong>Proxy Bidding:</strong> Once the reserve is met, we&apos;ll automatically bid the minimum needed to keep you ahead (up to your max). Your max bid is kept secret.
+                              </span>
+                            </p>
+                            {listing.reserve_price && !reserveMet && (
+                              <p className="text-xs text-yellow-700 flex items-start gap-2">
+                                <Info className="h-4 w-4 flex-shrink-0 mt-0.5" />
+                                <span>
+                                  <strong>Note:</strong> Reserve not yet met. Your bid will be placed at the amount entered until the reserve is reached.
+                                </span>
+                              </p>
+                            )}
+                          </div>
                         </div>
                       )}
                     </>
@@ -959,15 +1434,24 @@ export default function ListingDetailPage() {
                     </div>
                   )}
 
-                  {/* Buy Now - only for active listings */}
+                  {/* Buy Now - HIDDEN FOR NOW - keeping code for future use
                   {!listingIsClosed && (listing.buy_now_price || listing.listing_type?.includes('fixed')) && (
                     <button
                       onClick={handleBuyNow}
-                      className="w-full py-3 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition-colors mb-4"
+                      disabled={processingBuyNow}
+                      className="w-full py-3 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition-colors mb-4 disabled:opacity-50 flex items-center justify-center gap-2"
                     >
-                      Buy Now — ${(listing.buy_now_price || listing.fixed_price || 0).toLocaleString()}
+                      {processingBuyNow ? (
+                        <>
+                          <Loader2 className="h-5 w-5 animate-spin" />
+                          Processing...
+                        </>
+                      ) : (
+                        <>Buy Now — ${(listing.buy_now_price || listing.fixed_price || 0).toLocaleString()}</>
+                      )}
                     </button>
                   )}
+                  */}
                 </>
               )}
 
@@ -976,37 +1460,107 @@ export default function ListingDetailPage() {
                 <>
                   {!showMakeOffer ? (
                     <button
-                      onClick={() => setShowMakeOffer(true)}
-                      className="w-full py-3 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition-colors"
+                      onClick={() => {
+                        setShowMakeOffer(true);
+                        if (listing) {
+                          trackOfferClick(listing.id, user?.id);
+                        }
+                      }}
+                      className="w-full py-3 border border-blue-300 text-blue-700 rounded-lg font-medium hover:bg-blue-50 transition-colors"
                     >
                       <DollarSign className="h-5 w-5 inline mr-1" />
-                      Make Offer
+                      Make an Offer
                     </button>
                   ) : (
-                    <div className="border-t pt-4">
-                      <label className="block text-sm text-gray-600 mb-2">Your Offer</label>
-                      <div className="relative mb-3">
-                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
-                        <input
-                          type="number"
-                          value={offerAmount}
-                          onChange={(e) => setOfferAmount(e.target.value)}
-                          placeholder="Enter offer amount"
-                          className="w-full pl-8 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                        />
-                      </div>
-                      <div className="flex gap-2">
+                    <div className="border border-blue-200 rounded-lg p-4 bg-blue-50/50">
+                      <div className="flex items-center justify-between mb-3">
+                        <h4 className="font-medium text-gray-900">Make an Offer</h4>
                         <button
-                          onClick={() => setShowMakeOffer(false)}
-                          className="flex-1 py-2 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50"
+                          onClick={() => {
+                            setShowMakeOffer(false);
+                            setOfferAmount('');
+                            setOfferMessage('');
+                            setOfferTermsAccepted(false);
+                          }}
+                          className="text-gray-400 hover:text-gray-600"
                         >
-                          Cancel
+                          <X className="h-5 w-5" />
                         </button>
+                      </div>
+
+                      <div className="space-y-3">
+                        <div>
+                          <label className="block text-sm text-gray-600 mb-1">Your Offer Amount</label>
+                          <div className="relative">
+                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
+                            <input
+                              type="text"
+                              inputMode="numeric"
+                              value={offerAmount}
+                              onChange={(e) => setOfferAmount(formatWithCommas(e.target.value))}
+                              placeholder="Enter amount"
+                              className="w-full pl-8 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+                            />
+                          </div>
+                          {listing.auto_decline_price && (
+                            <p className="text-xs text-gray-500 mt-1">
+                              Minimum: ${listing.auto_decline_price.toLocaleString()}
+                            </p>
+                          )}
+                        </div>
+
+                        <div>
+                          <label className="block text-sm text-gray-600 mb-1">Message (optional)</label>
+                          <textarea
+                            value={offerMessage}
+                            onChange={(e) => setOfferMessage(e.target.value)}
+                            placeholder="Add a message to the seller..."
+                            rows={2}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white text-sm resize-none"
+                          />
+                        </div>
+
+                        <div className="bg-white rounded-lg p-3 border border-gray-200">
+                          <p className="text-xs text-gray-600">
+                            <Info className="h-3 w-3 inline mr-1" />
+                            Offers expire in 48 hours. You can make up to 3 offers per listing.
+                            {listing.auto_accept_price && (
+                              <span className="block mt-1 text-green-600">
+                                Offers at ${listing.auto_accept_price.toLocaleString()} or above are automatically accepted.
+                              </span>
+                            )}
+                          </p>
+                        </div>
+
+                        {/* Offer Terms Agreement */}
+                        <label className="flex items-start gap-3 p-3 bg-amber-50 border border-amber-200 rounded-lg cursor-pointer hover:bg-amber-100 transition-colors">
+                          <input
+                            type="checkbox"
+                            checked={offerTermsAccepted}
+                            onChange={(e) => setOfferTermsAccepted(e.target.checked)}
+                            className="mt-0.5 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                          />
+                          <span className="text-xs text-amber-900">
+                            <strong>I understand this is a binding offer.</strong> If the seller accepts, I am obligated to complete the purchase at this price. Payment will be due within {listing.payment_due_days || 7} days of acceptance.
+                          </span>
+                        </label>
+
                         <button
                           onClick={handleMakeOffer}
-                          className="flex-1 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700"
+                          disabled={submittingOffer || !offerAmount || !offerTermsAccepted}
+                          className="w-full py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 flex items-center justify-center gap-2"
                         >
-                          Submit Offer
+                          {submittingOffer ? (
+                            <>
+                              <Loader2 className="h-5 w-5 animate-spin" />
+                              Submitting...
+                            </>
+                          ) : (
+                            <>
+                              <DollarSign className="h-5 w-5" />
+                              Submit Offer
+                            </>
+                          )}
                         </button>
                       </div>
                     </div>
@@ -1035,75 +1589,198 @@ export default function ListingDetailPage() {
 
             {/* Seller Card */}
             {listing.seller && (
-              <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-                <h3 className="font-semibold text-gray-900 mb-4">Seller Information</h3>
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
-                    <User className="h-6 w-6 text-blue-600" />
-                  </div>
-                  <div>
-                    <p className="font-medium text-gray-900 flex items-center gap-1">
+              <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 sm:p-6">
+                <h3 className="text-sm sm:text-base font-semibold text-gray-900 mb-3 sm:mb-4">Seller Information</h3>
+                <div className="flex items-center gap-3 mb-3 sm:mb-4">
+                  <Link
+                    href={`/seller/${listing.seller.id}`}
+                    className="w-10 h-10 sm:w-12 sm:h-12 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0 hover:bg-blue-200 transition-colors overflow-hidden relative"
+                  >
+                    {listing.seller.avatar_url ? (
+                      <Image
+                        src={listing.seller.avatar_url}
+                        alt={listing.seller.company_name || listing.seller.full_name || 'Seller'}
+                        fill
+                        className="object-cover"
+                      />
+                    ) : (
+                      <User className="h-5 w-5 sm:h-6 sm:w-6 text-blue-600" />
+                    )}
+                  </Link>
+                  <div className="min-w-0">
+                    <Link
+                      href={`/seller/${listing.seller.id}`}
+                      className="font-medium text-gray-900 hover:text-blue-600 flex items-center gap-1 text-sm sm:text-base truncate transition-colors"
+                    >
                       {listing.seller.company_name || listing.seller.full_name || 'Seller'}
                       {listing.seller.is_verified && (
-                        <Shield className="h-4 w-4 text-blue-600" />
+                        <Shield className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-blue-600 flex-shrink-0" />
                       )}
-                    </p>
-                    <div className="flex items-center gap-1 text-sm text-gray-500">
-                      <Star className="h-4 w-4 text-yellow-400 fill-current" />
+                    </Link>
+                    <div className="flex items-center gap-1 text-xs sm:text-sm text-gray-500">
+                      <Star className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-yellow-400 fill-current" />
                       <span>{listing.seller.seller_rating || 0}</span>
                       <span>({listing.seller.seller_review_count || 0} reviews)</span>
                     </div>
                   </div>
                 </div>
-                <p className="text-sm text-gray-500 mb-4">
+                <p className="text-xs sm:text-sm text-gray-500 mb-3 sm:mb-4">
                   Member since {new Date(listing.seller.created_at).getFullYear()}
                 </p>
-                <button
-                  onClick={contactSeller}
-                  className="w-full py-2 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition-colors flex items-center justify-center gap-2"
-                >
-                  <MessageSquare className="h-5 w-5" />
-                  Contact Seller
-                </button>
+                <div className="space-y-2">
+                  <Link
+                    href={`/seller/${listing.seller.id}`}
+                    className="w-full py-2 border border-blue-200 text-blue-600 rounded-lg font-medium hover:bg-blue-50 transition-colors flex items-center justify-center gap-2 text-sm"
+                  >
+                    <Package className="h-4 w-4 sm:h-5 sm:w-5" />
+                    View All Listings
+                  </Link>
+                  <button
+                    onClick={contactSeller}
+                    className="w-full py-2 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition-colors flex items-center justify-center gap-2 text-sm"
+                  >
+                    <MessageSquare className="h-4 w-4 sm:h-5 sm:w-5" />
+                    Contact Seller
+                  </button>
+                </div>
               </div>
             )}
 
             {/* Payment Methods */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-              <h3 className="font-semibold text-gray-900 mb-4">Payment Methods</h3>
-              <div className="space-y-2 text-sm">
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 sm:p-6">
+              <h3 className="text-sm sm:text-base font-semibold text-gray-900 mb-3 sm:mb-4">Payment Methods</h3>
+              <div className="space-y-1.5 sm:space-y-2 text-xs sm:text-sm">
                 {listing.accepts_credit_card && (
                   <div className="flex items-center gap-2 text-gray-600">
-                    <Check className="h-4 w-4 text-green-600" />
+                    <Check className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-green-600 flex-shrink-0" />
                     Credit Card (2.9% + $0.30)
                   </div>
                 )}
                 {listing.accepts_ach && (
                   <div className="flex items-center gap-2 text-gray-600">
-                    <Check className="h-4 w-4 text-green-600" />
+                    <Check className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-green-600 flex-shrink-0" />
                     ACH Bank Transfer (0.8%, max $5)
                   </div>
                 )}
                 {listing.accepts_wire && (
                   <div className="flex items-center gap-2 text-gray-600">
-                    <Check className="h-4 w-4 text-green-600" />
+                    <Check className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-green-600 flex-shrink-0" />
                     Wire Transfer
                   </div>
                 )}
                 {listing.accepts_check && (
                   <div className="flex items-center gap-2 text-gray-600">
-                    <Check className="h-4 w-4 text-green-600" />
+                    <Check className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-green-600 flex-shrink-0" />
                     Check
                   </div>
                 )}
               </div>
-              <p className="text-xs text-gray-500 mt-3">
+              <p className="text-xs text-gray-500 mt-2 sm:mt-3">
                 Payment due within {listing.payment_due_days || 7} days of auction end
               </p>
             </div>
           </div>
         </div>
       </div>
+
+      {/* Terms Agreement Modal */}
+      {showTermsModal && effectiveSellerTerms && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-xl max-w-lg w-full max-h-[80vh] flex flex-col">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between p-4 border-b">
+              <div className="flex items-center gap-2">
+                <FileText className="h-5 w-5 text-blue-600" />
+                <h3 className="text-lg font-semibold text-gray-900">
+                  {listing?.seller_terms || listing?.seller?.seller_terms ? 'Seller Terms' : 'Terms & Conditions'}
+                </h3>
+              </div>
+              <button
+                onClick={() => setShowTermsModal(false)}
+                className="p-1 text-gray-400 hover:text-gray-600 rounded"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="p-4 overflow-y-auto flex-1">
+              <p className="text-sm text-gray-500 mb-4">
+                {listing?.seller_terms || listing?.seller?.seller_terms
+                  ? "Please review and accept the seller's terms before placing your bid."
+                  : "Please review and accept the terms before placing your bid."}
+              </p>
+              <div className="bg-gray-50 rounded-lg p-4 text-sm text-gray-700 whitespace-pre-wrap">
+                {effectiveSellerTerms}
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-4 border-t space-y-3">
+              <label className="flex items-start gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={termsAccepted}
+                  onChange={(e) => setTermsAccepted(e.target.checked)}
+                  className="w-5 h-5 mt-0.5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                />
+                <span className="text-sm text-gray-600">
+                  {listing?.seller_terms || listing?.seller?.seller_terms
+                    ? "I have read and agree to the seller's terms and conditions for this listing"
+                    : "I have read and agree to the terms and conditions"}
+                </span>
+              </label>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowTermsModal(false)}
+                  className="flex-1 py-2 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    if (termsAccepted) {
+                      setShowTermsModal(false);
+                      handlePlaceBid();
+                    }
+                  }}
+                  disabled={!termsAccepted || submittingBid}
+                  className="flex-1 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  {submittingBid ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Placing Bid...
+                    </>
+                  ) : (
+                    <>
+                      <Gavel className="h-4 w-4" />
+                      Accept & Place Bid
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Phone Verification Modal */}
+      {showPhoneVerification && user?.id && (
+        <PhoneVerification
+          userId={user.id}
+          isVerified={userPhoneVerified}
+          showAsModal={true}
+          onVerified={() => {
+            setUserPhoneVerified(true);
+            setShowPhoneVerification(false);
+            setSuccessMessage('Phone verified! You can now place bids and make offers.');
+            setTimeout(() => setSuccessMessage(null), 5000);
+          }}
+          onClose={() => setShowPhoneVerification(false)}
+        />
+      )}
     </div>
   );
 }

@@ -122,9 +122,12 @@ export interface Profile {
   is_verified: boolean;
   verified_at: string | null;
   is_seller: boolean;
+  is_admin: boolean;
   seller_approved_at: string | null;
   seller_rating: number;
   seller_review_count: number;
+  seller_terms: string | null; // Global seller terms for all listings
+  default_shipping_info: string | null; // Default shipping info for all listings
   buyer_rating: number;
   buyer_review_count: number;
   stripe_customer_id: string | null;
@@ -175,7 +178,8 @@ export interface Listing {
   seller_id: string;
   title: string;
   description: string | null;
-  seller_terms: string | null;
+  seller_terms: string | null; // Listing-specific terms (overrides global)
+  shipping_info: string | null; // Shipping and delivery information
   primary_category_id: string | null;
   listing_type: ListingType;
   status: ListingStatus;

@@ -143,8 +143,12 @@ export default function HomePage() {
             </div>
             <div className="hidden lg:block">
               <div className="bg-white/10 backdrop-blur rounded-2xl p-6 border border-white/20">
-                <div className="aspect-video bg-slate-700 rounded-lg mb-4 flex items-center justify-center">
-                  <span className="text-gray-400">Featured Equipment Preview</span>
+                <div className="aspect-video bg-slate-700 rounded-lg mb-4 overflow-hidden">
+                  <img
+                    src="https://images.unsplash.com/photo-1581092160562-40aa08e78837?w=600&h=400&fit=crop"
+                    alt="Industrial Inserter Machine"
+                    className="w-full h-full object-cover"
+                  />
                 </div>
                 <div className="flex justify-between items-center">
                   <div>
@@ -255,27 +259,64 @@ export default function HomePage() {
             </Link>
           </div>
           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {/* Placeholder listing cards */}
-            {[1, 2, 3, 4].map((i) => (
-              <div key={i} className="bg-white border rounded-xl overflow-hidden hover:shadow-lg transition">
-                <div className="aspect-[4/3] bg-gray-100 flex items-center justify-center">
-                  <span className="text-gray-400">Equipment Image</span>
+            {/* Sample listing cards with images */}
+            {[
+              {
+                id: 1,
+                category: 'Mailing Equipment',
+                title: 'Pitney Bowes DI950 Inserter',
+                price: '$12,500',
+                endsIn: '2d 5h',
+                image: 'https://images.unsplash.com/photo-1581092160562-40aa08e78837?w=400&h=300&fit=crop'
+              },
+              {
+                id: 2,
+                category: 'Printing',
+                title: 'Heidelberg SM 52-4',
+                price: '$45,000',
+                endsIn: '1d 12h',
+                image: 'https://images.unsplash.com/photo-1504328345606-18bbc8c9d7d1?w=400&h=300&fit=crop'
+              },
+              {
+                id: 3,
+                category: 'Bindery',
+                title: 'MBO K800.2 Folder',
+                price: '$8,750',
+                endsIn: '4d 8h',
+                image: 'https://images.unsplash.com/photo-1565793298595-6a879b1d9492?w=400&h=300&fit=crop'
+              },
+              {
+                id: 4,
+                category: 'Material Handling',
+                title: 'Crown Electric Forklift',
+                price: '$6,200',
+                endsIn: '3d 2h',
+                image: 'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?w=400&h=300&fit=crop'
+              }
+            ].map((item) => (
+              <Link key={item.id} href="/marketplace" className="bg-white border rounded-xl overflow-hidden hover:shadow-lg transition">
+                <div className="aspect-[4/3] bg-gray-100 overflow-hidden">
+                  <img
+                    src={item.image}
+                    alt={item.title}
+                    className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
+                  />
                 </div>
                 <div className="p-4">
-                  <p className="text-sm text-blue-600 font-medium mb-1">Mailing Equipment</p>
-                  <h3 className="font-semibold text-gray-900 mb-2">Sample Equipment {i}</h3>
+                  <p className="text-sm text-blue-600 font-medium mb-1">{item.category}</p>
+                  <h3 className="font-semibold text-gray-900 mb-2">{item.title}</h3>
                   <div className="flex justify-between items-center">
                     <div>
                       <p className="text-xs text-gray-500">Current Bid</p>
-                      <p className="font-bold text-gray-900">$5,000</p>
+                      <p className="font-bold text-gray-900">{item.price}</p>
                     </div>
                     <div className="text-right">
                       <p className="text-xs text-gray-500">Ends in</p>
-                      <p className="text-sm font-medium text-orange-600">2d 5h</p>
+                      <p className="text-sm font-medium text-blue-600">{item.endsIn}</p>
                     </div>
                   </div>
                 </div>
-              </div>
+              </Link>
             ))}
           </div>
         </div>

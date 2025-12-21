@@ -1,93 +1,182 @@
 'use client';
 
-import { useEffect, useState, useMemo } from 'react';
-import { User } from '@supabase/supabase-js';
+import { useEffect, useState, useMemo, useCallback, useSyncExternalStore } from 'react';
+import { User, AuthChangeEvent, Session } from '@supabase/supabase-js';
 import { createClient } from '@/lib/supabase/client';
 
 interface Profile {
   is_seller: boolean;
   is_admin: boolean;
+  full_name?: string;
+  company_name?: string;
+  avatar_url?: string;
+}
+
+// Cache for auth state to persist across component mounts
+let cachedUser: User | null = null;
+let cachedProfile: Profile | null = null;
+let authInitialized = false;
+let authListeners: Set<() => void> = new Set();
+
+function notifyListeners() {
+  authListeners.forEach(listener => listener());
 }
 
 export function useAuth() {
-  const [user, setUser] = useState<User | null>(null);
-  const [profile, setProfile] = useState<Profile | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [user, setUser] = useState<User | null>(cachedUser);
+  const [profile, setProfile] = useState<Profile | null>(cachedProfile);
+  const [loading, setLoading] = useState(!authInitialized);
 
   // Memoize the supabase client to prevent re-creation on each render
   const supabase = useMemo(() => createClient(), []);
 
+  const fetchProfile = useCallback(async (userId: string): Promise<Profile | null> => {
+    try {
+      const { data: profileData } = await supabase
+        .from('profiles')
+        .select('is_seller, is_admin, full_name, company_name, avatar_url')
+        .eq('id', userId)
+        .single();
+      return profileData;
+    } catch {
+      return null;
+    }
+  }, [supabase]);
+
+  // Subscribe to cached auth state changes
   useEffect(() => {
-    // Get initial session
-    const getUser = async () => {
+    const listener = () => {
+      setUser(cachedUser);
+      setProfile(cachedProfile);
+      setLoading(!authInitialized);
+    };
+    authListeners.add(listener);
+    return () => {
+      authListeners.delete(listener);
+    };
+  }, []);
+
+  useEffect(() => {
+    let mounted = true;
+
+    const initializeAuth = async () => {
+      // If already initialized, just sync state
+      if (authInitialized) {
+        if (mounted) {
+          setUser(cachedUser);
+          setProfile(cachedProfile);
+          setLoading(false);
+        }
+        return;
+      }
+
       try {
-        const { data: { user } } = await supabase.auth.getUser();
-        setUser(user);
+        // Use getUser() - validates the token with the server
+        const { data: { user: authUser }, error } = await supabase.auth.getUser();
 
-        // Fetch profile to get is_seller and is_admin status
-        if (user) {
-          const { data: profileData } = await supabase
-            .from('profiles')
-            .select('is_seller, is_admin')
-            .eq('id', user.id)
-            .single();
+        if (!mounted) return;
 
+        if (error || !authUser) {
+          cachedUser = null;
+          cachedProfile = null;
+          authInitialized = true;
+          setUser(null);
+          setProfile(null);
+          setLoading(false);
+          notifyListeners();
+          return;
+        }
+
+        cachedUser = authUser;
+        setUser(authUser);
+
+        // Fetch profile
+        const profileData = await fetchProfile(authUser.id);
+        if (mounted) {
+          cachedProfile = profileData;
           setProfile(profileData);
         }
+        authInitialized = true;
+        notifyListeners();
       } catch (err) {
-        console.error('Error fetching user:', err);
+        console.error('[useAuth] Error fetching user:', err);
+        if (mounted) {
+          cachedUser = null;
+          cachedProfile = null;
+          authInitialized = true;
+          setUser(null);
+          setProfile(null);
+          notifyListeners();
+        }
       } finally {
-        setLoading(false);
+        if (mounted) setLoading(false);
       }
     };
 
-    getUser();
+    initializeAuth();
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (_event, session) => {
-        setUser(session?.user ?? null);
+      async (event: AuthChangeEvent, session: Session | null) => {
+        if (!mounted) return;
 
-        // Fetch profile when auth state changes
-        if (session?.user) {
-          const { data: profileData } = await supabase
-            .from('profiles')
-            .select('is_seller, is_admin')
-            .eq('id', session.user.id)
-            .single();
-
-          setProfile(profileData);
-        } else {
+        if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+          if (session?.user) {
+            cachedUser = session.user;
+            setUser(session.user);
+            const profileData = await fetchProfile(session.user.id);
+            if (mounted) {
+              cachedProfile = profileData;
+              setProfile(profileData);
+            }
+            notifyListeners();
+          }
+        } else if (event === 'SIGNED_OUT') {
+          cachedUser = null;
+          cachedProfile = null;
+          authInitialized = true;
+          setUser(null);
           setProfile(null);
+          notifyListeners();
         }
 
-        setLoading(false);
+        if (mounted) setLoading(false);
       }
     );
 
     return () => {
+      mounted = false;
       subscription.unsubscribe();
     };
-  }, [supabase]);
+  }, [supabase, fetchProfile]);
 
-  const signOut = async () => {
-    // Clear state first
+  const signOut = () => {
+    // Clear cached state
+    cachedUser = null;
+    cachedProfile = null;
+    authInitialized = false;
+
+    // Clear component state
     setUser(null);
     setProfile(null);
+    notifyListeners();
 
-    try {
-      // Sign out locally (more reliable than global)
-      await supabase.auth.signOut();
-    } catch (err) {
-      console.error('Sign out error:', err);
+    // Clear localStorage items related to Supabase
+    for (let i = localStorage.length - 1; i >= 0; i--) {
+      const key = localStorage.key(i);
+      if (key && (key.startsWith('sb-') || key.includes('supabase'))) {
+        localStorage.removeItem(key);
+      }
     }
 
-    // Force a full page reload to clear any cached state
-    window.location.href = '/';
+    // Navigate to server-side signout page (handles cookies)
+    window.location.href = '/auth/signout';
   };
 
   const isSeller = profile?.is_seller ?? false;
   const isAdmin = profile?.is_admin ?? false;
+  const profileName = profile?.full_name || profile?.company_name || null;
+  const avatarUrl = profile?.avatar_url || null;
 
-  return { user, loading, signOut, isSeller, isAdmin };
+  return { user, loading, signOut, isSeller, isAdmin, profile, profileName, avatarUrl };
 }

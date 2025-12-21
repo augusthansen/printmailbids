@@ -23,8 +23,109 @@ import {
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { createClient } from '@/lib/supabase/client';
+import MakeAutocomplete from '@/components/MakeAutocomplete';
+import ModelAutocomplete from '@/components/ModelAutocomplete';
 
-type Step = 1 | 2 | 3 | 4 | 5;
+type Step = 1 | 2 | 3 | 4 | 5 | 6;
+
+// Machine capabilities options by category
+const capabilitiesByCategory: Record<string, string[]> = {
+  'mailing-fulfillment': [
+    'Intelligent Mail Barcode (IMb)',
+    'Address Quality',
+    'NCOA Processing',
+    'Inkjet Addressing',
+    'Double Feed Detection',
+    'Barcode Reading',
+    'OCR/OMR',
+    'Camera Verification',
+    'Sorting',
+    'Tabbing',
+    'Stamp Affixing',
+    'Metering',
+    'Weighing',
+  ],
+  'printing': [
+    'Variable Data Printing',
+    'Spot Color',
+    'UV Coating',
+    'Aqueous Coating',
+    'Perfecting (Duplex)',
+    'White Ink',
+    'Metallic Ink',
+    'Cut Sheet',
+    'Continuous Feed',
+    'Web-to-Print',
+    'Wide Format',
+    'Label Printing',
+    'Envelope Printing',
+  ],
+  'bindery-finishing': [
+    'Saddle Stitching',
+    'Perfect Binding',
+    'Wire-O Binding',
+    'Coil Binding',
+    'Case Making',
+    'Laminating',
+    'UV Coating',
+    'Die Cutting',
+    'Embossing',
+    'Foil Stamping',
+    'Scoring',
+    'Perforating',
+    'Numbering',
+    'Collating',
+  ],
+  'packaging': [
+    'Box Making',
+    'Carton Erecting',
+    'Case Sealing',
+    'Shrink Wrapping',
+    'Stretch Wrapping',
+    'Banding',
+    'Labeling',
+    'Palletizing',
+    'Filling',
+    'Capping',
+  ],
+  'material-handling': [
+    'Lift Capacity',
+    'Indoor/Outdoor',
+    'Electric',
+    'Propane',
+    'Diesel',
+    'Reach',
+    'Narrow Aisle',
+    'Walk Behind',
+    'Rider',
+    'Order Picker',
+  ],
+  'parts-supplies': [],
+};
+
+// Operating systems for equipment
+const operatingSystems = [
+  'Windows 11',
+  'Windows 10',
+  'Windows 7',
+  'Windows XP',
+  'Linux',
+  'macOS',
+  'Proprietary/Embedded',
+  'DOS-based',
+  'Other',
+];
+
+// Controller types
+const controllerTypes = [
+  'PC-based Controller',
+  'PLC (Programmable Logic Controller)',
+  'Proprietary Controller',
+  'Touchscreen HMI',
+  'Remote/Network Control',
+  'Manual/Mechanical',
+  'Other',
+];
 
 // Helper function to convert image to JPEG using Canvas (works for most formats including some HEIC on iOS)
 async function convertToJpeg(file: File): Promise<File> {
@@ -91,9 +192,10 @@ async function convertToJpeg(file: File): Promise<File> {
 const steps = [
   { number: 1, title: 'Photos & Videos' },
   { number: 2, title: 'Equipment Details' },
-  { number: 3, title: 'Condition & Logistics' },
-  { number: 4, title: 'Pricing & Auction' },
-  { number: 5, title: 'Review & Publish' },
+  { number: 3, title: 'Machine Specs' },
+  { number: 4, title: 'Condition & Logistics' },
+  { number: 5, title: 'Pricing & Auction' },
+  { number: 6, title: 'Review & Publish' },
 ];
 
 // Fallback categories if database is empty
@@ -238,6 +340,7 @@ export default function CreateListingPage() {
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [savingDraft, setSavingDraft] = useState(false);
   const [categories, setCategoriesData] = useState<{id: string, name: string, slug: string}[]>([]);
 
   // Load categories from database with fallback
@@ -258,22 +361,80 @@ export default function CreateListingPage() {
     loadCategories();
   }, [supabase]);
 
+  // Load seller's default terms and shipping info from profile
+  useEffect(() => {
+    async function loadSellerDefaults() {
+      if (!user?.id) return;
+
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('seller_terms, default_shipping_info')
+        .eq('id', user.id)
+        .single();
+
+      if (profile) {
+        // Only pre-fill if the form fields are empty (don't overwrite user edits)
+        setFormData(prev => ({
+          ...prev,
+          sellerTerms: prev.sellerTerms || profile.seller_terms || '',
+          shippingInfo: prev.shippingInfo || profile.default_shipping_info || '',
+        }));
+      }
+    }
+    loadSellerDefaults();
+  }, [user?.id, supabase]);
+
   // Form state
   const [formData, setFormData] = useState({
     // Step 1: Media
     images: [] as File[],
     videos: [] as string[],
+    videoUrl: '',
 
     // Step 2: Details
     title: '',
     category: '',
     description: '',
+    sellerTerms: '',
+    shippingInfo: '',
     make: '',
     model: '',
     year: '',
     serialNumber: '',
 
-    // Step 3: Condition & Logistics
+    // Step 3: Machine Specs
+    // Software & System
+    softwareNa: false,
+    softwareVersion: '',
+    operatingSystem: '',
+    controllerType: '',
+
+    // Configuration
+    configurationNa: false,
+    numberOfHeads: '',
+    maxSpeed: '',
+    feederCount: '',
+    outputStackerCount: '',
+
+    // Capabilities
+    capabilitiesNa: false,
+    capabilities: [] as string[],
+
+    // Material Specifications
+    materialNa: false,
+    materialTypes: '',
+    maxMaterialWidth: '',
+    maxMaterialLength: '',
+    materialWeight: '',
+
+    // Additional Technical
+    powerRequirements: '',
+    networkConnectivity: '',
+    includedAccessories: '',
+    maintenanceHistory: '',
+    lastServiceDate: '',
+
+    // Step 4: Condition & Logistics
     condition: '',
     hoursCount: '',
     equipmentStatus: '',
@@ -388,7 +549,7 @@ export default function CreateListingPage() {
   };
 
   const nextStep = () => {
-    if (currentStep < 5) {
+    if (currentStep < 6) {
       setCurrentStep((currentStep + 1) as Step);
     }
   };
@@ -399,7 +560,135 @@ export default function CreateListingPage() {
     }
   };
 
+  const handleSaveDraft = async () => {
+    if (!user?.id) {
+      setError('You must be logged in to save a draft');
+      return;
+    }
+
+    setSavingDraft(true);
+    setError(null);
+
+    try {
+      // Find category ID from slug
+      const selectedCategory = categories.find(c => c.slug === formData.category || c.id === formData.category);
+      const isValidUUID = selectedCategory?.id &&
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(selectedCategory.id);
+      const categoryId = isValidUUID ? selectedCategory.id : null;
+
+      // Create draft listing (no start/end time required for drafts)
+      const { data: listing, error: listingError } = await supabase
+        .from('listings')
+        .insert({
+          seller_id: user.id,
+          title: formData.title || 'Untitled Draft',
+          description: formData.description || null,
+          seller_terms: formData.sellerTerms || null,
+          shipping_info: formData.shippingInfo || null,
+          primary_category_id: categoryId,
+          listing_type: formData.listingType,
+          status: 'draft',
+          starting_price: formData.startingPrice ? parseFloat(formData.startingPrice) : null,
+          reserve_price: formData.reservePrice ? parseFloat(formData.reservePrice) : null,
+          buy_now_price: formData.buyNowPrice ? parseFloat(formData.buyNowPrice) : null,
+          fixed_price: formData.listingType.includes('fixed') && formData.buyNowPrice ? parseFloat(formData.buyNowPrice) : null,
+          accept_offers: formData.acceptOffers,
+          auto_accept_price: formData.autoAcceptPrice ? parseFloat(formData.autoAcceptPrice) : null,
+          auto_decline_price: formData.autoDeclinePrice ? parseFloat(formData.autoDeclinePrice) : null,
+          make: formData.make || null,
+          model: formData.model || null,
+          year: formData.year ? parseInt(formData.year) : null,
+          serial_number: formData.serialNumber || null,
+          condition: formData.condition || null,
+          hours_count: formData.hoursCount ? parseInt(formData.hoursCount) : null,
+          equipment_status: formData.equipmentStatus || null,
+          onsite_assistance: formData.onsiteAssistance,
+          weight_lbs: formData.weight ? parseInt(formData.weight) : null,
+          removal_deadline: formData.removalDeadline || null,
+          pickup_notes: formData.pickupNotes || null,
+          payment_due_days: parseInt(formData.paymentDueDays),
+          accepts_credit_card: formData.acceptsCreditCard,
+          accepts_ach: formData.acceptsAch,
+          accepts_wire: formData.acceptsWire,
+          accepts_check: formData.acceptsCheck,
+          video_url: formData.videoUrl || null,
+          // Machine Specs
+          software_na: formData.softwareNa,
+          software_version: formData.softwareVersion || null,
+          operating_system: formData.operatingSystem || null,
+          controller_type: formData.controllerType || null,
+          configuration_na: formData.configurationNa,
+          number_of_heads: formData.numberOfHeads ? parseInt(formData.numberOfHeads) : null,
+          max_speed: formData.maxSpeed || null,
+          feeder_count: formData.feederCount ? parseInt(formData.feederCount) : null,
+          output_stacker_count: formData.outputStackerCount ? parseInt(formData.outputStackerCount) : null,
+          capabilities_na: formData.capabilitiesNa,
+          capabilities: formData.capabilities.length > 0 ? formData.capabilities : null,
+          material_na: formData.materialNa,
+          material_types: formData.materialTypes || null,
+          max_material_width: formData.maxMaterialWidth || null,
+          max_material_length: formData.maxMaterialLength || null,
+          material_weight: formData.materialWeight || null,
+          power_requirements: formData.powerRequirements || null,
+          network_connectivity: formData.networkConnectivity || null,
+          included_accessories: formData.includedAccessories || null,
+          maintenance_history: formData.maintenanceHistory || null,
+          last_service_date: formData.lastServiceDate || null,
+        })
+        .select()
+        .single();
+
+      if (listingError) {
+        throw listingError;
+      }
+
+      // Upload images if any
+      if (imageFiles.length > 0 && listing) {
+        for (let i = 0; i < imageFiles.length; i++) {
+          const file = imageFiles[i];
+          const fileExt = file.name.split('.').pop();
+          const fileName = `${listing.id}/${Date.now()}-${i}.${fileExt}`;
+
+          const { error: uploadError } = await supabase.storage
+            .from('listing-images')
+            .upload(fileName, file);
+
+          if (uploadError) {
+            console.error('Image upload error:', uploadError);
+            continue;
+          }
+
+          const { data: urlData } = supabase.storage
+            .from('listing-images')
+            .getPublicUrl(fileName);
+
+          await supabase.from('listing_images').insert({
+            listing_id: listing.id,
+            url: urlData.publicUrl,
+            sort_order: i,
+            is_primary: i === 0,
+          });
+        }
+      }
+
+      // Redirect to edit page for the draft
+      router.push(`/dashboard/listings/${listing.id}/edit`);
+    } catch (err: unknown) {
+      console.error('Error saving draft:', err);
+      if (err && typeof err === 'object') {
+        const supabaseErr = err as { message?: string; details?: string; hint?: string };
+        const errorMsg = supabaseErr.message || supabaseErr.details || supabaseErr.hint || 'Unknown error';
+        setError(`Failed to save draft: ${errorMsg}`);
+      } else {
+        setError('Failed to save draft. Please try again.');
+      }
+    } finally {
+      setSavingDraft(false);
+    }
+  };
+
   const handleSubmit = async () => {
+    console.log('handleSubmit called, user:', user);
     if (!user?.id) {
       setError('You must be logged in to create a listing');
       return;
@@ -409,6 +698,7 @@ export default function CreateListingPage() {
     setError(null);
 
     try {
+      console.log('Starting listing creation for user:', user.id);
       // Calculate end time based on auction duration
       const startTime = new Date();
       const endTime = new Date();
@@ -423,12 +713,20 @@ export default function CreateListingPage() {
       const categoryId = isValidUUID ? selectedCategory.id : null;
 
       // Create the listing
+      console.log('Inserting listing with data:', {
+        seller_id: user.id,
+        title: formData.title,
+        listing_type: formData.listingType,
+        primary_category_id: categoryId,
+      });
       const { data: listing, error: listingError } = await supabase
         .from('listings')
         .insert({
           seller_id: user.id,
           title: formData.title,
           description: formData.description,
+          seller_terms: formData.sellerTerms || null,
+          shipping_info: formData.shippingInfo || null,
           primary_category_id: categoryId,
           listing_type: formData.listingType,
           status: 'active',
@@ -458,10 +756,34 @@ export default function CreateListingPage() {
           accepts_ach: formData.acceptsAch,
           accepts_wire: formData.acceptsWire,
           accepts_check: formData.acceptsCheck,
+          video_url: formData.videoUrl || null,
+          // Machine Specs
+          software_na: formData.softwareNa,
+          software_version: formData.softwareVersion || null,
+          operating_system: formData.operatingSystem || null,
+          controller_type: formData.controllerType || null,
+          configuration_na: formData.configurationNa,
+          number_of_heads: formData.numberOfHeads ? parseInt(formData.numberOfHeads) : null,
+          max_speed: formData.maxSpeed || null,
+          feeder_count: formData.feederCount ? parseInt(formData.feederCount) : null,
+          output_stacker_count: formData.outputStackerCount ? parseInt(formData.outputStackerCount) : null,
+          capabilities_na: formData.capabilitiesNa,
+          capabilities: formData.capabilities.length > 0 ? formData.capabilities : null,
+          material_na: formData.materialNa,
+          material_types: formData.materialTypes || null,
+          max_material_width: formData.maxMaterialWidth || null,
+          max_material_length: formData.maxMaterialLength || null,
+          material_weight: formData.materialWeight || null,
+          power_requirements: formData.powerRequirements || null,
+          network_connectivity: formData.networkConnectivity || null,
+          included_accessories: formData.includedAccessories || null,
+          maintenance_history: formData.maintenanceHistory || null,
+          last_service_date: formData.lastServiceDate || null,
         })
         .select()
         .single();
 
+      console.log('Supabase response - listing:', listing, 'error:', listingError);
       if (listingError) {
         throw listingError;
       }
@@ -507,12 +829,12 @@ export default function CreateListingPage() {
       // Redirect to the listing page
       router.push(`/listing/${listing.id}`);
     } catch (err: unknown) {
-      console.error('Error creating listing:', err);
-      // Show more detailed error message
-      if (err && typeof err === 'object' && 'message' in err) {
-        setError(`Failed to create listing: ${(err as { message: string }).message}`);
-      } else if (err && typeof err === 'object' && 'details' in err) {
-        setError(`Failed to create listing: ${(err as { details: string }).details}`);
+      console.error('Error creating listing:', JSON.stringify(err, null, 2));
+      // Show more detailed error message for Supabase errors
+      if (err && typeof err === 'object') {
+        const supabaseErr = err as { message?: string; details?: string; hint?: string; code?: string };
+        const errorMsg = supabaseErr.message || supabaseErr.details || supabaseErr.hint || 'Unknown error';
+        setError(`Failed to create listing: ${errorMsg}`);
       } else {
         setError('Failed to create listing. Please try again.');
       }
@@ -535,9 +857,7 @@ export default function CreateListingPage() {
               <span className="hidden sm:inline">Back to Dashboard</span>
             </Link>
             <h1 className="text-xl font-bold text-gray-900">Create Listing</h1>
-            <button className="text-gray-600 hover:text-gray-900">
-              Save Draft
-            </button>
+            <div className="w-20" /> {/* Spacer for layout balance */}
           </div>
         </div>
       </div>
@@ -726,11 +1046,13 @@ export default function CreateListingPage() {
                 <Video className="h-6 w-6 text-gray-400" />
                 <div>
                   <p className="font-medium text-gray-900">Add Video (Optional)</p>
-                  <p className="text-sm text-gray-500">YouTube or Vimeo link</p>
+                  <p className="text-sm text-gray-500">YouTube or Vimeo link - will be embedded on the listing page</p>
                 </div>
               </div>
               <input
                 type="url"
+                value={formData.videoUrl}
+                onChange={(e) => updateFormData('videoUrl', e.target.value)}
                 placeholder="https://youtube.com/watch?v=..."
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
@@ -789,31 +1111,14 @@ export default function CreateListingPage() {
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Make / Manufacturer *
                 </label>
-                <select
+                <MakeAutocomplete
                   value={formData.make}
-                  onChange={(e) => updateFormData('make', e.target.value)}
-                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white appearance-none cursor-pointer"
-                  style={{ backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`, backgroundPosition: 'right 0.5rem center', backgroundRepeat: 'no-repeat', backgroundSize: '1.5em 1.5em', paddingRight: '2.5rem' }}
-                >
-                  <option value="">Select manufacturer</option>
-                  {(formData.category
-                    ? [...new Set(manufacturersByCategory[formData.category] || [])].sort()
-                    : allManufacturers
-                  ).map((manufacturer) => (
-                    <option key={manufacturer} value={manufacturer}>{manufacturer}</option>
-                  ))}
-                  <option value="other">Other (type below)</option>
-                </select>
-                {formData.make === 'other' && (
-                  <input
-                    type="text"
-                    placeholder="Enter manufacturer name"
-                    className="w-full mt-2 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    onChange={(e) => updateFormData('make', e.target.value)}
-                  />
-                )}
+                  onChange={(value) => updateFormData('make', value)}
+                  category={formData.category}
+                  placeholder="Start typing manufacturer name..."
+                />
                 <p className="text-xs text-gray-500 mt-1">
-                  {formData.category ? 'Showing manufacturers for selected category' : 'Select a category to see relevant manufacturers'}
+                  Type to search or enter a new manufacturer
                 </p>
               </div>
 
@@ -823,13 +1128,15 @@ export default function CreateListingPage() {
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Model *
                   </label>
-                  <input
-                    type="text"
+                  <ModelAutocomplete
                     value={formData.model}
-                    onChange={(e) => updateFormData('model', e.target.value)}
-                    placeholder="e.g., DI950"
-                    className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    onChange={(value) => updateFormData('model', value)}
+                    make={formData.make}
+                    placeholder={formData.make ? `Search ${formData.make} models...` : 'Enter model...'}
                   />
+                  <p className="text-xs text-gray-500 mt-1">
+                    {formData.make ? `Suggestions based on other ${formData.make} listings` : 'Select a manufacturer first for suggestions'}
+                  </p>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -872,12 +1179,417 @@ export default function CreateListingPage() {
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
               </div>
+
+              {/* Seller Terms */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Seller Terms (Optional)
+                </label>
+                <textarea
+                  value={formData.sellerTerms}
+                  onChange={(e) => updateFormData('sellerTerms', e.target.value)}
+                  rows={4}
+                  placeholder="Enter any terms and conditions for this listing. Buyers will need to accept these before bidding."
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  {formData.sellerTerms
+                    ? 'Pre-filled from your profile settings. Edit as needed for this listing.'
+                    : 'Set default terms in your profile settings to auto-fill this field.'}
+                </p>
+              </div>
+
+              {/* Shipping Info */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Shipping Information (Optional)
+                </label>
+                <textarea
+                  value={formData.shippingInfo}
+                  onChange={(e) => updateFormData('shippingInfo', e.target.value)}
+                  rows={4}
+                  placeholder="Describe shipping options, packaging requirements, freight recommendations, etc."
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  {formData.shippingInfo
+                    ? 'Pre-filled from your profile settings. Edit as needed for this listing.'
+                    : 'Set default shipping info in your profile settings to auto-fill this field.'}
+                </p>
+              </div>
             </div>
           </div>
         )}
 
-        {/* Step 3: Condition & Logistics */}
+        {/* Step 3: Machine Specs */}
         {currentStep === 3 && (
+          <div className="space-y-6">
+            <div>
+              <h2 className="text-2xl font-bold text-gray-900 mb-2">Machine Specifications</h2>
+              <p className="text-gray-600">
+                Provide technical details about your equipment. Mark sections as N/A if they don&apos;t apply.
+              </p>
+            </div>
+
+            {/* Software & System Section */}
+            <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+              <div className="flex items-center justify-between p-4 border-b bg-gray-50">
+                <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+                  <Info className="h-5 w-5 text-blue-600" />
+                  Software & System
+                </h3>
+                <label className="flex items-center gap-2 text-sm cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={formData.softwareNa}
+                    onChange={(e) => updateFormData('softwareNa', e.target.checked)}
+                    className="w-4 h-4 rounded border-gray-300 text-gray-500 focus:ring-gray-400"
+                  />
+                  <span className="text-gray-500">N/A</span>
+                </label>
+              </div>
+              {!formData.softwareNa && (
+                <div className="p-6 space-y-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Software/Firmware Version
+                      </label>
+                      <input
+                        type="text"
+                        value={formData.softwareVersion}
+                        onChange={(e) => updateFormData('softwareVersion', e.target.value)}
+                        placeholder="e.g., v4.2.1, Build 2024.03"
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Operating System
+                      </label>
+                      <select
+                        value={formData.operatingSystem}
+                        onChange={(e) => updateFormData('operatingSystem', e.target.value)}
+                        className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white appearance-none cursor-pointer"
+                        style={{ backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`, backgroundPosition: 'right 0.5rem center', backgroundRepeat: 'no-repeat', backgroundSize: '1.5em 1.5em', paddingRight: '2.5rem' }}
+                      >
+                        <option value="">Select operating system</option>
+                        {operatingSystems.map((os) => (
+                          <option key={os} value={os}>{os}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Controller Type
+                    </label>
+                    <select
+                      value={formData.controllerType}
+                      onChange={(e) => updateFormData('controllerType', e.target.value)}
+                      className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white appearance-none cursor-pointer"
+                      style={{ backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`, backgroundPosition: 'right 0.5rem center', backgroundRepeat: 'no-repeat', backgroundSize: '1.5em 1.5em', paddingRight: '2.5rem' }}
+                    >
+                      <option value="">Select controller type</option>
+                      {controllerTypes.map((type) => (
+                        <option key={type} value={type}>{type}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Machine Configuration Section */}
+            <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+              <div className="flex items-center justify-between p-4 border-b bg-gray-50">
+                <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+                  <Package className="h-5 w-5 text-blue-600" />
+                  Machine Configuration
+                </h3>
+                <label className="flex items-center gap-2 text-sm cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={formData.configurationNa}
+                    onChange={(e) => updateFormData('configurationNa', e.target.checked)}
+                    className="w-4 h-4 rounded border-gray-300 text-gray-500 focus:ring-gray-400"
+                  />
+                  <span className="text-gray-500">N/A</span>
+                </label>
+              </div>
+              {!formData.configurationNa && (
+                <div className="p-6 space-y-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Number of Heads
+                      </label>
+                      <input
+                        type="number"
+                        value={formData.numberOfHeads}
+                        onChange={(e) => updateFormData('numberOfHeads', e.target.value)}
+                        placeholder="e.g., 4"
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      />
+                      <p className="text-xs text-gray-500 mt-1">For printers, inkjets, etc.</p>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Max Speed
+                      </label>
+                      <input
+                        type="text"
+                        value={formData.maxSpeed}
+                        onChange={(e) => updateFormData('maxSpeed', e.target.value)}
+                        placeholder="e.g., 10,000/hour"
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Feeder Count
+                      </label>
+                      <input
+                        type="number"
+                        value={formData.feederCount}
+                        onChange={(e) => updateFormData('feederCount', e.target.value)}
+                        placeholder="e.g., 4"
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Output Stacker Count
+                    </label>
+                    <input
+                      type="number"
+                      value={formData.outputStackerCount}
+                      onChange={(e) => updateFormData('outputStackerCount', e.target.value)}
+                      placeholder="e.g., 2"
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Capabilities Section */}
+            <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+              <div className="flex items-center justify-between p-4 border-b bg-gray-50">
+                <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+                  <CheckCircle className="h-5 w-5 text-blue-600" />
+                  Machine Capabilities
+                </h3>
+                <label className="flex items-center gap-2 text-sm cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={formData.capabilitiesNa}
+                    onChange={(e) => updateFormData('capabilitiesNa', e.target.checked)}
+                    className="w-4 h-4 rounded border-gray-300 text-gray-500 focus:ring-gray-400"
+                  />
+                  <span className="text-gray-500">N/A</span>
+                </label>
+              </div>
+              {!formData.capabilitiesNa && (
+                <div className="p-6">
+                  {formData.category && capabilitiesByCategory[formData.category]?.length > 0 ? (
+                    <>
+                      <p className="text-sm text-gray-600 mb-3">
+                        Select all capabilities that apply to this equipment:
+                      </p>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                        {capabilitiesByCategory[formData.category]?.map((capability) => (
+                          <label
+                            key={capability}
+                            className={`
+                              flex items-center gap-2 p-2 border rounded-lg cursor-pointer transition-colors
+                              ${formData.capabilities.includes(capability)
+                                ? 'border-blue-500 bg-blue-50'
+                                : 'border-gray-200 hover:border-gray-300'
+                              }
+                            `}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={formData.capabilities.includes(capability)}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  updateFormData('capabilities', [...formData.capabilities, capability]);
+                                } else {
+                                  updateFormData('capabilities', formData.capabilities.filter((c: string) => c !== capability));
+                                }
+                              }}
+                              className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                            />
+                            <span className="text-sm">{capability}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </>
+                  ) : (
+                    <p className="text-sm text-gray-500 italic">
+                      {formData.category
+                        ? 'No pre-defined capabilities for this category. Use the description field to detail capabilities.'
+                        : 'Select a category in Equipment Details to see relevant capabilities.'}
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Piece Dimensions Section */}
+            <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+              <div className="flex items-center justify-between p-4 border-b bg-gray-50">
+                <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+                  <Package className="h-5 w-5 text-blue-600" />
+                  Material Specifications
+                </h3>
+                <label className="flex items-center gap-2 text-sm cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={formData.materialNa}
+                    onChange={(e) => updateFormData('materialNa', e.target.checked)}
+                    className="w-4 h-4 rounded border-gray-300 text-gray-500 focus:ring-gray-400"
+                  />
+                  <span className="text-gray-500">N/A</span>
+                </label>
+              </div>
+              {!formData.materialNa && (
+                <div className="p-6 space-y-4">
+                  <p className="text-sm text-gray-600">
+                    What types of materials can this equipment handle?
+                  </p>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Material Types
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.materialTypes}
+                      onChange={(e) => updateFormData('materialTypes', e.target.value)}
+                      placeholder="e.g., Paper, Cardstock, Envelopes, Labels, Polymailers"
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">Comma-separated list of material types</p>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Max Material Width
+                      </label>
+                      <input
+                        type="text"
+                        value={formData.maxMaterialWidth}
+                        onChange={(e) => updateFormData('maxMaterialWidth', e.target.value)}
+                        placeholder='e.g., 12"'
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Max Material Length
+                      </label>
+                      <input
+                        type="text"
+                        value={formData.maxMaterialLength}
+                        onChange={(e) => updateFormData('maxMaterialLength', e.target.value)}
+                        placeholder='e.g., 17"'
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Max Material Weight
+                      </label>
+                      <input
+                        type="text"
+                        value={formData.materialWeight}
+                        onChange={(e) => updateFormData('materialWeight', e.target.value)}
+                        placeholder="e.g., 110 lb cover, 20 lb bond"
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Additional Technical Details Section */}
+            <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
+              <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+                <Info className="h-5 w-5 text-blue-600" />
+                Additional Technical Details
+              </h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Power Requirements
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.powerRequirements}
+                    onChange={(e) => updateFormData('powerRequirements', e.target.value)}
+                    placeholder="e.g., 208V 3-phase, 30A"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Network Connectivity
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.networkConnectivity}
+                    onChange={(e) => updateFormData('networkConnectivity', e.target.value)}
+                    placeholder="e.g., Ethernet, Wi-Fi, USB"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Last Service Date
+                  </label>
+                  <input
+                    type="date"
+                    value={formData.lastServiceDate}
+                    onChange={(e) => updateFormData('lastServiceDate', e.target.value)}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Included Accessories
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.includedAccessories}
+                    onChange={(e) => updateFormData('includedAccessories', e.target.value)}
+                    placeholder="e.g., Extra trays, tools, manuals"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Maintenance History
+                </label>
+                <textarea
+                  value={formData.maintenanceHistory}
+                  onChange={(e) => updateFormData('maintenanceHistory', e.target.value)}
+                  rows={3}
+                  placeholder="Describe recent maintenance, repairs, or service history..."
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Step 4: Condition & Logistics */}
+        {currentStep === 4 && (
           <div className="space-y-6">
             <div>
               <h2 className="text-2xl font-bold text-gray-900 mb-2">Condition & Logistics</h2>
@@ -1042,8 +1754,8 @@ export default function CreateListingPage() {
           </div>
         )}
 
-        {/* Step 4: Pricing & Auction */}
-        {currentStep === 4 && (
+        {/* Step 5: Pricing & Auction */}
+        {currentStep === 5 && (
           <div className="space-y-6">
             <div>
               <h2 className="text-2xl font-bold text-gray-900 mb-2">Pricing & Auction</h2>
@@ -1239,8 +1951,8 @@ export default function CreateListingPage() {
           </div>
         )}
 
-        {/* Step 5: Review & Publish */}
-        {currentStep === 5 && (
+        {/* Step 6: Review & Publish */}
+        {currentStep === 6 && (
           <div className="space-y-6">
             <div>
               <h2 className="text-2xl font-bold text-gray-900 mb-2">Review & Publish</h2>
@@ -1335,6 +2047,194 @@ export default function CreateListingPage() {
                     {formData.description || <span className="italic text-gray-400">No description provided</span>}
                   </p>
                 </div>
+                {formData.sellerTerms && (
+                  <div className="border-t pt-3">
+                    <p className="text-gray-500 text-sm mb-1">Seller Terms</p>
+                    <p className="text-sm text-gray-700 whitespace-pre-wrap">{formData.sellerTerms}</p>
+                  </div>
+                )}
+                {formData.shippingInfo && (
+                  <div className="border-t pt-3">
+                    <p className="text-gray-500 text-sm mb-1">Shipping Information</p>
+                    <p className="text-sm text-gray-700 whitespace-pre-wrap">{formData.shippingInfo}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Machine Specs Section */}
+            <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+              <div className="flex items-center justify-between p-4 border-b bg-gray-50">
+                <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+                  <Info className="h-5 w-5 text-blue-600" />
+                  Machine Specifications
+                </h3>
+                <button
+                  onClick={() => setCurrentStep(3)}
+                  className="flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700 font-medium"
+                >
+                  <Pencil className="h-4 w-4" />
+                  Edit
+                </button>
+              </div>
+              <div className="p-4 space-y-4">
+                {/* Software & System */}
+                {!formData.softwareNa && (formData.softwareVersion || formData.operatingSystem || formData.controllerType) && (
+                  <div>
+                    <p className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">Software & System</p>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 text-sm">
+                      {formData.softwareVersion && (
+                        <div>
+                          <p className="text-gray-500">Software Version</p>
+                          <p className="font-medium">{formData.softwareVersion}</p>
+                        </div>
+                      )}
+                      {formData.operatingSystem && (
+                        <div>
+                          <p className="text-gray-500">Operating System</p>
+                          <p className="font-medium">{formData.operatingSystem}</p>
+                        </div>
+                      )}
+                      {formData.controllerType && (
+                        <div>
+                          <p className="text-gray-500">Controller Type</p>
+                          <p className="font-medium">{formData.controllerType}</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+                {formData.softwareNa && (
+                  <p className="text-sm text-gray-400 italic">Software & System: N/A</p>
+                )}
+
+                {/* Configuration */}
+                {!formData.configurationNa && (formData.numberOfHeads || formData.maxSpeed || formData.feederCount || formData.outputStackerCount) && (
+                  <div className="border-t pt-3">
+                    <p className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">Configuration</p>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
+                      {formData.numberOfHeads && (
+                        <div>
+                          <p className="text-gray-500">Heads</p>
+                          <p className="font-medium">{formData.numberOfHeads}</p>
+                        </div>
+                      )}
+                      {formData.maxSpeed && (
+                        <div>
+                          <p className="text-gray-500">Max Speed</p>
+                          <p className="font-medium">{formData.maxSpeed}</p>
+                        </div>
+                      )}
+                      {formData.feederCount && (
+                        <div>
+                          <p className="text-gray-500">Feeders</p>
+                          <p className="font-medium">{formData.feederCount}</p>
+                        </div>
+                      )}
+                      {formData.outputStackerCount && (
+                        <div>
+                          <p className="text-gray-500">Stackers</p>
+                          <p className="font-medium">{formData.outputStackerCount}</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+                {formData.configurationNa && (
+                  <p className="text-sm text-gray-400 italic border-t pt-3">Configuration: N/A</p>
+                )}
+
+                {/* Capabilities */}
+                {!formData.capabilitiesNa && formData.capabilities.length > 0 && (
+                  <div className="border-t pt-3">
+                    <p className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">Capabilities</p>
+                    <div className="flex flex-wrap gap-2">
+                      {formData.capabilities.map((cap: string) => (
+                        <span key={cap} className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded">
+                          {cap}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {formData.capabilitiesNa && (
+                  <p className="text-sm text-gray-400 italic border-t pt-3">Capabilities: N/A</p>
+                )}
+
+                {/* Material Specifications */}
+                {!formData.materialNa && (formData.materialTypes || formData.maxMaterialWidth || formData.maxMaterialLength || formData.materialWeight) && (
+                  <div className="border-t pt-3">
+                    <p className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">Material Specifications</p>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
+                      {formData.materialTypes && (
+                        <div className="col-span-2 sm:col-span-4">
+                          <p className="text-gray-500">Material Types</p>
+                          <p className="font-medium">{formData.materialTypes}</p>
+                        </div>
+                      )}
+                      {formData.maxMaterialWidth && (
+                        <div>
+                          <p className="text-gray-500">Max Width</p>
+                          <p className="font-medium">{formData.maxMaterialWidth}</p>
+                        </div>
+                      )}
+                      {formData.maxMaterialLength && (
+                        <div>
+                          <p className="text-gray-500">Max Length</p>
+                          <p className="font-medium">{formData.maxMaterialLength}</p>
+                        </div>
+                      )}
+                      {formData.materialWeight && (
+                        <div>
+                          <p className="text-gray-500">Max Weight</p>
+                          <p className="font-medium">{formData.materialWeight}</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+                {formData.materialNa && (
+                  <p className="text-sm text-gray-400 italic border-t pt-3">Material Specifications: N/A</p>
+                )}
+
+                {/* Additional Technical */}
+                {(formData.powerRequirements || formData.networkConnectivity || formData.lastServiceDate || formData.includedAccessories) && (
+                  <div className="border-t pt-3">
+                    <p className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">Additional Details</p>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
+                      {formData.powerRequirements && (
+                        <div>
+                          <p className="text-gray-500">Power</p>
+                          <p className="font-medium">{formData.powerRequirements}</p>
+                        </div>
+                      )}
+                      {formData.networkConnectivity && (
+                        <div>
+                          <p className="text-gray-500">Network</p>
+                          <p className="font-medium">{formData.networkConnectivity}</p>
+                        </div>
+                      )}
+                      {formData.lastServiceDate && (
+                        <div>
+                          <p className="text-gray-500">Last Service</p>
+                          <p className="font-medium">{formData.lastServiceDate}</p>
+                        </div>
+                      )}
+                      {formData.includedAccessories && (
+                        <div className="col-span-2">
+                          <p className="text-gray-500">Accessories</p>
+                          <p className="font-medium">{formData.includedAccessories}</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Check if no machine specs provided */}
+                {formData.softwareNa && formData.configurationNa && formData.capabilitiesNa && formData.materialNa &&
+                 !formData.powerRequirements && !formData.networkConnectivity && !formData.lastServiceDate && !formData.includedAccessories && (
+                  <p className="text-sm text-gray-400 italic">No machine specifications provided</p>
+                )}
               </div>
             </div>
 
@@ -1346,7 +2246,7 @@ export default function CreateListingPage() {
                   Condition & Logistics
                 </h3>
                 <button
-                  onClick={() => setCurrentStep(3)}
+                  onClick={() => setCurrentStep(4)}
                   className="flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700 font-medium"
                 >
                   <Pencil className="h-4 w-4" />
@@ -1405,7 +2305,7 @@ export default function CreateListingPage() {
                   Pricing & Auction
                 </h3>
                 <button
-                  onClick={() => setCurrentStep(4)}
+                  onClick={() => setCurrentStep(5)}
                   className="flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700 font-medium"
                 >
                   <Pencil className="h-4 w-4" />
@@ -1520,33 +2420,50 @@ export default function CreateListingPage() {
             <div />
           )}
 
-          {currentStep < 5 ? (
+          <div className="flex items-center gap-3">
             <button
-              onClick={nextStep}
-              className="flex items-center gap-2 bg-blue-600 text-white px-6 py-2 rounded-lg font-medium hover:bg-blue-700"
+              onClick={handleSaveDraft}
+              disabled={savingDraft}
+              className="flex items-center gap-2 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 disabled:opacity-50"
             >
-              Next
-              <ArrowRight className="h-5 w-5" />
-            </button>
-          ) : (
-            <button
-              onClick={handleSubmit}
-              disabled={submitting}
-              className="flex items-center gap-2 bg-green-600 text-white px-6 py-2 rounded-lg font-medium hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {submitting ? (
+              {savingDraft ? (
                 <>
-                  <Loader2 className="h-5 w-5 animate-spin" />
-                  Publishing...
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Saving...
                 </>
               ) : (
-                <>
-                  <CheckCircle className="h-5 w-5" />
-                  Publish Listing
-                </>
+                'Save Draft'
               )}
             </button>
-          )}
+
+            {currentStep < 6 ? (
+              <button
+                onClick={nextStep}
+                className="flex items-center gap-2 bg-blue-600 text-white px-6 py-2 rounded-lg font-medium hover:bg-blue-700"
+              >
+                Next
+                <ArrowRight className="h-5 w-5" />
+              </button>
+            ) : (
+              <button
+                onClick={handleSubmit}
+                disabled={submitting}
+                className="flex items-center gap-2 bg-green-600 text-white px-6 py-2 rounded-lg font-medium hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {submitting ? (
+                  <>
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                    Publishing...
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle className="h-5 w-5" />
+                    Publish Listing
+                  </>
+                )}
+              </button>
+            )}
+          </div>
         </div>
       </div>
     </div>

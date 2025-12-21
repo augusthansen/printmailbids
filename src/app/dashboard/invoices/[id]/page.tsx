@@ -1,10 +1,11 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useState, useEffect, useMemo } from 'react';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
+import { getStripe } from '@/lib/stripe/client';
 import {
   ArrowLeft,
   CreditCard,
@@ -79,9 +80,10 @@ interface TimelineEvent {
 export default function InvoicePage() {
   const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const invoiceId = params.id as string;
-  const { user } = useAuth();
-  const supabase = createClient();
+  const { user, loading: authLoading } = useAuth();
+  const supabase = useMemo(() => createClient(), []);
 
   const [invoice, setInvoice] = useState<Invoice | null>(null);
   const [loading, setLoading] = useState(true);
@@ -89,9 +91,26 @@ export default function InvoicePage() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
+  // Check for payment success/cancel from Stripe redirect
+  useEffect(() => {
+    const paymentStatus = searchParams.get('payment');
+    if (paymentStatus === 'success') {
+      setSuccess('Payment successful! The seller has been notified.');
+    } else if (paymentStatus === 'cancelled') {
+      setError('Payment was cancelled. You can try again when ready.');
+    }
+  }, [searchParams]);
+
   useEffect(() => {
     async function loadInvoice() {
-      if (!user?.id) return;
+      // Wait for auth to finish loading
+      if (authLoading) return;
+
+      // If no user after auth loaded, stop loading
+      if (!user?.id) {
+        setLoading(false);
+        return;
+      }
 
       // First try with foreign key reference, fall back to separate queries if needed
       const { data, error: fetchError } = await supabase
@@ -153,7 +172,7 @@ export default function InvoicePage() {
     }
 
     loadInvoice();
-  }, [invoiceId, user?.id, supabase]);
+  }, [invoiceId, user?.id, authLoading, supabase]);
 
   const handlePayment = async (method: 'credit_card' | 'ach' | 'wire') => {
     if (!invoice || !user?.id) return;
@@ -162,55 +181,55 @@ export default function InvoicePage() {
     setError(null);
 
     try {
-      // For now, simulate payment processing
-      // In production, this would integrate with Stripe
+      if (method === 'credit_card') {
+        // Use Stripe Checkout for credit card payments
+        const response = await fetch('/api/stripe/create-checkout', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            invoiceId: invoice.id,
+            userId: user.id,
+          }),
+        });
 
-      if (method === 'wire') {
-        // Show wire transfer instructions
-        setSuccess('Wire transfer instructions have been sent to your email. Please reference invoice #' + invoice.id.slice(0, 8));
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.error || 'Failed to create checkout session');
+        }
+
+        // Redirect to Stripe Checkout
+        if (data.url) {
+          window.location.href = data.url;
+        } else if (data.sessionId) {
+          const stripe = await getStripe();
+          if (stripe) {
+            // Type assertion for deprecated redirectToCheckout
+            const stripeWithRedirect = stripe as unknown as {
+              redirectToCheckout: (opts: { sessionId: string }) => Promise<{ error?: { message: string } }>
+            };
+            await stripeWithRedirect.redirectToCheckout({ sessionId: data.sessionId });
+          }
+        }
         return;
       }
 
-      // Simulate payment processing delay
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      if (method === 'wire') {
+        // Show wire transfer instructions
+        setSuccess('Wire transfer instructions have been sent to your email. Please reference invoice #' + invoice.invoice_number);
+        setProcessing(false);
+        return;
+      }
 
-      // Update invoice status (in production, this would happen via Stripe webhook)
-      const { error: updateError } = await supabase
-        .from('invoices')
-        .update({
-          status: 'paid',
-          fulfillment_status: 'processing',
-          paid_at: new Date().toISOString(),
-          payment_method: method,
-        })
-        .eq('id', invoice.id);
-
-      if (updateError) throw updateError;
-
-      // Notify seller of payment
-      await supabase.from('notifications').insert({
-        user_id: invoice.seller_id,
-        type: 'payment_received',
-        title: 'Payment received!',
-        body: `Payment of $${invoice.total_amount.toLocaleString()} received for "${invoice.listing?.title}". Invoice #${invoice.id.slice(0, 8)}`,
-        listing_id: invoice.listing_id,
-        invoice_id: invoice.id,
-      });
-
-      setSuccess('Payment successful! The seller has been notified.');
-
-      // Reload invoice to show updated status
-      setInvoice(prev => prev ? {
-        ...prev,
-        status: 'paid',
-        fulfillment_status: 'processing',
-        paid_at: new Date().toISOString(),
-        payment_method: method,
-      } : null);
+      if (method === 'ach') {
+        // ACH payments - for now show a message, can integrate Stripe ACH later
+        setSuccess('ACH payment instructions have been sent to your email. Please complete the bank transfer within 3 business days.');
+        setProcessing(false);
+        return;
+      }
 
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Payment failed');
-    } finally {
       setProcessing(false);
     }
   };

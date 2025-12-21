@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/hooks/useAuth';
 import { createClient } from '@/lib/supabase/client';
@@ -34,15 +34,19 @@ interface Conversation {
 }
 
 export default function MessagesPage() {
-  const { user } = useAuth();
-  const supabase = createClient();
+  const { user, loading: authLoading } = useAuth();
+  const supabase = useMemo(() => createClient(), []);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
     async function loadConversations() {
-      if (!user?.id) return;
+      if (authLoading) return;
+      if (!user?.id) {
+        setLoading(false);
+        return;
+      }
 
       // Get all conversations where user is a participant
       const { data: convos, error } = await supabase
@@ -65,7 +69,7 @@ export default function MessagesPage() {
 
       // Get other user details and last message for each conversation
       const conversationsWithDetails = await Promise.all(
-        convos.map(async (convo) => {
+        convos.map(async (convo: { participant_1_id: string; participant_2_id: string; listing_id: string | null; id: string; listing?: { id: string; title: string } | null }) => {
           const otherId = convo.participant_1_id === user.id
             ? convo.participant_2_id
             : convo.participant_1_id;
@@ -108,7 +112,7 @@ export default function MessagesPage() {
     }
 
     loadConversations();
-  }, [user?.id, supabase]);
+  }, [user?.id, authLoading, supabase]);
 
   const formatTime = (dateString: string) => {
     const date = new Date(dateString);

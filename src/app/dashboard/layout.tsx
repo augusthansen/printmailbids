@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import {
   LayoutDashboard,
@@ -17,9 +18,13 @@ import {
   Gavel,
   MessageSquare,
   FlaskConical,
+  HandCoins,
+  Send,
+  Shield,
+  BarChart3,
   LucideIcon
 } from 'lucide-react';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { createClient } from '@/lib/supabase/client';
 
@@ -29,14 +34,17 @@ interface SidebarLink {
   icon: LucideIcon;
   sellerOnly?: boolean;
   buyerOnly?: boolean;
-  badgeKey?: 'notifications' | 'purchases' | 'messages';
+  badgeKey?: 'notifications' | 'purchases' | 'messages' | 'offers' | 'myOffers';
 }
 
 const sidebarLinks: SidebarLink[] = [
   { href: '/dashboard', label: 'Overview', icon: LayoutDashboard },
   { href: '/dashboard/listings', label: 'My Listings', icon: Package, sellerOnly: true },
+  { href: '/dashboard/offers', label: 'Offers', icon: HandCoins, sellerOnly: true, badgeKey: 'offers' },
   { href: '/dashboard/bids', label: 'My Bids', icon: Gavel, buyerOnly: true },
+  { href: '/dashboard/my-offers', label: 'My Offers', icon: Send, buyerOnly: true, badgeKey: 'myOffers' },
   { href: '/dashboard/sales', label: 'Sales', icon: DollarSign, sellerOnly: true },
+  { href: '/dashboard/analytics', label: 'Analytics', icon: BarChart3, sellerOnly: true },
   { href: '/dashboard/purchases', label: 'Purchases', icon: ShoppingCart, buyerOnly: true, badgeKey: 'purchases' },
   { href: '/dashboard/watchlist', label: 'Watchlist', icon: Heart, buyerOnly: true },
   { href: '/dashboard/messages', label: 'Messages', icon: MessageSquare, badgeKey: 'messages' },
@@ -51,66 +59,60 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
-  const { user, signOut } = useAuth();
+  const { user, loading, signOut, isSeller, isAdmin, profileName, avatarUrl } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [isSeller, setIsSeller] = useState(false);
-  const [profileName, setProfileName] = useState<string | null>(null);
   const [badges, setBadges] = useState<Record<string, number>>({
     notifications: 0,
     purchases: 0,
     messages: 0,
+    offers: 0,
+    myOffers: 0,
   });
-  const supabase = createClient();
+  const supabase = useMemo(() => createClient(), []);
 
+  // Load badge counts - only after auth is loaded and we have a user
   useEffect(() => {
-    async function loadProfile() {
-      if (!user?.id) return;
+    // Don't fetch if still loading auth or no user
+    if (loading || !user?.id) return;
 
-      const { data } = await supabase
-        .from('profiles')
-        .select('is_seller, full_name, company_name')
-        .eq('id', user.id)
-        .single();
+    const userId = user.id;
 
-      if (data) {
-        setIsSeller(data.is_seller || false);
-        setProfileName(data.full_name || data.company_name || null);
-      }
-    }
-
-    loadProfile();
-  }, [user?.id, supabase]);
-
-  // Load badge counts
-  useEffect(() => {
     async function loadBadgeCounts() {
-      if (!user?.id) return;
-
-      const [notificationsResult, purchasesResult, messagesResult] = await Promise.all([
+      const [notificationsResult, purchasesResult, offersResult, myOffersResult] = await Promise.all([
         // Unread notifications count
         supabase
           .from('notifications')
           .select('id', { count: 'exact', head: true })
-          .eq('user_id', user.id)
+          .eq('user_id', userId)
           .eq('is_read', false),
         // Pending purchases (invoices awaiting payment)
         supabase
           .from('invoices')
           .select('id', { count: 'exact', head: true })
-          .eq('buyer_id', user.id)
+          .eq('buyer_id', userId)
           .eq('status', 'pending'),
-        // Unread messages count
+        // Pending offers (for sellers) - ALL pending offers they need to respond to
+        // This includes both original offers AND counter-offers from buyers
         supabase
-          .from('messages')
+          .from('offers')
           .select('id', { count: 'exact', head: true })
-          .eq('recipient_id', user.id)
-          .eq('is_read', false),
+          .eq('seller_id', userId)
+          .eq('status', 'pending'),
+        // Counter-offers needing buyer response (for buyers)
+        supabase
+          .from('offers')
+          .select('id', { count: 'exact', head: true })
+          .eq('buyer_id', userId)
+          .eq('status', 'pending')
+          .not('parent_offer_id', 'is', null), // Counter-offers from sellers
       ]);
 
       setBadges({
         notifications: notificationsResult.count || 0,
         purchases: purchasesResult.count || 0,
-        messages: messagesResult.count || 0,
+        messages: 0, // TODO: implement proper unread messages count
+        offers: offersResult.count || 0,
+        myOffers: myOffersResult.count || 0,
       });
     }
 
@@ -119,62 +121,91 @@ export default function DashboardLayout({
     // Refresh counts every 30 seconds
     const interval = setInterval(loadBadgeCounts, 30000);
     return () => clearInterval(interval);
-  }, [user?.id, supabase]);
+  }, [loading, user?.id, supabase]);
 
   // Filter links based on user role:
   // - sellerOnly tabs: only show if user is a seller
-  // - buyerOnly tabs: only show if user is NOT a seller (pure seller accounts don't buy)
+  // - buyerOnly tabs: always show (all users can buy)
+  // Note: "Buy & Sell" accounts (isSeller=true) see everything
+  //       "Buyer Only" accounts (isSeller=false) see buyer items + general items (not seller-only)
   const filteredLinks = sidebarLinks.filter(link => {
     if (link.sellerOnly && !isSeller) return false;
-    if (link.buyerOnly && isSeller) return false;
+    // buyerOnly items are shown to everyone (all users can buy)
     return true;
   });
 
+  // Show loading state while auth is initializing
+  if (loading) {
+    return (
+      <div className="h-screen bg-stone-100 flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-stone-500">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="h-screen bg-gray-100 flex overflow-hidden">
+    <div className="h-screen bg-stone-100 flex overflow-hidden">
       {/* Mobile sidebar backdrop */}
       {sidebarOpen && (
         <div
-          className="fixed inset-0 bg-black/50 z-40 lg:hidden"
+          className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-40 lg:hidden"
           onClick={() => setSidebarOpen(false)}
         />
       )}
 
       {/* Sidebar */}
       <aside className={`
-        fixed top-0 left-0 z-50 h-full w-64 bg-white shadow-lg transform transition-transform duration-200 ease-in-out
+        fixed top-0 left-0 z-50 h-full w-72 bg-slate-900 shadow-2xl transform transition-transform duration-300 ease-in-out
         lg:relative lg:translate-x-0 lg:z-auto lg:flex-shrink-0
         ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
       `}>
-        <div className="flex flex-col h-full">
+        <div className="flex flex-col h-full relative">
+          {/* Decorative gradient */}
+          <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/10 rounded-full blur-3xl pointer-events-none" />
+
           {/* Sidebar header */}
-          <div className="flex items-center justify-between p-4 border-b">
-            <Link href="/" className="flex items-center gap-2">
-              <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
-                <span className="text-white font-bold">P</span>
+          <div className="flex items-center justify-between p-5 border-b border-slate-700/50">
+            <Link href="/" className="flex items-center gap-2.5 group">
+              <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/20 group-hover:shadow-blue-500/30 transition-shadow">
+                <span className="text-white font-bold text-lg">P</span>
               </div>
-              <span className="font-bold text-slate-900">PrintMailBids</span>
+              <div>
+                <span className="font-bold text-white">PrintMail</span>
+                <span className="font-bold text-blue-400">Bids</span>
+              </div>
             </Link>
             <button
               onClick={() => setSidebarOpen(false)}
-              className="lg:hidden p-1 text-gray-500 hover:text-gray-700"
+              className="lg:hidden p-1.5 text-slate-400 hover:text-white hover:bg-slate-700 rounded-lg transition-colors"
             >
               <X className="h-5 w-5" />
             </button>
           </div>
 
           {/* User info */}
-          <div className="p-4 border-b">
+          <div className="p-5 border-b border-slate-700/50">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
-                <User className="h-5 w-5 text-blue-600" />
+              <div className="w-11 h-11 bg-gradient-to-br from-blue-500/20 to-blue-600/20 rounded-xl flex items-center justify-center ring-1 ring-blue-500/30 overflow-hidden relative flex-shrink-0">
+                {avatarUrl ? (
+                  <Image
+                    src={avatarUrl}
+                    alt="Company logo"
+                    fill
+                    className="object-cover"
+                  />
+                ) : (
+                  <User className="h-5 w-5 text-blue-400" />
+                )}
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-gray-900 truncate">
+                <p className="text-sm font-medium text-white truncate">
                   {profileName || user?.email || 'User'}
                 </p>
-                <p className="text-xs text-gray-500">
-                  {isSeller ? 'Seller Account' : 'Buyer Account'}
+                <p className="text-xs text-slate-400">
+                  {isSeller ? 'Buy & Sell Account' : 'Buyer Account'}
                 </p>
               </div>
             </div>
@@ -190,10 +221,10 @@ export default function DashboardLayout({
                   key={link.href}
                   href={link.href}
                   className={`
-                    flex items-center justify-between px-3 py-2 rounded-lg text-sm font-medium transition-colors
+                    flex items-center justify-between px-4 py-2.5 rounded-xl text-sm font-medium transition-all
                     ${isActive
-                      ? 'bg-blue-50 text-blue-600'
-                      : 'text-gray-700 hover:bg-gray-50 hover:text-gray-900'
+                      ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-lg shadow-blue-500/25'
+                      : 'text-slate-300 hover:bg-slate-800 hover:text-white'
                     }
                   `}
                   onClick={() => setSidebarOpen(false)}
@@ -204,9 +235,15 @@ export default function DashboardLayout({
                   </span>
                   {badgeCount > 0 && (
                     <span className={`
-                      min-w-[20px] h-5 px-1.5 rounded-full text-xs font-bold flex items-center justify-center
-                      ${link.badgeKey === 'purchases'
-                        ? 'bg-yellow-500 text-white'
+                      min-w-[22px] h-5 px-1.5 rounded-full text-xs font-bold flex items-center justify-center
+                      ${isActive
+                        ? 'bg-white/20 text-white'
+                        : link.badgeKey === 'purchases'
+                        ? 'bg-yellow-500 text-slate-900'
+                        : link.badgeKey === 'offers'
+                        ? 'bg-green-500 text-white'
+                        : link.badgeKey === 'myOffers'
+                        ? 'bg-blue-500 text-white'
                         : 'bg-red-500 text-white'
                       }
                     `}>
@@ -219,10 +256,19 @@ export default function DashboardLayout({
           </nav>
 
           {/* Sidebar footer */}
-          <div className="p-4 border-t">
+          <div className="p-4 border-t border-slate-700/50 space-y-1">
+            {isAdmin && (
+              <Link
+                href="/admin"
+                className="flex items-center gap-3 px-4 py-2.5 w-full rounded-xl text-sm font-medium text-red-400 hover:bg-red-500/10 transition-colors"
+              >
+                <Shield className="h-5 w-5" />
+                Admin Panel
+              </Link>
+            )}
             <button
               onClick={signOut}
-              className="flex items-center gap-3 px-3 py-2 w-full rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 hover:text-gray-900 transition-colors"
+              className="flex items-center gap-3 px-4 py-2.5 w-full rounded-xl text-sm font-medium text-slate-400 hover:bg-slate-800 hover:text-white transition-colors"
             >
               <LogOut className="h-5 w-5" />
               Sign Out
@@ -234,30 +280,32 @@ export default function DashboardLayout({
       {/* Main content */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {/* Mobile header */}
-        <header className="lg:hidden bg-white shadow-sm flex-shrink-0">
+        <header className="lg:hidden bg-white/95 backdrop-blur-md shadow-sm border-b border-stone-200/50 flex-shrink-0">
           <div className="flex items-center justify-between px-4 py-3">
             <button
               onClick={() => setSidebarOpen(true)}
-              className="p-2 text-gray-700 hover:bg-gray-100 rounded-lg"
+              className="p-2 text-slate-700 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-colors"
             >
               <Menu className="h-6 w-6" />
             </button>
             <Link href="/" className="flex items-center gap-2">
-              <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
+              <div className="w-9 h-9 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/20">
                 <span className="text-white font-bold">P</span>
               </div>
             </Link>
-            <Link href="/dashboard/notifications" className="p-2 text-gray-700 hover:bg-gray-100 rounded-lg relative">
+            <Link href="/dashboard/notifications" className="p-2 text-slate-700 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-colors relative">
               <Bell className="h-6 w-6" />
-              <span className="absolute top-1 right-1 bg-red-500 text-white text-xs w-4 h-4 rounded-full flex items-center justify-center">
-                3
-              </span>
+              {badges.notifications > 0 && (
+                <span className="absolute top-1 right-1 bg-blue-500 text-white text-xs w-4 h-4 rounded-full flex items-center justify-center font-medium">
+                  {badges.notifications > 9 ? '9+' : badges.notifications}
+                </span>
+              )}
             </Link>
           </div>
         </header>
 
         {/* Page content */}
-        <main className="flex-1 overflow-y-auto p-4 lg:p-8">
+        <main className="flex-1 overflow-y-auto p-4 lg:p-8 bg-stone-50">
           {children}
         </main>
       </div>

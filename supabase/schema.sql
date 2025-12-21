@@ -30,7 +30,9 @@ CREATE TABLE profiles (
   seller_approved_at TIMESTAMPTZ,
   seller_rating DECIMAL(3,2) DEFAULT 0,
   seller_review_count INTEGER DEFAULT 0,
-  
+  seller_terms TEXT, -- Global seller terms that apply to all listings
+  default_shipping_info TEXT, -- Default shipping info for all listings
+
   -- Buyer info
   buyer_rating DECIMAL(3,2) DEFAULT 0,
   buyer_review_count INTEGER DEFAULT 0,
@@ -159,8 +161,9 @@ CREATE TABLE listings (
   -- Basic info
   title TEXT NOT NULL,
   description TEXT,
-  seller_terms TEXT,
-  
+  seller_terms TEXT, -- Listing-specific seller terms (overrides global)
+  shipping_info TEXT, -- Shipping and delivery information
+
   -- Categorization
   primary_category_id UUID REFERENCES categories(id),
   

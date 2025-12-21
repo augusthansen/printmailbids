@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useAuth } from '@/hooks/useAuth';
@@ -28,14 +28,18 @@ interface WatchlistItem {
 }
 
 export default function WatchlistPage() {
-  const { user } = useAuth();
-  const supabase = createClient();
+  const { user, loading: authLoading } = useAuth();
+  const supabase = useMemo(() => createClient(), []);
   const [watchlist, setWatchlist] = useState<WatchlistItem[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function loadWatchlist() {
-      if (!user?.id) return;
+      if (authLoading) return;
+      if (!user?.id) {
+        setLoading(false);
+        return;
+      }
 
       const { data, error } = await supabase
         .from('watchlist')
@@ -68,7 +72,7 @@ export default function WatchlistPage() {
     }
 
     loadWatchlist();
-  }, [user?.id, supabase]);
+  }, [user?.id, authLoading, supabase]);
 
   const removeFromWatchlist = async (listingId: string) => {
     if (!user?.id) return;

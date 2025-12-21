@@ -1,5 +1,9 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
+import {
+  sendAuctionWonEmail,
+  sendAuctionEndedSellerEmail,
+} from '@/lib/email';
 
 // Lazy initialization to avoid build-time errors
 let supabase: SupabaseClient | null = null;
@@ -20,6 +24,14 @@ function getSupabaseAdmin(): SupabaseClient {
 
 const BUYER_PREMIUM_PERCENT = 5.0;
 const SELLER_COMMISSION_PERCENT = 8.0;
+
+// Generate invoice number: INV-YYYYMMDD-XXXX
+function generateInvoiceNumber(): string {
+  const date = new Date();
+  const dateStr = date.toISOString().slice(0, 10).replace(/-/g, '');
+  const random = Math.random().toString(36).substring(2, 6).toUpperCase();
+  return `INV-${dateStr}-${random}`;
+}
 
 export async function POST(request: Request) {
   try {
@@ -90,9 +102,11 @@ export async function POST(request: Request) {
           paymentDueDate.setDate(paymentDueDate.getDate() + (auction.payment_due_days || 7));
 
           // Create invoice
+          const invoiceNumber = generateInvoiceNumber();
           const { data: invoice, error: invoiceError } = await supabase
             .from('invoices')
             .insert({
+              invoice_number: invoiceNumber,
               listing_id: auction.id,
               seller_id: auction.seller_id,
               buyer_id: winningBid.bidder_id,
@@ -158,6 +172,43 @@ export async function POST(request: Request) {
             invoice_id: invoice.id,
           });
 
+          // Send emails to winner and seller
+          const { data: buyerProfile } = await supabase
+            .from('profiles')
+            .select('email, full_name')
+            .eq('id', winningBid.bidder_id)
+            .single();
+
+          const { data: sellerProfile } = await supabase
+            .from('profiles')
+            .select('email, full_name')
+            .eq('id', auction.seller_id)
+            .single();
+
+          if (buyerProfile?.email) {
+            sendAuctionWonEmail({
+              to: buyerProfile.email,
+              userName: buyerProfile.full_name || '',
+              listingTitle: auction.title,
+              listingId: auction.id,
+              invoiceId: invoice.id,
+              winningBid: saleAmount,
+              totalAmount,
+            }).catch(console.error);
+          }
+
+          if (sellerProfile?.email) {
+            sendAuctionEndedSellerEmail({
+              to: sellerProfile.email,
+              userName: sellerProfile.full_name || '',
+              listingTitle: auction.title,
+              listingId: auction.id,
+              winningBid: saleAmount,
+              buyerName: buyerProfile?.full_name || buyerProfile?.email || 'A buyer',
+              hasBids: true,
+            }).catch(console.error);
+          }
+
           results.push({
             listing_id: auction.id,
             status: 'sold',
@@ -197,6 +248,25 @@ export async function POST(request: Request) {
               : `"${auction.title}" ended but the reserve price was not met. Highest bid: $${currentPrice.toLocaleString()}.`,
             listing_id: auction.id,
           });
+
+          // Email the seller about auction ending without sale
+          const { data: sellerProfileNoSale } = await supabase
+            .from('profiles')
+            .select('email, full_name')
+            .eq('id', auction.seller_id)
+            .single();
+
+          if (sellerProfileNoSale?.email) {
+            sendAuctionEndedSellerEmail({
+              to: sellerProfileNoSale.email,
+              userName: sellerProfileNoSale.full_name || '',
+              listingTitle: auction.title,
+              listingId: auction.id,
+              winningBid: 0,
+              buyerName: '',
+              hasBids: false,
+            }).catch(console.error);
+          }
 
           // Notify bidders if reserve not met
           if (winningBid && reason === 'reserve_not_met') {

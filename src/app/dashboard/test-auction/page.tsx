@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
@@ -29,7 +29,7 @@ interface TestListing {
 
 export default function TestAuctionPage() {
   const { user } = useAuth();
-  const supabase = createClient();
+  const supabase = useMemo(() => createClient(), []);
 
   const [testListings, setTestListings] = useState<TestListing[]>([]);
   const [loading, setLoading] = useState(true);
@@ -424,7 +424,7 @@ export default function TestAuctionPage() {
                 <div
                   key={listing.id}
                   className={`border rounded-lg p-4 ${
-                    timeInfo.inSoftClose ? 'border-orange-300 bg-orange-50' : 'border-gray-200'
+                    timeInfo.inSoftClose ? 'border-blue-300 bg-blue-50' : 'border-gray-200'
                   }`}
                 >
                   <div className="flex items-center justify-between">
@@ -446,12 +446,12 @@ export default function TestAuctionPage() {
                     </div>
 
                     <div className="flex items-center gap-2">
-                      <div className={`text-right mr-2 ${timeInfo.inSoftClose ? 'text-orange-600' : ''}`}>
+                      <div className={`text-right mr-2 ${timeInfo.inSoftClose ? 'text-blue-600' : ''}`}>
                         <div className={`font-bold ${timeInfo.urgent ? 'text-red-600' : ''}`}>
                           {timeInfo.text}
                         </div>
                         {timeInfo.inSoftClose && (
-                          <div className="text-xs text-orange-600 font-medium">
+                          <div className="text-xs text-blue-600 font-medium">
                             SOFT CLOSE
                           </div>
                         )}

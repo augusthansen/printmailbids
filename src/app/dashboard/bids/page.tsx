@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import {
   Gavel,
@@ -41,15 +41,19 @@ type FilterType = 'all' | 'winning' | 'outbid' | 'won' | 'lost';
 
 export default function MyBidsPage() {
   const { user, loading: authLoading } = useAuth();
-  const supabase = createClient();
+  const supabase = useMemo(() => createClient(), []);
 
   const [bids, setBids] = useState<Bid[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<FilterType>('all');
 
   useEffect(() => {
+    if (authLoading) return;
     const userId = user?.id;
-    if (!userId) return;
+    if (!userId) {
+      setLoading(false);
+      return;
+    }
 
     async function loadBids() {
       const { data, error } = await supabase
@@ -73,7 +77,7 @@ export default function MyBidsPage() {
         console.error('Error loading bids:', error);
       } else {
         // Process bids to determine their current status
-        const processedBids = (data || []).map(bid => {
+        const processedBids = (data || []).map((bid: Bid) => {
           const listing = bid.listing;
           if (!listing) return bid;
 
@@ -97,7 +101,7 @@ export default function MyBidsPage() {
     }
 
     loadBids();
-  }, [user?.id, supabase]);
+  }, [user?.id, authLoading, supabase]);
 
   const getTimeRemaining = (endTime: string | null) => {
     if (!endTime) return { text: 'No end time', urgent: false, ended: false };

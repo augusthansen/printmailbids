@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { createClient } from '@/lib/supabase/client';
 import {
@@ -13,10 +13,8 @@ import {
   AlertCircle,
   Check,
   Trash2,
-  CreditCard,
-  ExternalLink
 } from 'lucide-react';
-import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 
 interface Notification {
   id: string;
@@ -46,15 +44,58 @@ const notificationIcons: Record<string, React.ElementType> = {
 };
 
 export default function NotificationsPage() {
-  const { user } = useAuth();
-  const supabase = createClient();
+  const { user, loading: authLoading } = useAuth();
+  const router = useRouter();
+  const supabase = useMemo(() => createClient(), []);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'all' | 'unread'>('all');
 
+  // Get the destination URL for a notification
+  const getNotificationUrl = (notification: Notification): string | null => {
+    // Message notifications go to messages
+    if (notification.type === 'buyer_message') {
+      return '/dashboard/messages';
+    }
+    // Auction won goes to invoice
+    if (notification.type === 'auction_won' && notification.invoice_id) {
+      return `/dashboard/invoices/${notification.invoice_id}`;
+    }
+    // Payment notifications go to invoice
+    if ((notification.type === 'payment_received' || notification.type === 'payment_reminder') && notification.invoice_id) {
+      return `/dashboard/invoices/${notification.invoice_id}`;
+    }
+    // Shipping notifications go to invoice
+    if (notification.type === 'item_shipped' && notification.invoice_id) {
+      return `/dashboard/invoices/${notification.invoice_id}`;
+    }
+    // Most other notifications go to the listing
+    if (notification.listing_id) {
+      return `/listing/${notification.listing_id}`;
+    }
+    return null;
+  };
+
+  // Handle clicking on a notification
+  const handleNotificationClick = async (notification: Notification) => {
+    // Mark as read if not already
+    if (!notification.is_read) {
+      await markAsRead(notification.id);
+    }
+    // Navigate to destination
+    const url = getNotificationUrl(notification);
+    if (url) {
+      router.push(url);
+    }
+  };
+
   useEffect(() => {
     async function loadNotifications() {
-      if (!user?.id) return;
+      if (authLoading) return;
+      if (!user?.id) {
+        setLoading(false);
+        return;
+      }
 
       const { data, error } = await supabase
         .from('notifications')
@@ -70,7 +111,7 @@ export default function NotificationsPage() {
     }
 
     loadNotifications();
-  }, [user?.id, supabase]);
+  }, [user?.id, authLoading, supabase]);
 
   const markAsRead = async (id: string) => {
     await supabase
@@ -193,13 +234,17 @@ export default function NotificationsPage() {
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
           {filteredNotifications.map((notification, index) => {
             const Icon = notificationIcons[notification.type] || notificationIcons.default;
+            const hasDestination = getNotificationUrl(notification) !== null;
 
             return (
               <div
                 key={notification.id}
-                className={`flex items-start gap-4 p-4 hover:bg-gray-50 transition-colors ${
+                onClick={() => handleNotificationClick(notification)}
+                className={`flex items-start gap-4 p-4 transition-colors ${
                   index !== 0 ? 'border-t border-gray-100' : ''
-                } ${!notification.is_read ? 'bg-blue-50/50' : ''}`}
+                } ${!notification.is_read ? 'bg-blue-50/50' : ''} ${
+                  hasDestination ? 'cursor-pointer hover:bg-gray-50' : ''
+                }`}
               >
                 <div className={`p-2 rounded-lg ${
                   !notification.is_read ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-500'
@@ -225,29 +270,12 @@ export default function NotificationsPage() {
                   </div>
 
                   <div className="flex items-center gap-3 mt-2">
-                    {/* Pay Now button for auction won notifications */}
-                    {notification.type === 'auction_won' && notification.invoice_id && (
-                      <Link
-                        href={`/dashboard/invoices/${notification.invoice_id}`}
-                        className="px-3 py-1 bg-green-600 text-white text-xs font-medium rounded-lg hover:bg-green-700 transition flex items-center gap-1"
-                      >
-                        <CreditCard className="h-3 w-3" />
-                        Pay Now
-                      </Link>
-                    )}
-                    {/* View Listing link */}
-                    {notification.listing_id && notification.type !== 'auction_won' && (
-                      <Link
-                        href={`/listing/${notification.listing_id}`}
-                        className="text-xs text-blue-600 hover:text-blue-700 flex items-center gap-1"
-                      >
-                        <ExternalLink className="h-3 w-3" />
-                        View Listing
-                      </Link>
-                    )}
                     {!notification.is_read && (
                       <button
-                        onClick={() => markAsRead(notification.id)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          markAsRead(notification.id);
+                        }}
                         className="text-xs text-blue-600 hover:text-blue-700 flex items-center gap-1"
                       >
                         <Check className="h-3 w-3" />
@@ -255,7 +283,10 @@ export default function NotificationsPage() {
                       </button>
                     )}
                     <button
-                      onClick={() => deleteNotification(notification.id)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        deleteNotification(notification.id);
+                      }}
                       className="text-xs text-gray-400 hover:text-red-500 flex items-center gap-1"
                     >
                       <Trash2 className="h-3 w-3" />

@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
   Plus,
   Search,
@@ -53,8 +53,8 @@ const statusConfig: Record<ListingStatus, { label: string; color: string; icon: 
 };
 
 export default function ListingsPage() {
-  const supabase = createClient();
-  const { user } = useAuth();
+  const supabase = useMemo(() => createClient(), []);
+  const { user, loading: authLoading } = useAuth();
   const [listings, setListings] = useState<Listing[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<ListingStatus | 'all'>('all');
@@ -347,8 +347,8 @@ export default function ListingsPage() {
                     <td className="px-6 py-4">
                       {listing.status === 'active' && listing.end_time ? (
                         <div className="flex items-center gap-1 text-sm">
-                          <Clock className="h-4 w-4 text-orange-500" />
-                          <span className="text-orange-600 font-medium">
+                          <Clock className="h-4 w-4 text-blue-500" />
+                          <span className="text-blue-600 font-medium">
                             {getTimeRemaining(listing.end_time)}
                           </span>
                         </div>
@@ -366,7 +366,7 @@ export default function ListingsPage() {
                           <Eye className="h-4 w-4" />
                         </Link>
                         <Link
-                          href={`/sell/edit/${listing.id}`}
+                          href={`/dashboard/listings/${listing.id}/edit`}
                           className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg"
                           title="Edit"
                         >
@@ -448,7 +448,7 @@ export default function ListingsPage() {
                         {status.label}
                       </span>
                       {listing.status === 'active' && listing.end_time && (
-                        <span className="text-xs text-orange-600">
+                        <span className="text-xs text-blue-600">
                           Ends in {getTimeRemaining(listing.end_time)}
                         </span>
                       )}
@@ -478,7 +478,7 @@ export default function ListingsPage() {
                           View
                         </Link>
                         <Link
-                          href={`/sell/edit/${listing.id}`}
+                          href={`/dashboard/listings/${listing.id}/edit`}
                           className="flex-1 text-center py-2 text-sm text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200"
                         >
                           Edit

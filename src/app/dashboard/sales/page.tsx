@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { createClient } from '@/lib/supabase/client';
 import {
@@ -66,13 +66,13 @@ const fulfillmentConfig: Record<FulfillmentStatus, { label: string; color: strin
 };
 
 export default function SalesPage() {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
+  const supabase = useMemo(() => createClient(), []);
   const [sales, setSales] = useState<Sale[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<InvoiceStatus | 'all'>('all');
   const [searchQuery, setSearchQuery] = useState('');
-  const supabase = createClient();
 
   useEffect(() => {
     async function loadSales() {
@@ -116,8 +116,8 @@ export default function SalesPage() {
         }
 
         // Fetch listing and buyer details separately
-        const listingIds = [...new Set(invoicesData.map(inv => inv.listing_id))];
-        const buyerIds = [...new Set(invoicesData.map(inv => inv.buyer_id))];
+        const listingIds = [...new Set(invoicesData.map((inv: { listing_id: string }) => inv.listing_id))];
+        const buyerIds = [...new Set(invoicesData.map((inv: { buyer_id: string }) => inv.buyer_id))];
 
         const [listingsResult, buyersResult] = await Promise.all([
           supabase
@@ -132,14 +132,14 @@ export default function SalesPage() {
 
         // Create lookup maps
         const listingsMap = new Map(
-          (listingsResult.data || []).map(l => [l.id, l])
+          (listingsResult.data || []).map((l: { id: string }) => [l.id, l])
         );
         const buyersMap = new Map(
-          (buyersResult.data || []).map(b => [b.id, b])
+          (buyersResult.data || []).map((b: { id: string }) => [b.id, b])
         );
 
         // Merge data
-        const salesWithDetails: Sale[] = invoicesData.map(invoice => ({
+        const salesWithDetails: Sale[] = invoicesData.map((invoice: { listing_id: string; buyer_id: string }) => ({
           ...invoice,
           listing: listingsMap.get(invoice.listing_id) || { id: invoice.listing_id, title: 'Unknown Listing' },
           buyer: buyersMap.get(invoice.buyer_id) || { full_name: null, company_name: null, email: 'Unknown' },

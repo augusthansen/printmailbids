@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { createClient } from '@/lib/supabase/client';
 import {
@@ -64,8 +64,8 @@ const fulfillmentConfig: Record<string, { label: string; color: string; icon: Re
 };
 
 export default function PurchasesPage() {
-  const { user } = useAuth();
-  const supabase = createClient();
+  const { user, loading: authLoading } = useAuth();
+  const supabase = useMemo(() => createClient(), []);
   const [purchases, setPurchases] = useState<Purchase[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<string>('all');
@@ -73,7 +73,11 @@ export default function PurchasesPage() {
 
   useEffect(() => {
     async function loadPurchases() {
-      if (!user?.id) return;
+      if (authLoading) return;
+      if (!user?.id) {
+        setLoading(false);
+        return;
+      }
 
       // First get invoices
       const { data: invoicesData, error: invoicesError } = await supabase
@@ -110,8 +114,8 @@ export default function PurchasesPage() {
       }
 
       // Get listing details for each invoice
-      const listingIds = invoicesData.map(i => i.listing_id).filter(Boolean);
-      const sellerIds = invoicesData.map(i => i.seller_id).filter(Boolean);
+      const listingIds = invoicesData.map((i: { listing_id: string }) => i.listing_id).filter(Boolean);
+      const sellerIds = invoicesData.map((i: { seller_id: string }) => i.seller_id).filter(Boolean);
 
       const [listingsResult, sellersResult] = await Promise.all([
         listingIds.length > 0
@@ -122,10 +126,10 @@ export default function PurchasesPage() {
           : { data: [] }
       ]);
 
-      const listingsMap = new Map((listingsResult.data || []).map(l => [l.id, l]));
-      const sellersMap = new Map((sellersResult.data || []).map(s => [s.id, s]));
+      const listingsMap = new Map((listingsResult.data || []).map((l: { id: string }) => [l.id, l]));
+      const sellersMap = new Map((sellersResult.data || []).map((s: { id: string }) => [s.id, s]));
 
-      const purchasesWithDetails = invoicesData.map(invoice => ({
+      const purchasesWithDetails = invoicesData.map((invoice: { listing_id: string; seller_id: string }) => ({
         ...invoice,
         listing: listingsMap.get(invoice.listing_id) || null,
         seller: sellersMap.get(invoice.seller_id) || null
@@ -136,7 +140,7 @@ export default function PurchasesPage() {
     }
 
     loadPurchases();
-  }, [user?.id, supabase]);
+  }, [user?.id, authLoading, supabase]);
 
   const filteredPurchases = purchases.filter((purchase) => {
     const matchesStatus = statusFilter === 'all' || purchase.status === statusFilter || purchase.fulfillment_status === statusFilter;

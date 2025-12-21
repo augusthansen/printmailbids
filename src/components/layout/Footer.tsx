@@ -29,13 +29,17 @@ const footerLinks = {
 
 export function Footer() {
   return (
-    <footer className="bg-slate-900 text-gray-300">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-8">
+    <footer className="bg-slate-900 text-stone-400 relative overflow-hidden">
+      {/* Decorative gradient orbs */}
+      <div className="absolute top-0 left-1/4 w-96 h-96 bg-blue-500/5 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute bottom-0 right-1/4 w-80 h-80 bg-blue-600/5 rounded-full blur-3xl pointer-events-none" />
+
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 relative">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-8 lg:gap-12">
           {/* Brand */}
           <div className="col-span-2 md:col-span-1">
-            <Link href="/" className="flex items-center gap-2 mb-4">
-              <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center">
+            <Link href="/" className="flex items-center gap-2.5 mb-5 group">
+              <div className="w-11 h-11 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/20 group-hover:shadow-blue-500/30 transition-shadow">
                 <span className="text-white font-bold text-xl">P</span>
               </div>
               <div>
@@ -43,21 +47,21 @@ export function Footer() {
                 <span className="text-xl font-bold text-blue-400">Bids</span>
               </div>
             </Link>
-            <p className="text-sm text-gray-400 mb-4">
+            <p className="text-sm text-stone-400 mb-5 leading-relaxed">
               The modern marketplace for printing, mailing, and industrial equipment.
             </p>
             <p className="text-sm font-semibold text-white">
-              List Today. Sell Tomorrow.
+              <span className="text-blue-400">List Today.</span> Sell Tomorrow.
             </p>
           </div>
 
           {/* Marketplace */}
           <div>
-            <h3 className="text-white font-semibold mb-4">Marketplace</h3>
-            <ul className="space-y-2">
+            <h3 className="text-white font-semibold mb-5 text-sm uppercase tracking-wide">Marketplace</h3>
+            <ul className="space-y-3">
               {footerLinks.marketplace.map((link) => (
                 <li key={link.href}>
-                  <Link href={link.href} className="text-sm hover:text-white">
+                  <Link href={link.href} className="text-sm hover:text-blue-400 transition-colors">
                     {link.name}
                   </Link>
                 </li>
@@ -67,11 +71,11 @@ export function Footer() {
 
           {/* Categories */}
           <div>
-            <h3 className="text-white font-semibold mb-4">Categories</h3>
-            <ul className="space-y-2">
+            <h3 className="text-white font-semibold mb-5 text-sm uppercase tracking-wide">Categories</h3>
+            <ul className="space-y-3">
               {footerLinks.categories.map((link) => (
                 <li key={link.href}>
-                  <Link href={link.href} className="text-sm hover:text-white">
+                  <Link href={link.href} className="text-sm hover:text-blue-400 transition-colors">
                     {link.name}
                   </Link>
                 </li>
@@ -81,11 +85,11 @@ export function Footer() {
 
           {/* Selling */}
           <div>
-            <h3 className="text-white font-semibold mb-4">Selling</h3>
-            <ul className="space-y-2">
+            <h3 className="text-white font-semibold mb-5 text-sm uppercase tracking-wide">Selling</h3>
+            <ul className="space-y-3">
               {footerLinks.selling.map((link) => (
                 <li key={link.href}>
-                  <Link href={link.href} className="text-sm hover:text-white">
+                  <Link href={link.href} className="text-sm hover:text-blue-400 transition-colors">
                     {link.name}
                   </Link>
                 </li>
@@ -95,19 +99,19 @@ export function Footer() {
 
           {/* Support */}
           <div>
-            <h3 className="text-white font-semibold mb-4">Support</h3>
-            <ul className="space-y-2">
+            <h3 className="text-white font-semibold mb-5 text-sm uppercase tracking-wide">Support</h3>
+            <ul className="space-y-3">
               {footerLinks.support.map((link) => (
                 <li key={link.href}>
-                  <Link href={link.href} className="text-sm hover:text-white">
+                  <Link href={link.href} className="text-sm hover:text-blue-400 transition-colors">
                     {link.name}
                   </Link>
                 </li>
               ))}
             </ul>
-            <div className="mt-4 pt-4 border-t border-gray-700">
-              <p className="text-sm text-gray-400">Need help?</p>
-              <a href="tel:1-888-555-0123" className="text-white font-semibold">
+            <div className="mt-6 pt-5 border-t border-slate-700/50">
+              <p className="text-sm text-stone-500 mb-1">Need help?</p>
+              <a href="tel:1-888-555-0123" className="text-white font-semibold hover:text-blue-400 transition-colors">
                 1-888-555-0123
               </a>
             </div>
@@ -115,15 +119,15 @@ export function Footer() {
         </div>
 
         {/* Bottom bar */}
-        <div className="mt-12 pt-8 border-t border-gray-700 flex flex-col md:flex-row justify-between items-center gap-4">
-          <p className="text-sm text-gray-400">
+        <div className="mt-14 pt-8 border-t border-slate-700/50 flex flex-col md:flex-row justify-between items-center gap-4">
+          <p className="text-sm text-stone-500">
             © {new Date().getFullYear()} PrintMailBids. All rights reserved.
           </p>
           <div className="flex gap-6 text-sm">
-            <Link href="/terms" className="hover:text-white">
+            <Link href="/terms" className="text-stone-400 hover:text-blue-400 transition-colors">
               Terms of Service
             </Link>
-            <Link href="/privacy" className="hover:text-white">
+            <Link href="/privacy" className="text-stone-400 hover:text-blue-400 transition-colors">
               Privacy Policy
             </Link>
           </div>
