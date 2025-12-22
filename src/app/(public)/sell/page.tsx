@@ -19,7 +19,9 @@ import {
   CheckCircle,
   Loader2,
   GripVertical,
-  Pencil
+  Pencil,
+  Calendar,
+  Zap
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { createClient } from '@/lib/supabase/client';
@@ -464,6 +466,12 @@ export default function CreateListingPage() {
     acceptsAch: true,
     acceptsWire: true,
     acceptsCheck: false,
+    // Scheduling
+    scheduleType: 'immediate' as 'immediate' | 'scheduled',
+    scheduledStartDate: '',
+    scheduledStartTime: '09:00',
+    scheduledEndDate: '',
+    scheduledEndTime: '15:00',
   });
 
   const updateFormData = (field: string, value: unknown) => {
@@ -699,10 +707,38 @@ export default function CreateListingPage() {
 
     try {
       console.log('Starting listing creation for user:', user.id);
-      // Calculate end time based on auction duration
-      const startTime = new Date();
-      const endTime = new Date();
-      endTime.setDate(endTime.getDate() + parseInt(formData.auctionDuration));
+
+      // Determine start and end times based on schedule type
+      let startTime: Date;
+      let endTime: Date;
+      let listingStatus: 'active' | 'scheduled';
+
+      if (formData.scheduleType === 'scheduled' && formData.scheduledStartDate && formData.scheduledEndDate) {
+        // Scheduled listing - combine date and time
+        startTime = new Date(`${formData.scheduledStartDate}T${formData.scheduledStartTime}:00`);
+        endTime = new Date(`${formData.scheduledEndDate}T${formData.scheduledEndTime}:00`);
+
+        // Validate dates
+        const now = new Date();
+        if (startTime <= now) {
+          setError('Scheduled start time must be in the future');
+          setSubmitting(false);
+          return;
+        }
+        if (endTime <= startTime) {
+          setError('End time must be after start time');
+          setSubmitting(false);
+          return;
+        }
+
+        listingStatus = 'scheduled';
+      } else {
+        // Immediate - go live now with duration-based end time
+        startTime = new Date();
+        endTime = new Date();
+        endTime.setDate(endTime.getDate() + parseInt(formData.auctionDuration));
+        listingStatus = 'active';
+      }
 
       // Find category ID from slug
       const selectedCategory = categories.find(c => c.slug === formData.category || c.id === formData.category);
@@ -729,7 +765,7 @@ export default function CreateListingPage() {
           shipping_info: formData.shippingInfo || null,
           primary_category_id: categoryId,
           listing_type: formData.listingType,
-          status: 'active',
+          status: listingStatus,
           starting_price: formData.startingPrice ? parseFloat(formData.startingPrice) : null,
           reserve_price: formData.reservePrice ? parseFloat(formData.reservePrice) : null,
           buy_now_price: formData.buyNowPrice ? parseFloat(formData.buyNowPrice) : null,
@@ -1948,6 +1984,140 @@ export default function CreateListingPage() {
                 </label>
               </div>
             </div>
+
+            {/* Scheduling */}
+            <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-6">
+              <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+                <Calendar className="h-5 w-5 text-blue-600" />
+                Listing Schedule
+              </h3>
+
+              {/* Schedule Type Selection */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <label
+                  className={`
+                    flex items-start gap-3 p-4 border rounded-lg cursor-pointer transition-colors
+                    ${formData.scheduleType === 'immediate'
+                      ? 'border-blue-500 bg-blue-50'
+                      : 'border-gray-200 hover:border-gray-300'
+                    }
+                  `}
+                >
+                  <input
+                    type="radio"
+                    name="scheduleType"
+                    value="immediate"
+                    checked={formData.scheduleType === 'immediate'}
+                    onChange={(e) => updateFormData('scheduleType', e.target.value)}
+                    className="mt-1"
+                  />
+                  <div>
+                    <p className="font-medium text-gray-900 flex items-center gap-2">
+                      <Zap className="h-4 w-4 text-yellow-500" />
+                      Go Live Immediately
+                    </p>
+                    <p className="text-sm text-gray-500">Listing goes live as soon as you publish</p>
+                  </div>
+                </label>
+                <label
+                  className={`
+                    flex items-start gap-3 p-4 border rounded-lg cursor-pointer transition-colors
+                    ${formData.scheduleType === 'scheduled'
+                      ? 'border-blue-500 bg-blue-50'
+                      : 'border-gray-200 hover:border-gray-300'
+                    }
+                  `}
+                >
+                  <input
+                    type="radio"
+                    name="scheduleType"
+                    value="scheduled"
+                    checked={formData.scheduleType === 'scheduled'}
+                    onChange={(e) => updateFormData('scheduleType', e.target.value)}
+                    className="mt-1"
+                  />
+                  <div>
+                    <p className="font-medium text-gray-900 flex items-center gap-2">
+                      <Calendar className="h-4 w-4 text-blue-500" />
+                      Schedule for Later
+                    </p>
+                    <p className="text-sm text-gray-500">Choose when your listing goes live and ends</p>
+                  </div>
+                </label>
+              </div>
+
+              {/* Scheduled Date/Time Inputs */}
+              {formData.scheduleType === 'scheduled' && (
+                <div className="space-y-4 pt-4 border-t">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {/* Start Date/Time */}
+                    <div className="space-y-3">
+                      <p className="text-sm font-medium text-gray-700">Listing Goes Live</p>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="block text-xs text-gray-500 mb-1">Date</label>
+                          <input
+                            type="date"
+                            value={formData.scheduledStartDate}
+                            onChange={(e) => updateFormData('scheduledStartDate', e.target.value)}
+                            min={new Date().toISOString().split('T')[0]}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs text-gray-500 mb-1">Time</label>
+                          <input
+                            type="time"
+                            value={formData.scheduledStartTime}
+                            onChange={(e) => updateFormData('scheduledStartTime', e.target.value)}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* End Date/Time */}
+                    <div className="space-y-3">
+                      <p className="text-sm font-medium text-gray-700">Listing Ends</p>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="block text-xs text-gray-500 mb-1">Date</label>
+                          <input
+                            type="date"
+                            value={formData.scheduledEndDate}
+                            onChange={(e) => updateFormData('scheduledEndDate', e.target.value)}
+                            min={formData.scheduledStartDate || new Date().toISOString().split('T')[0]}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs text-gray-500 mb-1">Time</label>
+                          <input
+                            type="time"
+                            value={formData.scheduledEndTime}
+                            onChange={(e) => updateFormData('scheduledEndTime', e.target.value)}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Timezone notice */}
+                  <p className="text-xs text-gray-500 flex items-center gap-1">
+                    <Clock className="h-3 w-3" />
+                    All times are in your local timezone ({Intl.DateTimeFormat().resolvedOptions().timeZone})
+                  </p>
+
+                  {/* Peak times suggestion */}
+                  <div className="bg-blue-50 rounded-lg p-3">
+                    <p className="text-sm text-blue-800">
+                      <strong>Tip:</strong> Auctions ending on weekday afternoons (2-4 PM) or Sunday evenings often get the most activity.
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         )}
 
@@ -2366,6 +2536,38 @@ export default function CreateListingPage() {
                   {formData.acceptsCheck && (
                     <span className="text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded">Check</span>
                   )}
+                </div>
+
+                {/* Scheduling Info */}
+                <div className="mt-4 pt-4 border-t">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 text-sm">
+                    <div>
+                      <p className="text-gray-500">Schedule</p>
+                      <p className="font-medium flex items-center gap-1">
+                        {formData.scheduleType === 'immediate' ? (
+                          <><Zap className="h-4 w-4 text-yellow-500" /> Go Live Immediately</>
+                        ) : (
+                          <><Calendar className="h-4 w-4 text-blue-500" /> Scheduled</>
+                        )}
+                      </p>
+                    </div>
+                    {formData.scheduleType === 'scheduled' && formData.scheduledStartDate && (
+                      <>
+                        <div>
+                          <p className="text-gray-500">Goes Live</p>
+                          <p className="font-medium">
+                            {new Date(`${formData.scheduledStartDate}T${formData.scheduledStartTime}`).toLocaleString()}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-gray-500">Ends</p>
+                          <p className="font-medium">
+                            {new Date(`${formData.scheduledEndDate}T${formData.scheduledEndTime}`).toLocaleString()}
+                          </p>
+                        </div>
+                      </>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>

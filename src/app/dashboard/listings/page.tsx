@@ -16,12 +16,13 @@ import {
   AlertCircle,
   Package,
   Loader2,
-  RefreshCw
+  RefreshCw,
+  Calendar
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 
-type ListingStatus = 'active' | 'draft' | 'pending' | 'ended' | 'sold' | 'cancelled';
+type ListingStatus = 'active' | 'draft' | 'scheduled' | 'pending' | 'ended' | 'sold' | 'cancelled';
 
 interface Listing {
   id: string;
@@ -35,6 +36,7 @@ interface Listing {
   bid_count: number;
   view_count: number;
   watch_count: number;
+  start_time: string | null;
   end_time: string | null;
   created_at: string;
   images?: {
@@ -46,6 +48,7 @@ interface Listing {
 const statusConfig: Record<ListingStatus, { label: string; color: string; icon: typeof CheckCircle }> = {
   active: { label: 'Active', color: 'green', icon: CheckCircle },
   draft: { label: 'Draft', color: 'gray', icon: Edit },
+  scheduled: { label: 'Scheduled', color: 'purple', icon: Calendar },
   pending: { label: 'Pending', color: 'yellow', icon: AlertCircle },
   ended: { label: 'Ended', color: 'yellow', icon: AlertCircle },
   sold: { label: 'Sold', color: 'blue', icon: CheckCircle },
@@ -80,6 +83,7 @@ export default function ListingsPage() {
         bid_count,
         view_count,
         watch_count,
+        start_time,
         end_time,
         created_at,
         images:listing_images(url, is_primary)
@@ -222,6 +226,7 @@ export default function ListingsPage() {
             >
               <option value="all">All Status</option>
               <option value="active">Active</option>
+              <option value="scheduled">Scheduled</option>
               <option value="draft">Draft</option>
               <option value="pending">Pending</option>
               <option value="ended">Ended</option>
@@ -312,6 +317,7 @@ export default function ListingsPage() {
                         inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium
                         ${status.color === 'green' ? 'bg-green-100 text-green-700' : ''}
                         ${status.color === 'gray' ? 'bg-gray-100 text-gray-700' : ''}
+                        ${status.color === 'purple' ? 'bg-purple-100 text-purple-700' : ''}
                         ${status.color === 'yellow' ? 'bg-yellow-100 text-yellow-700' : ''}
                         ${status.color === 'blue' ? 'bg-blue-100 text-blue-700' : ''}
                         ${status.color === 'red' ? 'bg-red-100 text-red-700' : ''}
@@ -351,6 +357,20 @@ export default function ListingsPage() {
                           <span className="text-blue-600 font-medium">
                             {getTimeRemaining(listing.end_time)}
                           </span>
+                        </div>
+                      ) : listing.status === 'scheduled' && listing.start_time ? (
+                        <div className="flex flex-col gap-0.5 text-sm">
+                          <div className="flex items-center gap-1">
+                            <Calendar className="h-4 w-4 text-purple-500" />
+                            <span className="text-purple-600 font-medium">
+                              Goes live {getTimeRemaining(listing.start_time)}
+                            </span>
+                          </div>
+                          {listing.end_time && (
+                            <span className="text-xs text-gray-500">
+                              Ends {new Date(listing.end_time).toLocaleDateString()}
+                            </span>
+                          )}
                         </div>
                       ) : (
                         <span className="text-sm text-gray-500">—</span>
@@ -441,6 +461,7 @@ export default function ListingsPage() {
                         inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium
                         ${status.color === 'green' ? 'bg-green-100 text-green-700' : ''}
                         ${status.color === 'gray' ? 'bg-gray-100 text-gray-700' : ''}
+                        ${status.color === 'purple' ? 'bg-purple-100 text-purple-700' : ''}
                         ${status.color === 'yellow' ? 'bg-yellow-100 text-yellow-700' : ''}
                         ${status.color === 'blue' ? 'bg-blue-100 text-blue-700' : ''}
                         ${status.color === 'red' ? 'bg-red-100 text-red-700' : ''}
@@ -450,6 +471,12 @@ export default function ListingsPage() {
                       {listing.status === 'active' && listing.end_time && (
                         <span className="text-xs text-blue-600">
                           Ends in {getTimeRemaining(listing.end_time)}
+                        </span>
+                      )}
+                      {listing.status === 'scheduled' && listing.start_time && (
+                        <span className="text-xs text-purple-600 flex items-center gap-1">
+                          <Calendar className="h-3 w-3" />
+                          Goes live {getTimeRemaining(listing.start_time)}
                         </span>
                       )}
                     </div>

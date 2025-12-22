@@ -21,7 +21,10 @@ import {
   Clock,
   Cpu,
   Settings,
-  Info
+  Info,
+  Calendar,
+  Zap,
+  ChevronDown
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { createClient } from '@/lib/supabase/client';
@@ -110,6 +113,12 @@ export default function EditListingPage() {
   const [success, setSuccess] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState('details');
   const [auctionDuration, setAuctionDuration] = useState('7');
+  const [scheduleType, setScheduleType] = useState<'immediate' | 'scheduled'>('immediate');
+  const [scheduledStartDate, setScheduledStartDate] = useState('');
+  const [scheduledStartTime, setScheduledStartTime] = useState('09:00');
+  const [scheduledEndDate, setScheduledEndDate] = useState('');
+  const [scheduledEndTime, setScheduledEndTime] = useState('15:00');
+  const [showScheduleOptions, setShowScheduleOptions] = useState(false);
 
   // Image management
   const [existingImages, setExistingImages] = useState<ListingImage[]>([]);
@@ -477,16 +486,43 @@ export default function EditListingPage() {
       // First save any pending changes
       await handleSave();
 
-      // Calculate start/end times
-      const startTime = new Date();
-      const endTime = new Date();
-      endTime.setDate(endTime.getDate() + parseInt(auctionDuration));
+      // Determine start and end times based on schedule type
+      let startTime: Date;
+      let endTime: Date;
+      let listingStatus: 'active' | 'scheduled';
 
-      // Update listing to active status with times
+      if (scheduleType === 'scheduled' && scheduledStartDate && scheduledEndDate) {
+        // Scheduled listing - combine date and time
+        startTime = new Date(`${scheduledStartDate}T${scheduledStartTime}:00`);
+        endTime = new Date(`${scheduledEndDate}T${scheduledEndTime}:00`);
+
+        // Validate dates
+        const now = new Date();
+        if (startTime <= now) {
+          setError('Scheduled start time must be in the future');
+          setPublishing(false);
+          return;
+        }
+        if (endTime <= startTime) {
+          setError('End time must be after start time');
+          setPublishing(false);
+          return;
+        }
+
+        listingStatus = 'scheduled';
+      } else {
+        // Immediate - go live now with duration-based end time
+        startTime = new Date();
+        endTime = new Date();
+        endTime.setDate(endTime.getDate() + parseInt(auctionDuration));
+        listingStatus = 'active';
+      }
+
+      // Update listing with times and status
       const { error: publishError } = await supabase
         .from('listings')
         .update({
-          status: 'active',
+          status: listingStatus,
           start_time: startTime.toISOString(),
           end_time: endTime.toISOString(),
           original_end_time: endTime.toISOString(),
@@ -495,10 +531,13 @@ export default function EditListingPage() {
 
       if (publishError) throw publishError;
 
-      setSuccess('Listing published successfully!');
+      const successMessage = listingStatus === 'scheduled'
+        ? `Listing scheduled! Goes live ${startTime.toLocaleString()}`
+        : 'Listing published successfully!';
+      setSuccess(successMessage);
 
       // Update local state
-      setListing(prev => prev ? { ...prev, status: 'active' } : null);
+      setListing(prev => prev ? { ...prev, status: listingStatus } : null);
 
       // Redirect to listing page after short delay
       setTimeout(() => {
@@ -620,33 +659,136 @@ export default function EditListingPage() {
               )}
             </div>
             {listing?.status === 'draft' && (
-              <div className="flex items-center gap-3">
-                <div className="flex items-center gap-2">
-                  <Clock className="h-4 w-4 text-gray-500" />
-                  <select
-                    value={auctionDuration}
-                    onChange={(e) => setAuctionDuration(e.target.value)}
-                    className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              <div className="flex flex-col gap-3">
+                {/* Scheduling Options Toggle */}
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setShowScheduleOptions(!showScheduleOptions)}
+                    className="flex items-center gap-2 px-3 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-50"
                   >
-                    <option value="3">3 Days</option>
-                    <option value="5">5 Days</option>
-                    <option value="7">7 Days</option>
-                    <option value="10">10 Days</option>
-                    <option value="14">14 Days</option>
-                  </select>
-                </div>
-                <button
-                  onClick={handlePublish}
-                  disabled={publishing}
-                  className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 font-medium"
-                >
-                  {publishing ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Rocket className="h-4 w-4" />
+                    <Calendar className="h-4 w-4 text-gray-500" />
+                    {scheduleType === 'immediate' ? 'Go Live Now' : 'Scheduled'}
+                    <ChevronDown className={`h-4 w-4 text-gray-500 transition-transform ${showScheduleOptions ? 'rotate-180' : ''}`} />
+                  </button>
+
+                  {/* Duration selector - only show for immediate */}
+                  {scheduleType === 'immediate' && (
+                    <div className="flex items-center gap-2">
+                      <Clock className="h-4 w-4 text-gray-500" />
+                      <select
+                        value={auctionDuration}
+                        onChange={(e) => setAuctionDuration(e.target.value)}
+                        className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      >
+                        <option value="3">3 Days</option>
+                        <option value="5">5 Days</option>
+                        <option value="7">7 Days</option>
+                        <option value="10">10 Days</option>
+                        <option value="14">14 Days</option>
+                      </select>
+                    </div>
                   )}
-                  Publish Listing
-                </button>
+
+                  <button
+                    onClick={handlePublish}
+                    disabled={publishing || (scheduleType === 'scheduled' && (!scheduledStartDate || !scheduledEndDate))}
+                    className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 font-medium"
+                  >
+                    {publishing ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : scheduleType === 'scheduled' ? (
+                      <Calendar className="h-4 w-4" />
+                    ) : (
+                      <Rocket className="h-4 w-4" />
+                    )}
+                    {scheduleType === 'scheduled' ? 'Schedule Listing' : 'Publish Now'}
+                  </button>
+                </div>
+
+                {/* Expanded Scheduling Options */}
+                {showScheduleOptions && (
+                  <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-lg">
+                    <div className="flex gap-4 mb-4">
+                      <label className={`flex items-center gap-2 p-3 border rounded-lg cursor-pointer flex-1 ${scheduleType === 'immediate' ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'}`}>
+                        <input
+                          type="radio"
+                          name="scheduleType"
+                          checked={scheduleType === 'immediate'}
+                          onChange={() => setScheduleType('immediate')}
+                        />
+                        <Zap className="h-4 w-4 text-yellow-500" />
+                        <span className="text-sm font-medium">Go Live Immediately</span>
+                      </label>
+                      <label className={`flex items-center gap-2 p-3 border rounded-lg cursor-pointer flex-1 ${scheduleType === 'scheduled' ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'}`}>
+                        <input
+                          type="radio"
+                          name="scheduleType"
+                          checked={scheduleType === 'scheduled'}
+                          onChange={() => setScheduleType('scheduled')}
+                        />
+                        <Calendar className="h-4 w-4 text-blue-500" />
+                        <span className="text-sm font-medium">Schedule for Later</span>
+                      </label>
+                    </div>
+
+                    {scheduleType === 'scheduled' && (
+                      <div className="space-y-4">
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-xs text-gray-500 mb-1">Goes Live - Date</label>
+                            <input
+                              type="date"
+                              value={scheduledStartDate}
+                              onChange={(e) => setScheduledStartDate(e.target.value)}
+                              min={new Date().toISOString().split('T')[0]}
+                              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs text-gray-500 mb-1">Time</label>
+                            <input
+                              type="time"
+                              value={scheduledStartTime}
+                              onChange={(e) => setScheduledStartTime(e.target.value)}
+                              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            />
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-xs text-gray-500 mb-1">Ends - Date</label>
+                            <input
+                              type="date"
+                              value={scheduledEndDate}
+                              onChange={(e) => setScheduledEndDate(e.target.value)}
+                              min={scheduledStartDate || new Date().toISOString().split('T')[0]}
+                              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs text-gray-500 mb-1">Time</label>
+                            <input
+                              type="time"
+                              value={scheduledEndTime}
+                              onChange={(e) => setScheduledEndTime(e.target.value)}
+                              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            />
+                          </div>
+                        </div>
+                        <p className="text-xs text-gray-500 flex items-center gap-1">
+                          <Clock className="h-3 w-3" />
+                          All times in your local timezone ({Intl.DateTimeFormat().resolvedOptions().timeZone})
+                        </p>
+                        <div className="bg-blue-50 rounded-lg p-2">
+                          <p className="text-xs text-blue-700">
+                            <strong>Tip:</strong> Auctions ending on weekday afternoons (2-4 PM) often get the most activity.
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             )}
           </div>
