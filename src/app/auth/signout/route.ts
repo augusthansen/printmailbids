@@ -34,6 +34,6 @@ export async function GET() {
     }
   }
 
-  // Redirect to home
-  return NextResponse.redirect(new URL('/', process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'));
+  // Redirect to login page
+  return NextResponse.redirect(new URL('/login', process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'));
 }
