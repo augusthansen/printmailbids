@@ -18,6 +18,7 @@ let cachedProfile: Profile | null = null;
 let authInitialized = false;
 let authLoading = true;
 let authListeners: Set<() => void> = new Set();
+let isSigningOut = false;
 
 function notifyListeners() {
   authListeners.forEach(listener => listener());
@@ -71,8 +72,19 @@ export function useAuth() {
     // Listen for auth changes FIRST - this is more reliable with SSR client
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event: AuthChangeEvent, session: Session | null) => {
-        console.log('[useAuth] onAuthStateChange:', event, 'hasSession:', !!session);
+        console.log('[useAuth] onAuthStateChange:', event, 'hasSession:', !!session, 'isSigningOut:', isSigningOut);
         if (!mounted) return;
+
+        // If we're in the process of signing out, ignore auth state changes
+        // unless this is a SIGNED_IN event (user explicitly logged back in)
+        if (isSigningOut && event !== 'SIGNED_IN') {
+          return;
+        }
+
+        // Reset signing out flag on explicit sign in
+        if (event === 'SIGNED_IN') {
+          isSigningOut = false;
+        }
 
         initialCheckDone = true;
 
@@ -111,14 +123,14 @@ export function useAuth() {
 
     // Fallback timeout - if onAuthStateChange doesn't fire within 2s, check manually
     const fallbackTimer = setTimeout(async () => {
-      if (initialCheckDone || !mounted) return;
+      if (initialCheckDone || !mounted || isSigningOut) return;
 
       console.log('[useAuth] Fallback: onAuthStateChange did not fire, checking session manually');
       try {
         const { data: { session } } = await supabase.auth.getSession();
         console.log('[useAuth] Fallback getSession result:', !!session);
 
-        if (!mounted || initialCheckDone) return;
+        if (!mounted || initialCheckDone || isSigningOut) return;
 
         if (session?.user) {
           cachedUser = session.user;
@@ -157,6 +169,9 @@ export function useAuth() {
   }, [supabase, fetchProfile]);
 
   const signOut = () => {
+    // Set signing out flag to prevent re-authentication
+    isSigningOut = true;
+
     // Clear cached state - keep authLoading false so UI can redirect
     cachedUser = null;
     cachedProfile = null;
