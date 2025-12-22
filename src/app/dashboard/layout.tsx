@@ -153,6 +153,14 @@ export default function DashboardLayout({
     );
   }
 
+  // Redirect to login if not authenticated
+  if (!user) {
+    if (typeof window !== 'undefined') {
+      window.location.href = '/login';
+    }
+    return null;
+  }
+
   return (
     <div className="h-screen bg-stone-100 flex overflow-hidden">
       {/* Mobile sidebar backdrop */}

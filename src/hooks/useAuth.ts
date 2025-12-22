@@ -157,16 +157,16 @@ export function useAuth() {
   }, [supabase, fetchProfile]);
 
   const signOut = () => {
-    // Clear cached state
+    // Clear cached state - keep authLoading false so UI can redirect
     cachedUser = null;
     cachedProfile = null;
-    authInitialized = false;
-    authLoading = true;
+    authInitialized = true;
+    authLoading = false;
 
-    // Clear component state
+    // Clear component state - don't set loading to true to avoid hanging
     setUser(null);
     setProfile(null);
-    setLoading(true);
+    setLoading(false);
     notifyListeners();
 
     // Clear localStorage items related to Supabase
