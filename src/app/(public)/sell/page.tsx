@@ -318,7 +318,6 @@ const onsiteAssistanceOptions = [
 
 const listingTypes = [
   { id: 'auction', label: 'Auction', description: 'Let buyers bid - 2-minute soft close' },
-  { id: 'auction_buy_now', label: 'Auction + Buy Now', description: 'Auction with instant purchase option' },
   { id: 'fixed_price', label: 'Fixed Price', description: 'Set price, first buyer wins' },
   { id: 'fixed_price_offers', label: 'Fixed Price + Offers', description: 'Set price, accept offers' },
 ];
@@ -1844,7 +1843,7 @@ export default function CreateListingPage() {
               </h3>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {(formData.listingType === 'auction' || formData.listingType === 'auction_buy_now') && (
+                {formData.listingType === 'auction' && (
                   <>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -1882,10 +1881,10 @@ export default function CreateListingPage() {
                   </>
                 )}
 
-                {(formData.listingType === 'auction_buy_now' || formData.listingType === 'fixed_price' || formData.listingType === 'fixed_price_offers') && (
+                {(formData.listingType === 'fixed_price' || formData.listingType === 'fixed_price_offers') && (
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      {formData.listingType.includes('fixed') ? 'Price *' : 'Buy Now Price'}
+                      Price *
                     </label>
                     <div className="relative">
                       <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
@@ -1900,7 +1899,7 @@ export default function CreateListingPage() {
                   </div>
                 )}
 
-                {(formData.listingType === 'auction' || formData.listingType === 'auction_buy_now') && (
+                {formData.listingType === 'auction' && (
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       Auction Duration
@@ -1920,7 +1919,7 @@ export default function CreateListingPage() {
               </div>
 
               {/* Accept Offers */}
-              {(formData.listingType === 'fixed_price_offers' || formData.listingType === 'auction_buy_now') && (
+              {formData.listingType === 'fixed_price_offers' && (
                 <div className="border-t pt-4">
                   <label className="flex items-center gap-3 cursor-pointer">
                     <input
@@ -2514,7 +2513,7 @@ export default function CreateListingPage() {
                       <p className="font-medium">${parseInt(formData.reservePrice).toLocaleString()}</p>
                     </div>
                   )}
-                  {(formData.listingType === 'auction' || formData.listingType === 'auction_buy_now') && (
+                  {formData.listingType === 'auction' && (
                     <div>
                       <p className="text-gray-500">Duration</p>
                       <p className="font-medium">
