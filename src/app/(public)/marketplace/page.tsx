@@ -75,17 +75,19 @@ function MarketplaceContent() {
   const searchParams = useSearchParams();
   const urlSearchQuery = searchParams.get('search') || '';
   const urlCategory = searchParams.get('category') || 'all';
+  const urlType = searchParams.get('type') as 'all' | 'auction' | 'fixed_price' | null;
+  const urlSort = searchParams.get('sort') || '';
 
   const [listings, setListings] = useState<Listing[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [selectedCategory, setSelectedCategory] = useState(urlCategory);
-  const [sortBy, setSortBy] = useState('ending-soon');
+  const [sortBy, setSortBy] = useState(urlSort || 'ending-soon');
   const [searchQuery, setSearchQuery] = useState(urlSearchQuery);
   const [showFilters, setShowFilters] = useState(false);
   const [priceRange, setPriceRange] = useState({ min: '', max: '' });
-  const [listingTypeFilter, setListingTypeFilter] = useState<'all' | 'auction' | 'fixed_price'>('all');
+  const [listingTypeFilter, setListingTypeFilter] = useState<'all' | 'auction' | 'fixed_price'>(urlType || 'all');
   const [statusFilter, setStatusFilter] = useState<'active' | 'closed' | 'all'>('active');
 
   // Update URL when filters change

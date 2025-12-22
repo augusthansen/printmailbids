@@ -3,8 +3,8 @@ import Link from 'next/link';
 const footerLinks = {
   marketplace: [
     { name: 'Browse All Equipment', href: '/marketplace' },
-    { name: 'Current Auctions', href: '/auctions' },
-    { name: 'Ending Soon', href: '/auctions?sort=ending' },
+    { name: 'Current Auctions', href: '/marketplace?type=auction' },
+    { name: 'Ending Soon', href: '/marketplace?sort=ending-soon' },
     { name: 'New Listings', href: '/marketplace?sort=newest' },
   ],
   categories: [
