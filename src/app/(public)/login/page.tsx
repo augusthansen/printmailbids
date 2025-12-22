@@ -30,16 +30,18 @@ function LoginForm() {
       return explicitRedirect;
     }
 
-    // Check if user is a seller
+    // Check user's role (admin, seller, or buyer)
     try {
       const { data: profile } = await supabase
         .from('profiles')
-        .select('is_seller')
+        .select('is_seller, is_admin')
         .eq('id', userId)
         .single();
 
-      // Sellers go to dashboard, buyers go to marketplace to browse
-      if (profile?.is_seller) {
+      // Admins go to admin panel, sellers to dashboard, buyers to marketplace
+      if (profile?.is_admin) {
+        return '/admin';
+      } else if (profile?.is_seller) {
         return '/dashboard';
       } else {
         return '/marketplace';

@@ -22,7 +22,7 @@ export async function GET(request: Request) {
       if (user) {
         const { data: profile } = await supabase
           .from('profiles')
-          .select('is_seller, full_name')
+          .select('is_seller, is_admin, full_name')
           .eq('id', user.id)
           .single()
 
@@ -32,8 +32,13 @@ export async function GET(request: Request) {
           return NextResponse.redirect(`${origin}/auth/onboarding`)
         }
 
-        // Existing users: sellers go to dashboard, buyers go to marketplace
-        const redirectPath = profile?.is_seller ? '/dashboard' : '/marketplace'
+        // Admins go to admin panel, sellers to dashboard, buyers to marketplace
+        let redirectPath = '/marketplace'
+        if (profile?.is_admin) {
+          redirectPath = '/admin'
+        } else if (profile?.is_seller) {
+          redirectPath = '/dashboard'
+        }
         return NextResponse.redirect(`${origin}${redirectPath}`)
       }
 
