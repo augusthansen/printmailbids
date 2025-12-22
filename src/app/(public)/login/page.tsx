@@ -17,6 +17,8 @@ function LoginForm() {
   const searchParams = useSearchParams();
   // If there's a specific redirect, use it. Otherwise, we'll determine after login based on user type
   const explicitRedirect = searchParams.get('redirect');
+  // Check if user just signed out - skip session check in this case
+  const justSignedOut = searchParams.get('signedout') === 'true';
 
   // Memoize supabase client to prevent recreation on re-renders
   const supabase = useMemo(() => createClient(), []);
@@ -50,6 +52,12 @@ function LoginForm() {
 
   // Check if user is already logged in (with timeout)
   useEffect(() => {
+    // Skip session check if user just signed out
+    if (justSignedOut) {
+      setCheckingSession(false);
+      return;
+    }
+
     const checkSession = async () => {
       try {
         // Race between auth check and timeout
@@ -74,7 +82,7 @@ function LoginForm() {
     };
     checkSession();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [supabase]);
+  }, [supabase, justSignedOut]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();

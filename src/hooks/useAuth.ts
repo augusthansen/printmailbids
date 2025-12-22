@@ -168,7 +168,7 @@ export function useAuth() {
     };
   }, [supabase, fetchProfile]);
 
-  const signOut = async () => {
+  const signOut = () => {
     // Set signing out flag to prevent re-authentication
     isSigningOut = true;
 
@@ -184,7 +184,7 @@ export function useAuth() {
     setLoading(false);
     notifyListeners();
 
-    // Clear localStorage items related to Supabase
+    // Clear localStorage items related to Supabase synchronously
     for (let i = localStorage.length - 1; i >= 0; i--) {
       const key = localStorage.key(i);
       if (key && (key.startsWith('sb-') || key.includes('supabase'))) {
@@ -192,14 +192,7 @@ export function useAuth() {
       }
     }
 
-    // Sign out on client side first with global scope to invalidate all sessions
-    try {
-      await supabase.auth.signOut({ scope: 'global' });
-    } catch (e) {
-      console.error('[useAuth] Client signOut error:', e);
-    }
-
-    // Navigate to server-side signout page (handles cookies)
+    // Redirect immediately - server will handle the actual signout
     window.location.href = '/auth/signout';
   };
 
