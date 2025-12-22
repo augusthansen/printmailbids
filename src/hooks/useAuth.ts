@@ -168,7 +168,7 @@ export function useAuth() {
     };
   }, [supabase, fetchProfile]);
 
-  const signOut = () => {
+  const signOut = async () => {
     // Set signing out flag to prevent re-authentication
     isSigningOut = true;
 
@@ -190,6 +190,13 @@ export function useAuth() {
       if (key && (key.startsWith('sb-') || key.includes('supabase'))) {
         localStorage.removeItem(key);
       }
+    }
+
+    // Sign out on client side first with global scope to invalidate all sessions
+    try {
+      await supabase.auth.signOut({ scope: 'global' });
+    } catch (e) {
+      console.error('[useAuth] Client signOut error:', e);
     }
 
     // Navigate to server-side signout page (handles cookies)

@@ -23,8 +23,8 @@ export async function GET() {
     }
   );
 
-  // Sign out
-  await supabase.auth.signOut();
+  // Sign out with global scope to invalidate all sessions including OAuth
+  await supabase.auth.signOut({ scope: 'global' });
 
   // Clear all Supabase cookies by setting them to expire
   const allCookies = cookieStore.getAll();
