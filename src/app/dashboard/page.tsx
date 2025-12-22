@@ -435,6 +435,76 @@ export default function DashboardPage() {
         )}
       </div>
 
+      {/* Quick Links - Mobile only (shown at top) */}
+      <div className="bg-white rounded-2xl shadow-sm border border-stone-200/50 p-6 lg:hidden">
+        <h2 className="font-semibold text-slate-900 mb-4">Quick Links</h2>
+        <div className="grid grid-cols-2 gap-3">
+          {isSeller ? (
+            <>
+              <Link
+                href="/dashboard/listings"
+                className="flex items-center gap-3 p-4 bg-blue-50 rounded-xl hover:bg-blue-100 transition-colors"
+              >
+                <Package className="h-5 w-5 text-blue-600" />
+                <span className="font-medium text-slate-900">My Listings</span>
+              </Link>
+              <Link
+                href="/dashboard/offers"
+                className="flex items-center gap-3 p-4 bg-purple-50 rounded-xl hover:bg-purple-100 transition-colors"
+              >
+                <HandCoins className="h-5 w-5 text-purple-600" />
+                <span className="font-medium text-slate-900">Offers</span>
+              </Link>
+              <Link
+                href="/dashboard/sales"
+                className="flex items-center gap-3 p-4 bg-green-50 rounded-xl hover:bg-green-100 transition-colors"
+              >
+                <DollarSign className="h-5 w-5 text-green-600" />
+                <span className="font-medium text-slate-900">Sales</span>
+              </Link>
+              <Link
+                href="/dashboard/messages"
+                className="flex items-center gap-3 p-4 bg-slate-100 rounded-xl hover:bg-slate-200 transition-colors"
+              >
+                <MessageSquare className="h-5 w-5 text-slate-600" />
+                <span className="font-medium text-slate-900">Messages</span>
+              </Link>
+            </>
+          ) : (
+            <>
+              <Link
+                href="/dashboard/bids"
+                className="flex items-center gap-3 p-4 bg-blue-50 rounded-xl hover:bg-blue-100 transition-colors"
+              >
+                <Gavel className="h-5 w-5 text-blue-600" />
+                <span className="font-medium text-slate-900">My Bids</span>
+              </Link>
+              <Link
+                href="/dashboard/purchases"
+                className="flex items-center gap-3 p-4 bg-green-50 rounded-xl hover:bg-green-100 transition-colors"
+              >
+                <ShoppingCart className="h-5 w-5 text-green-600" />
+                <span className="font-medium text-slate-900">Purchases</span>
+              </Link>
+              <Link
+                href="/dashboard/watchlist"
+                className="flex items-center gap-3 p-4 bg-red-50 rounded-xl hover:bg-red-100 transition-colors"
+              >
+                <Heart className="h-5 w-5 text-red-600" />
+                <span className="font-medium text-slate-900">Watchlist</span>
+              </Link>
+              <Link
+                href="/marketplace"
+                className="flex items-center gap-3 p-4 bg-slate-100 rounded-xl hover:bg-slate-200 transition-colors"
+              >
+                <Package className="h-5 w-5 text-slate-600" />
+                <span className="font-medium text-slate-900">Browse</span>
+              </Link>
+            </>
+          )}
+        </div>
+      </div>
+
       {/* Stats cards - Different for Buyer vs Seller */}
       {isSeller ? (
         // Seller Stats
@@ -770,10 +840,10 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Quick Links */}
-      <div className="bg-white rounded-2xl shadow-sm border border-stone-200/50 p-6">
+      {/* Quick Links - Desktop only (shown at bottom) */}
+      <div className="hidden lg:block bg-white rounded-2xl shadow-sm border border-stone-200/50 p-6">
         <h2 className="font-semibold text-slate-900 mb-4">Quick Links</h2>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-4 gap-4">
           {isSeller ? (
             <>
               <Link
