@@ -280,24 +280,12 @@ export function Header() {
                       {cat.name}
                     </Link>
                   ))}
-                  <hr className="my-2 border-stone-200" />
-                  <Link
-                    href="/auctions"
-                    className="block px-4 py-2.5 text-slate-700 hover:bg-blue-50 hover:text-blue-600 font-medium transition-colors"
-                    onClick={() => setCategoryMenuOpen(false)}
-                  >
-                    View All Auctions
-                  </Link>
                 </div>
               )}
             </div>
 
-            <Link href="/auctions" className="text-slate-700 hover:text-blue-600 font-medium transition-colors">
-              Auctions
-            </Link>
-
             <Link href="/marketplace" className="text-slate-700 hover:text-blue-600 font-medium transition-colors">
-              Buy Now
+              Marketplace
             </Link>
 
             {loading ? (
@@ -520,18 +508,11 @@ export function Header() {
             {/* Main Navigation */}
             <div className="flex gap-2 pb-3">
               <Link
-                href="/auctions"
-                onClick={() => setMobileMenuOpen(false)}
-                className="flex-1 text-center bg-slate-800 text-slate-200 hover:text-blue-400 font-medium py-2.5 rounded-lg transition-colors"
-              >
-                Auctions
-              </Link>
-              <Link
                 href="/marketplace"
                 onClick={() => setMobileMenuOpen(false)}
                 className="flex-1 text-center bg-slate-800 text-slate-200 hover:text-blue-400 font-medium py-2.5 rounded-lg transition-colors"
               >
-                Buy Now
+                Marketplace
               </Link>
             </div>
 
