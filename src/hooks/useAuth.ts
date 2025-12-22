@@ -192,6 +192,23 @@ export function useAuth() {
       }
     }
 
+    // Clear sessionStorage as well
+    for (let i = sessionStorage.length - 1; i >= 0; i--) {
+      const key = sessionStorage.key(i);
+      if (key && (key.startsWith('sb-') || key.includes('supabase'))) {
+        sessionStorage.removeItem(key);
+      }
+    }
+
+    // Clear cookies on client side
+    document.cookie.split(';').forEach((c) => {
+      const cookieName = c.split('=')[0].trim();
+      if (cookieName.startsWith('sb-') || cookieName.includes('supabase') || cookieName.includes('auth')) {
+        document.cookie = `${cookieName}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
+        document.cookie = `${cookieName}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; domain=${window.location.hostname}`;
+      }
+    });
+
     // Redirect immediately - server will handle the actual signout
     window.location.href = '/auth/signout';
   };
