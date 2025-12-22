@@ -22,17 +22,23 @@ export async function GET(request: Request) {
       if (user) {
         const { data: profile } = await supabase
           .from('profiles')
-          .select('is_seller')
+          .select('is_seller, full_name')
           .eq('id', user.id)
           .single()
 
-        // Sellers go to dashboard, buyers go to marketplace
+        // If no profile or profile doesn't have full_name set, this is a new OAuth user
+        // Redirect them to onboarding to select account type
+        if (!profile || !profile.full_name) {
+          return NextResponse.redirect(`${origin}/auth/onboarding`)
+        }
+
+        // Existing users: sellers go to dashboard, buyers go to marketplace
         const redirectPath = profile?.is_seller ? '/dashboard' : '/marketplace'
         return NextResponse.redirect(`${origin}${redirectPath}`)
       }
 
-      // Default to marketplace if we can't determine
-      return NextResponse.redirect(`${origin}/marketplace`)
+      // Default to onboarding for new users
+      return NextResponse.redirect(`${origin}/auth/onboarding`)
     }
   }
 
