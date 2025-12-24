@@ -129,19 +129,25 @@ const controllerTypes = [
   'Other',
 ];
 
-// Helper function to convert image to JPEG using Canvas (works for most formats)
-async function convertToJpeg(file: File): Promise<File> {
-  // If already JPEG, return as-is
-  if (file.type === 'image/jpeg') {
+// Helper function to process images - converts HEIC to JPEG, keeps JPEG/PNG as-is
+async function processImage(file: File): Promise<File> {
+  const fileName = file.name.toLowerCase();
+
+  // Check by extension as fallback since MIME type detection can be unreliable
+  const isJpeg = file.type === 'image/jpeg' || fileName.endsWith('.jpg') || fileName.endsWith('.jpeg');
+  const isPng = file.type === 'image/png' || fileName.endsWith('.png');
+
+  // If already JPEG or PNG, return as-is (these are well-supported)
+  if (isJpeg || isPng) {
     return file;
   }
 
   const isHeic = file.type === 'image/heic' ||
                  file.type === 'image/heif' ||
-                 file.name.toLowerCase().endsWith('.heic') ||
-                 file.name.toLowerCase().endsWith('.heif');
+                 fileName.endsWith('.heic') ||
+                 fileName.endsWith('.heif');
 
-  // Try heic2any for HEIC files first
+  // Try heic2any for HEIC files
   if (isHeic) {
     try {
       const heic2any = (await import('heic2any')).default;
@@ -159,7 +165,7 @@ async function convertToJpeg(file: File): Promise<File> {
     }
   }
 
-  // For PNG and other formats, convert to JPEG using canvas for consistency
+  // For other formats (WebP, GIF, BMP, etc.), convert to JPEG using canvas
   return new Promise((resolve, reject) => {
     const img = new Image();
     const url = URL.createObjectURL(file);
@@ -177,7 +183,7 @@ async function convertToJpeg(file: File): Promise<File> {
           return;
         }
 
-        // Fill with white background (for transparent PNGs)
+        // Fill with white background
         ctx.fillStyle = '#FFFFFF';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         ctx.drawImage(img, 0, 0);
@@ -506,7 +512,7 @@ export default function CreateListingPage() {
       // Convert all images to JPEG for browser compatibility
       for (const file of fileArray) {
         try {
-          const processedFile = await convertToJpeg(file);
+          const processedFile = await processImage(file);
           setImageFiles(prev => [...prev, processedFile]);
 
           // Convert to data URL for preview
