@@ -129,10 +129,10 @@ const controllerTypes = [
   'Other',
 ];
 
-// Helper function to convert image to JPEG using Canvas (works for most formats including some HEIC on iOS)
+// Helper function to convert image to JPEG using Canvas (works for most formats)
 async function convertToJpeg(file: File): Promise<File> {
-  // If already JPEG or PNG, return as-is
-  if (file.type === 'image/jpeg' || file.type === 'image/png') {
+  // If already JPEG, return as-is
+  if (file.type === 'image/jpeg') {
     return file;
   }
 
@@ -141,7 +141,7 @@ async function convertToJpeg(file: File): Promise<File> {
                  file.name.toLowerCase().endsWith('.heic') ||
                  file.name.toLowerCase().endsWith('.heif');
 
-  // Try heic2any for HEIC files
+  // Try heic2any for HEIC files first
   if (isHeic) {
     try {
       const heic2any = (await import('heic2any')).default;
@@ -154,37 +154,52 @@ async function convertToJpeg(file: File): Promise<File> {
       const newFileName = file.name.replace(/\.heic$/i, '.jpg').replace(/\.heif$/i, '.jpg');
       return new File([blob], newFileName, { type: 'image/jpeg' });
     } catch (error) {
-      console.warn('heic2any conversion failed, trying canvas fallback:', error);
+      console.warn('heic2any conversion failed:', error);
+      throw new Error('HEIC conversion failed. Please convert the image to JPEG or PNG before uploading.');
     }
   }
 
-  // Canvas fallback - works if browser can decode the image
-  return new Promise((resolve) => {
+  // For PNG and other formats, convert to JPEG using canvas for consistency
+  return new Promise((resolve, reject) => {
     const img = new Image();
     const url = URL.createObjectURL(file);
 
     img.onload = () => {
-      const canvas = document.createElement('canvas');
-      canvas.width = img.width;
-      canvas.height = img.height;
-      const ctx = canvas.getContext('2d');
-      ctx?.drawImage(img, 0, 0);
+      try {
+        const canvas = document.createElement('canvas');
+        canvas.width = img.width;
+        canvas.height = img.height;
+        const ctx = canvas.getContext('2d');
 
-      canvas.toBlob((blob) => {
-        URL.revokeObjectURL(url);
-        if (blob) {
-          const newFileName = file.name.replace(/\.[^.]+$/, '.jpg');
-          resolve(new File([blob], newFileName, { type: 'image/jpeg' }));
-        } else {
-          resolve(file); // Return original if conversion fails
+        if (!ctx) {
+          URL.revokeObjectURL(url);
+          reject(new Error('Could not get canvas context'));
+          return;
         }
-      }, 'image/jpeg', 0.9);
+
+        // Fill with white background (for transparent PNGs)
+        ctx.fillStyle = '#FFFFFF';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, 0, 0);
+
+        canvas.toBlob((blob) => {
+          URL.revokeObjectURL(url);
+          if (blob) {
+            const newFileName = file.name.replace(/\.[^.]+$/, '.jpg');
+            resolve(new File([blob], newFileName, { type: 'image/jpeg' }));
+          } else {
+            reject(new Error('Failed to convert image to JPEG'));
+          }
+        }, 'image/jpeg', 0.92);
+      } catch (err) {
+        URL.revokeObjectURL(url);
+        reject(err);
+      }
     };
 
     img.onerror = () => {
       URL.revokeObjectURL(url);
-      console.warn('Could not convert image, using original');
-      resolve(file);
+      reject(new Error(`Could not load image: ${file.name}. The format may not be supported.`));
     };
 
     img.src = url;
@@ -484,6 +499,9 @@ export default function CreateListingPage() {
     if (files) {
       const fileArray = Array.from(files);
       setProcessingImages(true);
+      setError(null);
+
+      const errors: string[] = [];
 
       // Convert all images to JPEG for browser compatibility
       for (const file of fileArray) {
@@ -499,7 +517,13 @@ export default function CreateListingPage() {
           reader.readAsDataURL(processedFile);
         } catch (error) {
           console.error('Error processing image:', error);
+          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+          errors.push(`${file.name}: ${errorMessage}`);
         }
+      }
+
+      if (errors.length > 0) {
+        setError(`Failed to process some images:\n${errors.join('\n')}`);
       }
 
       setProcessingImages(false);
