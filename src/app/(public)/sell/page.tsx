@@ -1011,7 +1011,7 @@ export default function CreateListingPage() {
                       onDragOver={(e) => handleDragOver(e, index)}
                       onDragEnd={handleDragEnd}
                       className={`
-                        relative group aspect-square bg-gray-100 rounded-lg overflow-hidden cursor-move
+                        relative group aspect-square bg-gray-100 rounded-lg overflow-hidden sm:cursor-move
                         ${draggedIndex === index ? 'opacity-50 scale-95' : ''}
                         ${dragOverIndex === index && draggedIndex !== index ? 'ring-2 ring-blue-500 ring-offset-2' : ''}
                         transition-all duration-150
@@ -1025,42 +1025,49 @@ export default function CreateListingPage() {
                       <img
                         src={img}
                         alt={`Upload ${index + 1}`}
-                        className="w-full h-full object-cover pointer-events-none"
+                        className="w-full h-full object-cover pointer-events-none select-none"
+                        draggable={false}
                       />
                       {/* Remove button - always visible on mobile, hover on desktop */}
                       <button
+                        type="button"
                         onClick={(e) => {
+                          e.preventDefault();
                           e.stopPropagation();
                           removeImage(index);
                         }}
-                        className="absolute top-2 right-2 p-1.5 bg-red-500 text-white rounded-full sm:opacity-0 sm:group-hover:opacity-100 transition-opacity z-10"
+                        className="absolute top-2 right-2 p-2 bg-red-500 text-white rounded-full sm:opacity-0 sm:group-hover:opacity-100 transition-opacity z-20"
                       >
                         <X className="h-4 w-4" />
                       </button>
                       {/* Move buttons - always visible on mobile, hover on desktop */}
-                      <div className="absolute bottom-2 right-2 flex gap-1 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity z-10">
+                      <div className="absolute bottom-2 right-2 flex gap-2 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity z-20">
                         {index > 0 && (
                           <button
+                            type="button"
                             onClick={(e) => {
+                              e.preventDefault();
                               e.stopPropagation();
                               moveImage(index, index - 1);
                             }}
-                            className="p-1.5 bg-black/60 text-white rounded hover:bg-black/80 active:bg-black/90"
+                            className="p-2 bg-black/70 text-white rounded-lg active:bg-black/90 touch-manipulation"
                             aria-label="Move left"
                           >
-                            <ArrowLeft className="h-4 w-4" />
+                            <ArrowLeft className="h-5 w-5" />
                           </button>
                         )}
                         {index < uploadedImages.length - 1 && (
                           <button
+                            type="button"
                             onClick={(e) => {
+                              e.preventDefault();
                               e.stopPropagation();
                               moveImage(index, index + 1);
                             }}
-                            className="p-1.5 bg-black/60 text-white rounded hover:bg-black/80 active:bg-black/90"
+                            className="p-2 bg-black/70 text-white rounded-lg active:bg-black/90 touch-manipulation"
                             aria-label="Move right"
                           >
-                            <ArrowRight className="h-4 w-4" />
+                            <ArrowRight className="h-5 w-5" />
                           </button>
                         )}
                       </div>
