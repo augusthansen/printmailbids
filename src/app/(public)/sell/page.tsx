@@ -995,8 +995,11 @@ export default function CreateListingPage() {
                   <p className="text-sm font-medium text-gray-700">
                     Uploaded Photos ({uploadedImages.length})
                   </p>
-                  <p className="text-xs text-gray-500">
+                  <p className="text-xs text-gray-500 hidden sm:block">
                     Drag to reorder. First image is primary.
+                  </p>
+                  <p className="text-xs text-gray-500 sm:hidden">
+                    Use arrows to reorder. First is primary.
                   </p>
                 </div>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
@@ -1014,8 +1017,8 @@ export default function CreateListingPage() {
                         transition-all duration-150
                       `}
                     >
-                      {/* Drag handle */}
-                      <div className="absolute top-2 left-2 p-1 bg-black/50 text-white rounded opacity-0 group-hover:opacity-100 transition-opacity z-10">
+                      {/* Drag handle - only on desktop */}
+                      <div className="absolute top-2 left-2 p-1 bg-black/50 text-white rounded opacity-0 group-hover:opacity-100 transition-opacity z-10 hidden sm:block">
                         <GripVertical className="h-4 w-4" />
                       </div>
                       {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -1024,27 +1027,28 @@ export default function CreateListingPage() {
                         alt={`Upload ${index + 1}`}
                         className="w-full h-full object-cover pointer-events-none"
                       />
-                      {/* Remove button */}
+                      {/* Remove button - always visible on mobile, hover on desktop */}
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
                           removeImage(index);
                         }}
-                        className="absolute top-2 right-2 p-1 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity z-10"
+                        className="absolute top-2 right-2 p-1.5 bg-red-500 text-white rounded-full sm:opacity-0 sm:group-hover:opacity-100 transition-opacity z-10"
                       >
                         <X className="h-4 w-4" />
                       </button>
-                      {/* Move buttons for mobile/accessibility */}
-                      <div className="absolute bottom-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+                      {/* Move buttons - always visible on mobile, hover on desktop */}
+                      <div className="absolute bottom-2 right-2 flex gap-1 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity z-10">
                         {index > 0 && (
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
                               moveImage(index, index - 1);
                             }}
-                            className="p-1 bg-black/50 text-white rounded text-xs hover:bg-black/70"
+                            className="p-1.5 bg-black/60 text-white rounded hover:bg-black/80 active:bg-black/90"
+                            aria-label="Move left"
                           >
-                            <ArrowLeft className="h-3 w-3" />
+                            <ArrowLeft className="h-4 w-4" />
                           </button>
                         )}
                         {index < uploadedImages.length - 1 && (
@@ -1053,9 +1057,10 @@ export default function CreateListingPage() {
                               e.stopPropagation();
                               moveImage(index, index + 1);
                             }}
-                            className="p-1 bg-black/50 text-white rounded text-xs hover:bg-black/70"
+                            className="p-1.5 bg-black/60 text-white rounded hover:bg-black/80 active:bg-black/90"
+                            aria-label="Move right"
                           >
-                            <ArrowRight className="h-3 w-3" />
+                            <ArrowRight className="h-4 w-4" />
                           </button>
                         )}
                       </div>
