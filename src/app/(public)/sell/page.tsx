@@ -509,18 +509,16 @@ export default function CreateListingPage() {
 
       const errors: string[] = [];
 
-      // Convert all images to JPEG for browser compatibility
+      // Process all images
       for (const file of fileArray) {
         try {
           const processedFile = await processImage(file);
-          setImageFiles(prev => [...prev, processedFile]);
 
-          // Convert to data URL for preview
-          const reader = new FileReader();
-          reader.onload = () => {
-            setUploadedImages(prev => [...prev, reader.result as string]);
-          };
-          reader.readAsDataURL(processedFile);
+          // Create object URL for preview (more reliable than data URL)
+          const previewUrl = URL.createObjectURL(processedFile);
+
+          setImageFiles(prev => [...prev, processedFile]);
+          setUploadedImages(prev => [...prev, previewUrl]);
         } catch (error) {
           console.error('Error processing image:', error);
           const errorMessage = error instanceof Error ? error.message : 'Unknown error';
@@ -537,6 +535,11 @@ export default function CreateListingPage() {
   };
 
   const removeImage = (index: number) => {
+    // Revoke the object URL to prevent memory leaks
+    const urlToRevoke = uploadedImages[index];
+    if (urlToRevoke && urlToRevoke.startsWith('blob:')) {
+      URL.revokeObjectURL(urlToRevoke);
+    }
     setUploadedImages(prev => prev.filter((_, i) => i !== index));
     setImageFiles(prev => prev.filter((_, i) => i !== index));
   };
