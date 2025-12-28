@@ -1,8 +1,99 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { Loader2 } from 'lucide-react';
+
+// Comprehensive manufacturers list by category (alphabetically sorted with "Other" at end)
+const manufacturersByCategory: Record<string, string[]> = {
+  'mailing-fulfillment': [
+    'Accufast', 'Astro Machine', 'Bell and Howell', 'BlueCrest', 'Böwe Systec',
+    'Buskro', 'CMC', 'Datatech', 'Domino', 'Envelope 1', 'Frama', 'Formax',
+    'Francotyp-Postalia (FP)', 'Funai', 'Gunther', 'Hapa', 'Hasler', 'Hefter Systemform',
+    'Inserco', 'Intec', 'JBM', 'Kern', 'Kirk-Rudy', 'Longford', 'MCS', 'Mailcrafters',
+    'Mailmark', 'Martin Yale', 'Mathias Bäuerle', 'National Presort', 'Neopost/Quadient',
+    'Norpak', 'Opex', 'Pfaffle', 'Pinnacle', 'Pitney Bowes', 'Postmatic', 'Prolific',
+    'Quadient', 'Rena', 'Salina Vortex', 'Secap', 'Sitma', 'Standard Register',
+    'Streamfeeder', 'Sure-Feed', 'Tritek', 'Video Jet', 'Winkler+Dünnebier',
+    'Window Book', 'Zipmail', 'Other'
+  ],
+  'printing': [
+    'AB Dick', 'Adast', 'Agfa', 'Akiyama', 'AM Multigraphics', 'Anatol', 'Aquaflex',
+    'Aries', 'Atlantic Zeiser', 'Autologic', 'Baldwin', 'basysPrint', 'Brother',
+    'Canon', 'Cerutti', 'Colordyne', 'Comco', 'Cron', 'Dainippon Screen', 'Delphax',
+    'DigiFlex', 'Domino', 'Drent Goebel', 'Durst', 'EFI', 'Electron', 'Esko',
+    'Epson', 'ETI Converting', 'Fischer & Krecke', 'Flexotecnica', 'Fujifilm',
+    'Gallus', 'Goss', 'Grafix', 'GWS Printing Systems', 'Halm', 'Hamada', 'Hantscho',
+    'Harris', 'Heidelberg', 'HP', 'HP Indigo', 'Inca', 'Iwasaki', 'Jetrix',
+    'KBA (Koenig & Bauer)', 'Kodak', 'Komori', 'Konica Minolta', 'Kyocera', 'Labelmen',
+    'Lawson', 'Lemaire', 'Linoprint', 'Lüscher', 'M&R', 'Macchingraf', 'MAN Roland',
+    'Manroland', 'Mark Andy', 'Markem-Imaje', 'MHM', 'Mimaki', 'Mitsubishi',
+    'MPS', 'Muller Martini', 'Mutoh', 'Nilpeter', 'Numa', 'NUR', 'Oce', 'Omet',
+    'Omso', 'Panasonic', 'Perfector', 'Presstek', 'PrintFactory', 'Purup-Eskofot',
+    'Ricoh', 'RMGT', 'ROQ', 'Roland DG', 'Rotatek', 'Ryobi', 'Sakurai', 'Samsung',
+    'Sanwa', 'Schawk', 'Scitex', 'Screen', 'Sharp', 'Shinohara', 'Solna',
+    'SPS Technoscreen', 'Stealth', 'Stork', 'Svecia', 'swissQprint', 'Thieme',
+    'Timsons', 'Tokyo Kikai', 'Toshiba', 'Uteco', 'Videojet', 'Vutek', 'Windmoeller & Hoelscher',
+    'Workhorse', 'Xante', 'Xeikon', 'Xerox', 'Other'
+  ],
+  'bindery-finishing': [
+    'ACCO Brands', 'Akiles', 'Autobond', 'Baum', 'Baumfolder', 'Bielomatik',
+    'Bograma', 'Brausse', 'C.P. Bourg', 'Challenge', 'Colter & Peterson', 'Coverbind',
+    'CP Bourg', 'Cyklos', 'D&K', 'Dahle', 'Drytac', 'Duplo', 'Eurofold', 'Fastbind',
+    'Foldmaster', 'Formax', 'GBC', 'Glunz & Jensen', 'GMP', 'Grafisk', 'GUK',
+    'Harris', 'Hefter Systemform', 'Heidelberg', 'Herzog+Heymann', 'Hohner', 'Horizon',
+    'Ideal', 'Intimus', 'James Burn', 'KAMA', 'Kluge', 'Kolbus', 'Komfi', 'Laminator.com',
+    'Lawson', 'Ledco', 'Lhermite', 'MBM', 'MBO', 'Morgana', 'Muller Martini',
+    'Multipli', 'Nagel', 'Neschen', 'Perfecta', 'Pitney Bowes', 'Polar', 'Powis Parker',
+    'Prism', 'Renz', 'Rollem', 'Rosback', 'Schneider Senator', 'Scodix', 'Seal',
+    'Shoei', 'Spiral', 'Stahl', 'Standard Horizon', 'Steinemann', 'Sterling', 'Sulby',
+    'Tamerica', 'Theisen & Bonitz', 'Thermotype', 'Therm-O-Type', 'Triumph', 'Unibind',
+    'USI', 'Vijuk', 'Vivid', 'Watkiss', 'Wohlenberg', 'Young Shin', 'Zechini', 'Other'
+  ],
+  'packaging': [
+    '3M-Matic', 'Accraply', 'Agnati', 'All Packaging Machinery', 'ARPAC', 'Asahi',
+    'ASKO', 'Automated Packaging Systems', 'Belco', 'Berhalter', 'BestPack', 'Beumer',
+    'BHS', 'Bielloni', 'Bobst', 'Bosch', 'Brausse', 'CAM', 'Campbell Wrapper',
+    'Carint', 'Cariba', 'Cartopak', 'CI Flexo', 'Climax', 'Coating Excellence',
+    'Combi', 'Comexi', 'Conflex', 'Cryovac', 'DCM', 'Delkor', 'Dong Fang', 'Douglas',
+    'Eastey', 'Econocorp', 'EMBA', 'Eterna', 'Excellon', 'Falcon', 'Fallas', 'FMC',
+    'Fosber', 'Giave', 'Graphic Packaging', 'Great Lakes', 'Hartness', 'Heidelberg',
+    'Herma', 'HMC', 'Isowa', 'Jagenberg', 'Jones', 'KAMA', 'KBA', 'Kliklok',
+    'Koenig & Bauer', 'Kosme', 'Krones', 'Lantech', 'Latitude', 'Loveshaw', 'Marden Edwards',
+    'Marquip', 'Martin', 'Masterwork', 'MGS', 'Multivac', 'Norden', 'Nordmeccanica',
+    'Ossid', 'P.E. Labellers', 'PCMC', 'PDC', 'Pearson', 'Polypack', 'R.A. Jones',
+    'Rovema', 'Sacmi', 'Sanwa', 'SBL', 'Schneider', 'Sealed Air', 'Shanklin',
+    'Sidel', 'Sigpack', 'Sitma', 'Soma', 'SUN Automation', 'TCY', 'Texwrap',
+    'Thiele', 'Triangle', 'ULMA', 'Uteco', 'Vidmar', 'Wexxar', 'Windmoeller & Hoelscher',
+    'Wrap-Ade', 'Yawa', 'Young Shin', 'Yupack', 'Zambelli', 'Other'
+  ],
+  'material-handling': [
+    'Autoquip', 'Barrett', 'Beumer', 'Big Joe', 'Bishamon', 'Blue Giant', 'BT',
+    'Budgit', 'CAM', 'Cascade', 'Caterpillar', 'Clark', 'CM', 'Coffing', 'Combilift',
+    'Crown', 'Daifuku', 'Dematic', 'Demag', 'Doosan', 'Dorner', 'Drexel', 'Eaton',
+    'FlexLink', 'Frazier', 'Genie', 'Gorbel', 'Harrington', 'Heli', 'Honeywell',
+    'Husky', 'Hyster', 'Hytrol', 'Intelligrated', 'Interlake Mecalux', 'Interroll',
+    'JLG', 'Jungheinrich', 'Kion', 'Komatsu', 'Konecranes', 'Landoll', 'Lift-Rite',
+    'Linde', 'Little Giant', 'Lonking', 'Marco', 'Mitsubishi', 'Moffett', 'Nissan',
+    'Omega', 'Pallet Mule', 'Penco', 'Presto', 'Prime Mover', 'Rapistan', 'Raymond',
+    'Relius', 'Ridg-U-Rak', 'Robur', 'Siemens', 'Southworth', 'SSI Schaefer',
+    'Steel King', 'Still', 'Sumitomo', 'Swisslog', 'Taylor-Dunn', 'TCM', 'TGW',
+    'Toyota', 'Uline', 'Unarco', 'Unicarriers', 'Vanderlande', 'Vestil', 'Wesco',
+    'Wildeck', 'Yale', 'Other'
+  ],
+  'parts-supplies': [
+    'Aftermarket', 'Agfa', 'Bell and Howell', 'Bobst', 'Canon', 'Generic/Compatible',
+    'Heidelberg', 'HP', 'Kodak', 'Komori', 'Konica Minolta', 'Manroland', 'MBO',
+    'Muller Martini', 'OEM Parts', 'Pitney Bowes', 'Polar', 'Rebuilt/Refurbished',
+    'Ricoh', 'Xerox', 'Other'
+  ]
+};
+
+// Get all unique manufacturers (alphabetically sorted with "Other" at end)
+const allManufacturers = [...new Set(Object.values(manufacturersByCategory).flat())]
+  .filter(m => m !== 'Other')
+  .sort()
+  .concat(['Other']);
 
 interface MakeAutocompleteProps {
   value: string;
@@ -27,52 +118,34 @@ export default function MakeAutocomplete({
   const suggestionsRef = useRef<HTMLDivElement>(null);
   const supabase = createClient();
 
+  // Get predefined manufacturers for the selected category
+  const predefinedManufacturers = useMemo(() => {
+    if (category && manufacturersByCategory[category]) {
+      return manufacturersByCategory[category];
+    }
+    return allManufacturers;
+  }, [category]);
+
   // Fetch make suggestions based on current input
   const fetchSuggestions = useCallback(async (searchTerm: string) => {
     setLoading(true);
     try {
-      // Query distinct makes from listings
-      let query = supabase
-        .from('listings')
-        .select('make, primary_category_id')
-        .not('make', 'is', null)
-        .not('make', 'eq', '');
+      const searchLower = searchTerm.toLowerCase();
 
-      // If user has typed something, filter by that
-      if (searchTerm && searchTerm.length > 0) {
-        query = query.ilike('make', `%${searchTerm}%`);
-      }
+      // Filter predefined manufacturers
+      let filtered = predefinedManufacturers.filter(m => {
+        if (!searchTerm) return true;
+        return m.toLowerCase().includes(searchLower);
+      });
 
-      // If category is provided, filter by it
-      if (category) {
-        // First get the category ID
-        const { data: categoryData } = await supabase
-          .from('categories')
-          .select('id')
-          .eq('slug', category)
-          .single();
+      // Sort: exact matches first, then starts with, then contains, "Other" always last
+      filtered = filtered.sort((a, b) => {
+        // "Other" always at the end
+        if (a === 'Other') return 1;
+        if (b === 'Other') return -1;
 
-        if (categoryData?.id) {
-          query = query.eq('primary_category_id', categoryData.id);
-        }
-      }
-
-      const { data, error } = await query.limit(100);
-
-      if (error) {
-        console.error('Error fetching make suggestions:', error);
-        setSuggestions([]);
-        return;
-      }
-
-      // Get unique makes and sort them
-      const uniqueMakes = [...new Set(data?.map((d: { make: string | null }) => d.make).filter(Boolean) as string[])];
-
-      // Sort: exact matches first, then starts with, then contains
-      const sorted = uniqueMakes.sort((a, b) => {
         const aLower = a.toLowerCase();
         const bLower = b.toLowerCase();
-        const searchLower = searchTerm.toLowerCase();
 
         // Exact match
         if (aLower === searchLower && bLower !== searchLower) return -1;
@@ -86,14 +159,14 @@ export default function MakeAutocomplete({
         return aLower.localeCompare(bLower);
       });
 
-      setSuggestions(sorted.slice(0, 10)); // Limit to 10 suggestions
+      setSuggestions(filtered.slice(0, 15)); // Show up to 15 suggestions
     } catch (err) {
       console.error('Error in fetchSuggestions:', err);
       setSuggestions([]);
     } finally {
       setLoading(false);
     }
-  }, [category, supabase]);
+  }, [predefinedManufacturers]);
 
   // Debounce the fetch
   useEffect(() => {
@@ -193,7 +266,7 @@ export default function MakeAutocomplete({
         >
           <div className="py-1">
             <p className="px-3 py-1 text-xs text-gray-500 border-b">
-              Previously listed manufacturers
+              Select manufacturer
             </p>
             {suggestions.map((make, index) => (
               <button
