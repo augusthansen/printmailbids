@@ -12,7 +12,8 @@ import {
   Loader2,
   ArrowRightLeft,
   ExternalLink,
-  AlertCircle
+  AlertCircle,
+  Trash2
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
@@ -44,7 +45,7 @@ interface Offer {
   };
 }
 
-type FilterType = 'all' | 'pending' | 'accepted' | 'declined' | 'countered';
+type FilterType = 'all' | 'pending' | 'accepted' | 'declined' | 'countered' | 'expired';
 
 export default function OffersPage() {
   const { user, loading: authLoading, isSeller } = useAuth();
@@ -144,6 +145,26 @@ export default function OffersPage() {
       }
     } catch {
       alert('Failed to decline offer');
+    }
+    setActionLoading(null);
+  };
+
+  const handleDismiss = async (offerId: string) => {
+    setActionLoading(offerId);
+    try {
+      // Update the offer status to 'expired' if it's pending, or just remove from view
+      const offer = offers.find(o => o.id === offerId);
+      if (offer && offer.status === 'pending') {
+        // Mark as expired in database
+        await supabase
+          .from('offers')
+          .update({ status: 'expired' })
+          .eq('id', offerId);
+      }
+      // Remove from local state
+      setOffers(offers.filter(o => o.id !== offerId));
+    } catch {
+      alert('Failed to dismiss offer');
     }
     setActionLoading(null);
   };
@@ -378,7 +399,7 @@ export default function OffersPage() {
 
       {/* Filters */}
       <div className="flex gap-2 flex-wrap">
-        {(['all', 'pending', 'accepted', 'declined', 'countered'] as FilterType[]).map(f => (
+        {(['all', 'pending', 'accepted', 'declined', 'countered', 'expired'] as FilterType[]).map(f => (
           <button
             key={f}
             onClick={() => setFilter(f)}
@@ -562,6 +583,22 @@ export default function OffersPage() {
                           <ExternalLink className="h-4 w-4" />
                           View Listing
                         </Link>
+                        {/* Dismiss button for expired offers or completed offers */}
+                        {(timeRemaining.expired || offer.status === 'expired' || offer.status === 'declined' || offer.status === 'accepted' || offer.status === 'withdrawn') && (
+                          <button
+                            onClick={() => handleDismiss(offer.id)}
+                            disabled={actionLoading === offer.id}
+                            className="px-3 py-1.5 text-sm border border-gray-300 text-gray-500 rounded-lg hover:bg-gray-50 hover:text-red-600 hover:border-red-300 disabled:opacity-50 flex items-center gap-1"
+                            title="Remove from list"
+                          >
+                            {actionLoading === offer.id ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <Trash2 className="h-4 w-4" />
+                            )}
+                            Dismiss
+                          </button>
+                        )}
                       </div>
 
                       <div className="mt-2 text-xs text-gray-400">
