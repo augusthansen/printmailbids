@@ -7,7 +7,7 @@ import { Loader2 } from 'lucide-react';
 // Comprehensive manufacturers list by category (alphabetically sorted with "Other" at end)
 const manufacturersByCategory: Record<string, string[]> = {
   'mailing-fulfillment': [
-    'Accufast', 'Astro Machine', 'Bell and Howell', 'BlueCrest', 'Böwe Systec',
+    'Accufast', 'Astro Machine', 'Bell and Howell', 'BlueCrest (Pitney Bowes)', 'Böwe Systec',
     'Buskro', 'CMC', 'Datatech', 'Domino', 'Envelope 1', 'Frama', 'Formax',
     'Francotyp-Postalia (FP)', 'Funai', 'Gunther', 'Hapa', 'Hasler', 'Hefter Systemform',
     'Inserco', 'Intec', 'JBM', 'Kern', 'Kirk-Rudy', 'Longford', 'MCS', 'Mailcrafters',
