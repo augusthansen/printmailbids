@@ -231,94 +231,97 @@ const defaultCategories = [
   { id: 'parts', name: 'Parts & Supplies', slug: 'parts-supplies' },
 ];
 
-// Manufacturers by category
+// Manufacturers by category (alphabetically sorted within each category)
 const manufacturersByCategory: Record<string, string[]> = {
   'mailing-fulfillment': [
-    'Bell and Howell', 'Pitney Bowes', 'Neopost/Quadient', 'Hasler', 'Francotyp-Postalia (FP)',
-    'Böwe Systec', 'Kern', 'CMC', 'Buskro', 'Kirk-Rudy', 'Formax', 'MCS', 'Streamfeeder',
-    'Secap', 'Rena', 'Astro Machine', 'Accufast', 'JBM', 'Tritek', 'Inserco',
-    'Hefter Systemform', 'Winkler+Dünnebier', 'Envelope 1', 'Window Book',
-    'BlueCrest (formerly Pitney Bowes DMT)', 'Gunther', 'National Presort', 'Prolific'
-  ],
+    'Accufast', 'Astro Machine', 'Bell and Howell', 'BlueCrest', 'Böwe Systec',
+    'Buskro', 'CMC', 'Datatech', 'Domino', 'Envelope 1', 'Frama', 'Formax',
+    'Francotyp-Postalia (FP)', 'Funai', 'Gunther', 'Hapa', 'Hasler', 'Hefter Systemform',
+    'Inserco', 'Intec', 'JBM', 'Kern', 'Kirk-Rudy', 'Longford', 'MCS', 'Mailcrafters',
+    'Mailmark', 'Martin Yale', 'Mathias Bäuerle', 'National Presort', 'Neopost/Quadient',
+    'Norpak', 'Opex', 'Pfaffle', 'Pinnacle', 'Pitney Bowes', 'Postmatic', 'Prolific',
+    'Quadient', 'Rena', 'Salina Vortex', 'Secap', 'Sitma', 'Standard Register',
+    'Streamfeeder', 'Sure-Feed', 'Tritek', 'Video Jet', 'Winkler+Dünnebier',
+    'Window Book', 'Zipmail', 'Other'
+  ].sort((a, b) => a === 'Other' ? 1 : b === 'Other' ? -1 : a.localeCompare(b)),
   'printing': [
-    // Offset
-    'Heidelberg', 'Komori', 'Manroland', 'KBA (Koenig & Bauer)', 'Mitsubishi',
-    'Ryobi', 'Sakurai', 'Shinohara', 'RMGT', 'Presstek', 'Akiyama',
-    // Digital
-    'HP Indigo', 'Xerox', 'Canon', 'Ricoh', 'Konica Minolta', 'Screen', 'EFI',
-    'Kodak', 'Fujifilm', 'Epson', 'Roland DG', 'Mimaki', 'Durst', 'swissQprint',
-    // Wide Format
-    'HP', 'Agfa', 'Mutoh', 'Oce', 'Vutek', 'Scitex', 'NUR', 'Inca', 'Jetrix',
-    // Flexo/Label
-    'Mark Andy', 'Nilpeter', 'Gallus', 'MPS', 'Edale', 'Bobst', 'Omet', 'Aquaflex',
-    // Screen
-    'M&R', 'Anatol', 'Workhorse', 'ROQ', 'MHM', 'SPS', 'Thieme',
-    // Prepress
-    'Agfa', 'Screen', 'Kodak', 'Fujifilm', 'Esko', 'Presstek', 'basysPrint'
-  ],
+    // Comprehensive list of printing equipment manufacturers
+    'AB Dick', 'Adast', 'Agfa', 'Akiyama', 'AM Multigraphics', 'Anatol', 'Aquaflex',
+    'Aries', 'Atlantic Zeiser', 'Autologic', 'Baldwin', 'basysPrint', 'Brother',
+    'Canon', 'Cerutti', 'Colordyne', 'Comco', 'Cron', 'Dainippon Screen', 'Delphax',
+    'DigiFlex', 'Domino', 'Drent Goebel', 'Durst', 'EFI', 'Electron', 'Esko',
+    'Epson', 'ETI Converting', 'Fischer & Krecke', 'Flexotecnica', 'Fujifilm',
+    'Gallus', 'Goss', 'Grafix', 'GWS Printing Systems', 'Halm', 'Hamada', 'Hantscho',
+    'Harris', 'Heidelberg', 'HP', 'HP Indigo', 'Inca', 'Iwasaki', 'Jetrix',
+    'KBA (Koenig & Bauer)', 'Kodak', 'Komori', 'Konica Minolta', 'Kyocera', 'Labelmen',
+    'Lawson', 'Lemaire', 'Linoprint', 'Lüscher', 'M&R', 'Macchingraf', 'MAN Roland',
+    'Manroland', 'Mark Andy', 'Markem-Imaje', 'MHM', 'Mimaki', 'Mitsubishi',
+    'MPS', 'Muller Martini', 'Mutoh', 'Nilpeter', 'Numa', 'NUR', 'Oce', 'Omet',
+    'Omso', 'Panasonic', 'Perfector', 'Presstek', 'PrintFactory', 'Purup-Eskofot',
+    'Ricoh', 'RMGT', 'ROQ', 'Roland DG', 'Rotatek', 'Ryobi', 'Sakurai', 'Samsung',
+    'Sanwa', 'Schawk', 'Scitex', 'Screen', 'Sharp', 'Shinohara', 'Solna',
+    'SPS Technoscreen', 'Stealth', 'Stork', 'Svecia', 'swissQprint', 'Thieme',
+    'Timsons', 'Tokyo Kikai', 'Toshiba', 'Uteco', 'Videojet', 'Vutek', 'Windmoeller & Hoelscher',
+    'Workhorse', 'Xante', 'Xeikon', 'Xerox', 'Other'
+  ].sort((a, b) => a === 'Other' ? 1 : b === 'Other' ? -1 : a.localeCompare(b)),
   'bindery-finishing': [
-    // Folders
-    'MBO', 'Stahl', 'Heidelberg', 'Horizon', 'Baum', 'Herzog+Heymann', 'GUK', 'Shoei',
-    // Cutters/Trimmers
-    'Polar', 'Challenge', 'Wohlenberg', 'Schneider Senator', 'Prism', 'Duplo', 'Ideal',
-    'Triumph', 'MBM', 'Martin Yale', 'Dahle', 'Standard Horizon', 'Morgana', 'Kolbus',
-    // Binding
-    'Muller Martini', 'Kolbus', 'CP Bourg', 'Horizon', 'Duplo', 'Standard Horizon',
-    'Fastbind', 'Renz', 'GBC', 'Spiral', 'Unibind', 'Coverbind', 'Powis Parker',
-    // Laminating/Coating
-    'GMP', 'D&K', 'Seal', 'USI', 'Ledco', 'Tamerica', 'Drytac', 'Neschen',
-    'GBC/ACCO', 'Vivid', 'Autobond', 'Komfi', 'Steinemann', 'Scodix',
-    // Die Cutting/Embossing
-    'Bobst', 'Heidelberg', 'Kluge', 'Brausse', 'Sanwa', 'Young Shin', 'KAMA',
-    // Saddle Stitching
-    'Muller Martini', 'Heidelberg', 'Horizon', 'Duplo', 'Hohner', 'Nagel',
-    // Perfect Binding
-    'Muller Martini', 'Horizon', 'CP Bourg', 'Kolbus', 'Wohlenberg', 'Sulby',
-    // Collating
-    'Duplo', 'Horizon', 'Watkiss', 'CP Bourg', 'MBO', 'Theisen & Bonitz'
-  ],
+    'ACCO Brands', 'Akiles', 'Autobond', 'Baum', 'Baumfolder', 'Bielomatik',
+    'Bograma', 'Brausse', 'C.P. Bourg', 'Challenge', 'Colter & Peterson', 'Coverbind',
+    'CP Bourg', 'Cyklos', 'D&K', 'Dahle', 'Drytac', 'Duplo', 'Eurofold', 'Fastbind',
+    'Foldmaster', 'Formax', 'GBC', 'Glunz & Jensen', 'GMP', 'Grafisk', 'GUK',
+    'Harris', 'Hefter Systemform', 'Heidelberg', 'Herzog+Heymann', 'Hohner', 'Horizon',
+    'Ideal', 'Intimus', 'James Burn', 'KAMA', 'Kluge', 'Kolbus', 'Komfi', 'Laminator.com',
+    'Lawson', 'Ledco', 'Lhermite', 'MBM', 'MBO', 'Morgana', 'Muller Martini',
+    'Multipli', 'Nagel', 'Neschen', 'Perfecta', 'Pitney Bowes', 'Polar', 'Powis Parker',
+    'Prism', 'Renz', 'Rollem', 'Rosback', 'Schneider Senator', 'Scodix', 'Seal',
+    'Shoei', 'Spiral', 'Stahl', 'Standard Horizon', 'Steinemann', 'Sterling', 'Sulby',
+    'Tamerica', 'Theisen & Bonitz', 'Thermotype', 'Therm-O-Type', 'Triumph', 'Unibind',
+    'USI', 'Vijuk', 'Vivid', 'Watkiss', 'Wohlenberg', 'Young Shin', 'Zechini', 'Other'
+  ].sort((a, b) => a === 'Other' ? 1 : b === 'Other' ? -1 : a.localeCompare(b)),
   'packaging': [
-    // Folding Carton
-    'Bobst', 'Heidelberg', 'KBA', 'Koenig & Bauer', 'Brausse', 'KAMA', 'Masterwork',
-    'Sanwa', 'Young Shin', 'SBL', 'Yawa', 'Eterna',
-    // Corrugated
-    'Bobst', 'Fosber', 'BHS', 'Mitsubishi', 'Isowa', 'Latitude', 'SUN Automation',
-    'Marquip', 'Agnati', 'Dong Fang', 'TCY', 'EMBA',
-    // Flexible Packaging
-    'Windmoeller & Hoelscher', 'Comexi', 'Uteco', 'Nordmeccanica', 'DCM', 'Bobst',
-    'PCMC', 'Soma', 'CI Flexo', 'Bielloni', 'Giave', 'Carint',
-    // Labeling
-    'Krones', 'Sidel', 'P.E. Labellers', 'Sacmi', 'Kosme', 'Herma', 'Accraply',
-    // Case Packing
-    'Wexxar', 'Combi', 'Pearson', 'Loveshaw', '3M-Matic', 'BestPack', 'Lantech',
-    // Shrink Wrap
-    'Shanklin', 'Texwrap', 'Eastey', 'Conflex', 'PDC', 'Polypack', 'ULMA'
-  ],
+    '3M-Matic', 'Accraply', 'Agnati', 'All Packaging Machinery', 'ARPAC', 'Asahi',
+    'ASKO', 'Automated Packaging Systems', 'Belco', 'Berhalter', 'BestPack', 'Beumer',
+    'BHS', 'Bielloni', 'Bobst', 'Bosch', 'Brausse', 'CAM', 'Campbell Wrapper',
+    'Carint', 'Cariba', 'Cartopak', 'CI Flexo', 'Climax', 'Coating Excellence',
+    'Combi', 'Comexi', 'Conflex', 'Cryovac', 'DCM', 'Delkor', 'Dong Fang', 'Douglas',
+    'Eastey', 'Econocorp', 'EMBA', 'Eterna', 'Excellon', 'Falcon', 'Fallas', 'FMC',
+    'Fosber', 'Giave', 'Graphic Packaging', 'Great Lakes', 'Hartness', 'Heidelberg',
+    'Herma', 'HMC', 'Isowa', 'Jagenberg', 'Jones', 'KAMA', 'KBA', 'Kliklok',
+    'Koenig & Bauer', 'Kosme', 'Krones', 'Lantech', 'Latitude', 'Loveshaw', 'Marden Edwards',
+    'Marquip', 'Martin', 'Masterwork', 'MGS', 'Multivac', 'Norden', 'Nordmeccanica',
+    'Ossid', 'P.E. Labellers', 'PCMC', 'PDC', 'Pearson', 'Polypack', 'R.A. Jones',
+    'Rovema', 'Sacmi', 'Sanwa', 'SBL', 'Schneider', 'Sealed Air', 'Shanklin',
+    'Sidel', 'Sigpack', 'Sitma', 'Soma', 'SUN Automation', 'TCY', 'Texwrap',
+    'Thiele', 'Triangle', 'ULMA', 'Uteco', 'Vidmar', 'Wexxar', 'Windmoeller & Hoelscher',
+    'Wrap-Ade', 'Yawa', 'Young Shin', 'Yupack', 'Zambelli', 'Other'
+  ].sort((a, b) => a === 'Other' ? 1 : b === 'Other' ? -1 : a.localeCompare(b)),
   'material-handling': [
-    // Forklifts
-    'Toyota', 'Crown', 'Hyster', 'Yale', 'Raymond', 'Jungheinrich', 'Linde',
-    'Caterpillar', 'Komatsu', 'Mitsubishi', 'Nissan', 'TCM', 'Doosan', 'Clark',
-    // Pallet Jacks
-    'Crown', 'Raymond', 'Toyota', 'Hyster', 'Yale', 'Jungheinrich', 'Big Joe',
-    // Conveyors
-    'Hytrol', 'Dorner', 'Interroll', 'FlexLink', 'Bosch Rexroth', 'Dematic',
-    'Intelligrated', 'TGW', 'Beumer', 'Vanderlande', 'Siemens', 'Honeywell',
-    // Lift Tables
-    'Southworth', 'Presto', 'Bishamon', 'Marco', 'Autoquip', 'Vestil',
-    // Cranes/Hoists
-    'Konecranes', 'Demag', 'CM', 'Yale', 'Harrington', 'Coffing', 'Budgit',
-    // Racking
-    'Interlake Mecalux', 'Steel King', 'Unarco', 'Ridg-U-Rak', 'Frazier', 'Husky'
-  ],
+    'Autoquip', 'Barrett', 'Beumer', 'Big Joe', 'Bishamon', 'Blue Giant', 'BT',
+    'Budgit', 'CAM', 'Cascade', 'Caterpillar', 'Clark', 'CM', 'Coffing', 'Combilift',
+    'Crown', 'Daifuku', 'Dematic', 'Demag', 'Doosan', 'Dorner', 'Drexel', 'Eaton',
+    'FlexLink', 'Frazier', 'Genie', 'Gorbel', 'Harrington', 'Heli', 'Honeywell',
+    'Husky', 'Hyster', 'Hytrol', 'Intelligrated', 'Interlake Mecalux', 'Interroll',
+    'JLG', 'Jungheinrich', 'Kion', 'Komatsu', 'Konecranes', 'Landoll', 'Lift-Rite',
+    'Linde', 'Little Giant', 'Lonking', 'Marco', 'Mitsubishi', 'Moffett', 'Nissan',
+    'Omega', 'Pallet Mule', 'Penco', 'Presto', 'Prime Mover', 'Rapistan', 'Raymond',
+    'Relius', 'Ridg-U-Rak', 'Robur', 'Siemens', 'Southworth', 'SSI Schaefer',
+    'Steel King', 'Still', 'Sumitomo', 'Swisslog', 'Taylor-Dunn', 'TCM', 'TGW',
+    'Toyota', 'Uline', 'Unarco', 'Unicarriers', 'Vanderlande', 'Vestil', 'Wesco',
+    'Wildeck', 'Yale', 'Other'
+  ].sort((a, b) => a === 'Other' ? 1 : b === 'Other' ? -1 : a.localeCompare(b)),
   'parts-supplies': [
-    'OEM Parts', 'Aftermarket', 'Rebuilt/Refurbished', 'Generic/Compatible',
-    'Heidelberg', 'Komori', 'Manroland', 'Muller Martini', 'Polar', 'MBO',
-    'Pitney Bowes', 'Bell and Howell', 'Bobst', 'HP', 'Xerox', 'Canon', 'Ricoh'
-  ]
+    'Aftermarket', 'Agfa', 'Bell and Howell', 'Bobst', 'Canon', 'Generic/Compatible',
+    'Heidelberg', 'HP', 'Kodak', 'Komori', 'Konica Minolta', 'Manroland', 'MBO',
+    'Muller Martini', 'OEM Parts', 'Pitney Bowes', 'Polar', 'Rebuilt/Refurbished',
+    'Ricoh', 'Xerox', 'Other'
+  ].sort((a, b) => a === 'Other' ? 1 : b === 'Other' ? -1 : a.localeCompare(b))
 };
 
-// Get all unique manufacturers for "Other" or when no category selected
-const allManufacturers = [...new Set(Object.values(manufacturersByCategory).flat())].sort();
+// Get all unique manufacturers for "Other" or when no category selected (alphabetically sorted with "Other" at end)
+const allManufacturers = [...new Set(Object.values(manufacturersByCategory).flat())]
+  .filter(m => m !== 'Other')
+  .sort()
+  .concat(['Other']);
 
 const equipmentStatuses = [
   { id: 'in_production', label: 'In Production', description: 'Currently being used' },
