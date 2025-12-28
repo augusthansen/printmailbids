@@ -18,6 +18,7 @@ interface Profile {
   avatar_url: string | null;
   is_verified: boolean;
   is_seller: boolean;
+  is_admin: boolean;
   phone_verified: boolean;
   notify_email: boolean;
   notify_push: boolean;
@@ -78,6 +79,7 @@ export default function SettingsPage() {
     avatar_url: null,
     is_verified: false,
     is_seller: false,
+    is_admin: false,
     phone_verified: false,
     notify_email: true,
     notify_push: true,
@@ -606,10 +608,10 @@ export default function SettingsPage() {
                   {profile.is_verified ? 'Verified' : 'Unverified'}
                 </span>
                 <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm ${
-                  profile.is_seller ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-700'
+                  profile.is_admin ? 'bg-purple-100 text-purple-700' : profile.is_seller ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-700'
                 }`}>
                   <Building2 className="h-4 w-4" />
-                  {profile.is_seller ? 'Buy & Sell Account' : 'Buyer Account'}
+                  {profile.is_admin ? 'Admin Account' : profile.is_seller ? 'Buy & Sell Account' : 'Buyer Account'}
                 </span>
               </div>
             </div>

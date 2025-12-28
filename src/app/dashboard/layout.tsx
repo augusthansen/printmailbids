@@ -220,7 +220,7 @@ export default function DashboardLayout({
                   {profileName || user?.email || 'User'}
                 </p>
                 <p className="text-xs text-slate-400">
-                  {isSeller ? 'Buy & Sell Account' : 'Buyer Account'}
+                  {isAdmin ? 'Admin Account' : isSeller ? 'Buy & Sell Account' : 'Buyer Account'}
                 </p>
               </div>
             </div>
