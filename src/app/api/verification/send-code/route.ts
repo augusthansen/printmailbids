@@ -10,8 +10,8 @@ const supabase = createClient(
 
 // Generate a 6-digit verification code
 function generateCode(): string {
-  // In development, use a fixed code for easier testing
-  if (process.env.NODE_ENV === 'development' && process.env.DEV_VERIFICATION_CODE) {
+  // Use fixed code for testing (works in any environment when DEV_VERIFICATION_CODE is set)
+  if (process.env.DEV_VERIFICATION_CODE) {
     return process.env.DEV_VERIFICATION_CODE;
   }
   return Math.floor(100000 + Math.random() * 900000).toString();
@@ -103,8 +103,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // In development with DEV_SKIP_SMS, skip actually sending the SMS
-    const skipSms = process.env.NODE_ENV === 'development' && process.env.DEV_SKIP_SMS === 'true';
+    // Skip SMS when DEV_SKIP_SMS is set (works in any environment for testing)
+    const skipSms = process.env.DEV_SKIP_SMS === 'true';
 
     if (!skipSms) {
       // Send the SMS
