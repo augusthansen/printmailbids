@@ -196,12 +196,14 @@ export default function DashboardPage() {
         }
 
         // Load recent activity (notifications)
-        const { data: notificationsData } = await supabase
+        console.log('[Dashboard] Fetching notifications for user:', user.id);
+        const { data: notificationsData, error: notificationsError } = await supabase
           .from('notifications')
           .select('id, type, title, body, listing_id, created_at')
           .eq('user_id', user.id)
           .order('created_at', { ascending: false })
           .limit(5);
+        console.log('[Dashboard] Notifications result:', notificationsData?.length, 'error:', notificationsError);
 
         const activityItems: ActivityItem[] = (notificationsData || []).map((n: {
           id: string;
