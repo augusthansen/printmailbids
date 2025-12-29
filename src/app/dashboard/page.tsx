@@ -196,14 +196,12 @@ export default function DashboardPage() {
         }
 
         // Load recent activity (notifications)
-        console.log('[Dashboard] Fetching notifications for user:', user.id);
-        const { data: notificationsData, error: notificationsError } = await supabase
+        const { data: notificationsData } = await supabase
           .from('notifications')
           .select('id, type, title, body, listing_id, created_at')
           .eq('user_id', user.id)
           .order('created_at', { ascending: false })
           .limit(5);
-        console.log('[Dashboard] Notifications result:', notificationsData?.length, 'error:', notificationsError);
 
         const activityItems: ActivityItem[] = (notificationsData || []).map((n: {
           id: string;
@@ -796,14 +794,27 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Recent Activity Timeline */}
-      <div className="bg-white rounded-2xl shadow-sm border border-stone-200/50 overflow-hidden">
-        <div className="p-5 border-b border-stone-100 bg-stone-50/50">
+      {/* Recent Activity Timeline - Prominent placement */}
+      <div className={`bg-white rounded-2xl shadow-sm overflow-hidden ${
+        recentActivity.length > 0
+          ? 'border-2 border-purple-200 ring-2 ring-purple-100'
+          : 'border border-stone-200/50'
+      }`}>
+        <div className={`p-5 border-b ${
+          recentActivity.length > 0 ? 'bg-purple-50 border-purple-100' : 'bg-stone-50/50 border-stone-100'
+        }`}>
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center">
-              <Activity className="h-4 w-4 text-purple-600" />
+            <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
+              recentActivity.length > 0 ? 'bg-purple-200' : 'bg-purple-100'
+            }`}>
+              <Bell className="h-4 w-4 text-purple-600" />
             </div>
-            <h2 className="font-semibold text-slate-900">Recent Activity</h2>
+            <h2 className="font-semibold text-slate-900">Recent Notifications</h2>
+            {recentActivity.length > 0 && (
+              <span className="ml-auto bg-purple-500 text-white text-xs font-bold px-2.5 py-1 rounded-full animate-pulse">
+                {recentActivity.length} new
+              </span>
+            )}
           </div>
         </div>
         {recentActivity.length > 0 ? (
@@ -811,10 +822,10 @@ export default function DashboardPage() {
             {recentActivity.map((activity) => (
               <div
                 key={activity.id}
-                className={`flex items-start gap-4 p-4 ${activity.href ? 'hover:bg-blue-50 cursor-pointer' : ''}`}
+                className={`flex items-start gap-4 p-4 ${activity.href ? 'hover:bg-purple-50 cursor-pointer' : ''}`}
                 onClick={() => activity.href && (window.location.href = activity.href)}
               >
-                <div className="w-8 h-8 bg-stone-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                <div className="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center flex-shrink-0">
                   {getActivityIcon(activity.type)}
                 </div>
                 <div className="flex-1 min-w-0">
@@ -827,16 +838,17 @@ export default function DashboardPage() {
           </div>
         ) : (
           <div className="p-8 text-center">
-            <p className="text-stone-600">No recent activity</p>
-            <p className="text-sm text-stone-500 mt-1">Your activity will appear here</p>
+            <Bell className="h-10 w-10 text-stone-300 mx-auto mb-3" />
+            <p className="text-stone-600">No recent notifications</p>
+            <p className="text-sm text-stone-500 mt-1">New activity will appear here</p>
           </div>
         )}
         <div className="p-4 border-t border-stone-100 bg-stone-50/30">
           <Link
             href="/dashboard/notifications"
-            className="text-sm text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1 transition-colors"
+            className="text-sm text-purple-600 hover:text-purple-700 font-medium flex items-center gap-1 transition-colors"
           >
-            View all activity
+            View all notifications
             <ArrowRight className="h-4 w-4" />
           </Link>
         </div>
