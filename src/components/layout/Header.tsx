@@ -25,7 +25,8 @@ import {
   Trash2,
   DollarSign,
   Truck,
-  AlertCircle
+  AlertCircle,
+  Shield
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { createClient } from '@/lib/supabase/client';
@@ -137,7 +138,7 @@ export function Header() {
   const [searchLoading, setSearchLoading] = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
   const mobileSearchRef = useRef<HTMLDivElement>(null);
-  const { user, loading, signOut, profileName } = useAuth();
+  const { user, loading, signOut, profileName, isAdmin } = useAuth();
   const userMenuRef = useRef<HTMLDivElement>(null);
   const notificationsRef = useRef<HTMLDivElement>(null);
   const bidsRef = useRef<HTMLDivElement>(null);
@@ -1086,6 +1087,16 @@ export function Header() {
 
                       {/* Account section */}
                       <div className="py-1 border-t border-stone-200">
+                        {isAdmin && (
+                          <Link
+                            href="/admin"
+                            className="flex items-center gap-2 px-4 py-2 text-purple-700 hover:bg-purple-50 hover:text-purple-800 transition-colors"
+                            onClick={() => setUserMenuOpen(false)}
+                          >
+                            <Shield className="h-4 w-4" />
+                            Admin Panel
+                          </Link>
+                        )}
                         <Link
                           href="/dashboard/settings"
                           className="flex items-center gap-2 px-4 py-2 text-slate-700 hover:bg-blue-50 hover:text-blue-600 transition-colors"
