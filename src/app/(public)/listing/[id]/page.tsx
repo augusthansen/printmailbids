@@ -57,6 +57,7 @@ interface Listing {
   serial_number: string;
   condition: string;
   hours_count: number;
+  output_stacker_count: number | null;
   equipment_status: string;
   listing_type: string;
   current_price: number;
@@ -1202,6 +1203,12 @@ By placing a bid, you acknowledge that you have read, understood, and agree to t
                   <div className="flex justify-between py-2 border-b border-gray-100">
                     <span className="text-gray-500">Hours/Impressions</span>
                     <span className="font-medium text-gray-900">{listing.hours_count.toLocaleString()}</span>
+                  </div>
+                )}
+                {listing.output_stacker_count && (
+                  <div className="flex justify-between py-2 border-b border-gray-100">
+                    <span className="text-gray-500">Total Cycle Count</span>
+                    <span className="font-medium text-gray-900">{listing.output_stacker_count.toLocaleString()}</span>
                   </div>
                 )}
                 {listing.weight_lbs && (
