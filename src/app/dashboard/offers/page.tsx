@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import {
   DollarSign,
   Clock,
@@ -50,6 +51,7 @@ type FilterType = 'all' | 'pending' | 'accepted' | 'declined' | 'countered' | 'e
 export default function OffersPage() {
   const { user, loading: authLoading, isSeller } = useAuth();
   const supabase = useMemo(() => createClient(), []);
+  const router = useRouter();
 
   const [offers, setOffers] = useState<Offer[]>([]);
   const [loading, setLoading] = useState(true);
@@ -58,6 +60,7 @@ export default function OffersPage() {
   const [counterModal, setCounterModal] = useState<{ offerId: string; currentAmount: number } | null>(null);
   const [counterAmount, setCounterAmount] = useState('');
   const [counterMessage, setCounterMessage] = useState('');
+  const [messagingBuyer, setMessagingBuyer] = useState<string | null>(null);
 
   useEffect(() => {
     if (authLoading) return;
@@ -167,6 +170,50 @@ export default function OffersPage() {
       alert('Failed to dismiss offer');
     }
     setActionLoading(null);
+  };
+
+  // Message buyer - find or create conversation
+  const handleMessageBuyer = async (offer: Offer) => {
+    if (!user?.id || !offer.listing_id || !offer.buyer_id) return;
+
+    setMessagingBuyer(offer.id);
+    try {
+      // Check if conversation already exists for this listing between seller and buyer
+      const { data: existingConvos } = await supabase
+        .from('conversations')
+        .select('id')
+        .eq('listing_id', offer.listing_id)
+        .or(`and(participant_1_id.eq.${user.id},participant_2_id.eq.${offer.buyer_id}),and(participant_1_id.eq.${offer.buyer_id},participant_2_id.eq.${user.id})`);
+
+      if (existingConvos && existingConvos.length > 0) {
+        router.push(`/dashboard/messages/${existingConvos[0].id}`);
+        return;
+      }
+
+      // Create new conversation
+      const { data: newConvo, error: createError } = await supabase
+        .from('conversations')
+        .insert({
+          listing_id: offer.listing_id,
+          participant_1_id: user.id,
+          participant_2_id: offer.buyer_id,
+        })
+        .select('id')
+        .single();
+
+      if (createError) {
+        console.error('Error creating conversation:', createError);
+        alert('Failed to start conversation');
+        return;
+      }
+
+      router.push(`/dashboard/messages/${newConvo.id}`);
+    } catch (err) {
+      console.error('Error messaging buyer:', err);
+      alert('Failed to start conversation');
+    } finally {
+      setMessagingBuyer(null);
+    }
   };
 
   const handleCounter = async () => {
@@ -576,6 +623,18 @@ export default function OffersPage() {
                             </button>
                           </>
                         )}
+                        <button
+                          onClick={() => handleMessageBuyer(offer)}
+                          disabled={messagingBuyer === offer.id}
+                          className="px-3 py-1.5 text-sm border border-blue-300 text-blue-700 rounded-lg hover:bg-blue-50 disabled:opacity-50 flex items-center gap-1"
+                        >
+                          {messagingBuyer === offer.id ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <MessageSquare className="h-4 w-4" />
+                          )}
+                          Message Buyer
+                        </button>
                         <Link
                           href={`/listing/${listing?.id}`}
                           className="px-3 py-1.5 text-sm border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 flex items-center gap-1"
