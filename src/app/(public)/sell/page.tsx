@@ -595,12 +595,14 @@ export default function CreateListingPage() {
   const nextStep = () => {
     if (currentStep < 6) {
       setCurrentStep((currentStep + 1) as Step);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     }
   };
 
   const prevStep = () => {
     if (currentStep > 1) {
       setCurrentStep((currentStep - 1) as Step);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     }
   };
 
@@ -2089,7 +2091,7 @@ export default function CreateListingPage() {
                   Photos & Videos
                 </h3>
                 <button
-                  onClick={() => setCurrentStep(1)}
+                  onClick={() => { setCurrentStep(1); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
                   className="flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700 font-medium"
                 >
                   <Pencil className="h-4 w-4" />
@@ -2127,7 +2129,7 @@ export default function CreateListingPage() {
                   Equipment Details
                 </h3>
                 <button
-                  onClick={() => setCurrentStep(2)}
+                  onClick={() => { setCurrentStep(2); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
                   className="flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700 font-medium"
                 >
                   <Pencil className="h-4 w-4" />
@@ -2190,7 +2192,7 @@ export default function CreateListingPage() {
                   Machine Specifications
                 </h3>
                 <button
-                  onClick={() => setCurrentStep(3)}
+                  onClick={() => { setCurrentStep(3); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
                   className="flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700 font-medium"
                 >
                   <Pencil className="h-4 w-4" />
@@ -2324,7 +2326,7 @@ export default function CreateListingPage() {
                   Condition & Logistics
                 </h3>
                 <button
-                  onClick={() => setCurrentStep(4)}
+                  onClick={() => { setCurrentStep(4); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
                   className="flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700 font-medium"
                 >
                   <Pencil className="h-4 w-4" />
@@ -2383,7 +2385,7 @@ export default function CreateListingPage() {
                   Pricing & Auction
                 </h3>
                 <button
-                  onClick={() => setCurrentStep(5)}
+                  onClick={() => { setCurrentStep(5); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
                   className="flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700 font-medium"
                 >
                   <Pencil className="h-4 w-4" />
