@@ -61,6 +61,7 @@ export default function OffersPage() {
   const [counterAmount, setCounterAmount] = useState('');
   const [counterMessage, setCounterMessage] = useState('');
   const [messagingBuyer, setMessagingBuyer] = useState<string | null>(null);
+  const [acceptModal, setAcceptModal] = useState<Offer | null>(null);
 
   useEffect(() => {
     if (authLoading) return;
@@ -591,7 +592,7 @@ export default function OffersPage() {
                         {isPending && !timeRemaining.expired && (
                           <>
                             <button
-                              onClick={() => handleAccept(offer.id)}
+                              onClick={() => setAcceptModal(offer)}
                               disabled={actionLoading === offer.id}
                               className="px-3 py-1.5 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 flex items-center gap-1"
                             >
@@ -668,6 +669,93 @@ export default function OffersPage() {
                 </div>
               );
             })}
+          </div>
+        </div>
+      )}
+
+      {/* Accept Confirmation Modal */}
+      {acceptModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl max-w-md w-full p-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Accept Offer?</h3>
+
+            <div className="mb-4">
+              <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
+                <p className="text-sm text-gray-600 mb-1">Offer Amount</p>
+                <p className="text-2xl font-bold text-green-600">
+                  ${acceptModal.amount.toLocaleString()}
+                </p>
+                {acceptModal.listing?.fixed_price && (
+                  <p className="text-sm text-gray-500 mt-1">
+                    List Price: ${acceptModal.listing.fixed_price.toLocaleString()}
+                  </p>
+                )}
+              </div>
+
+              <div className="text-sm text-gray-600 mb-2">
+                <span className="font-medium">From:</span>{' '}
+                {acceptModal.buyer?.company_name || acceptModal.buyer?.full_name || acceptModal.buyer?.email}
+              </div>
+
+              <div className="text-sm text-gray-600">
+                <span className="font-medium">Listing:</span>{' '}
+                {acceptModal.listing?.title}
+              </div>
+
+              {acceptModal.message && (
+                <div className="mt-3 text-sm text-gray-600 bg-gray-50 p-2 rounded">
+                  <MessageSquare className="h-4 w-4 inline mr-1 text-gray-400" />
+                  &quot;{acceptModal.message}&quot;
+                </div>
+              )}
+            </div>
+
+            <p className="text-sm text-gray-500 mb-4">
+              By accepting, you agree to sell this item at the offered price. An invoice will be created for the buyer.
+            </p>
+
+            <div className="flex flex-col gap-2">
+              <button
+                onClick={async () => {
+                  const offerId = acceptModal.id;
+                  setAcceptModal(null);
+                  await handleAccept(offerId);
+                }}
+                disabled={actionLoading === acceptModal.id}
+                className="w-full px-4 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 flex items-center justify-center gap-2 font-medium"
+              >
+                {actionLoading === acceptModal.id ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <>
+                    <CheckCircle className="h-4 w-4" />
+                    Yes, Accept Offer
+                  </>
+                )}
+              </button>
+
+              {acceptModal.counter_count < 3 && (
+                <button
+                  onClick={() => {
+                    const offer = acceptModal;
+                    setAcceptModal(null);
+                    setCounterModal({ offerId: offer.id, currentAmount: offer.amount });
+                    setCounterAmount('');
+                  }}
+                  className="w-full px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center justify-center gap-2 font-medium"
+                >
+                  <ArrowRightLeft className="h-4 w-4" />
+                  Make a Counter-Offer Instead
+                </button>
+              )}
+
+              <button
+                onClick={() => setAcceptModal(null)}
+                className="w-full px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+            </div>
           </div>
         </div>
       )}
