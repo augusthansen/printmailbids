@@ -25,6 +25,8 @@ interface Notification {
   created_at: string;
   listing_id: string | null;
   invoice_id: string | null;
+  offer_id: string | null;
+  bid_id: string | null;
 }
 
 const notificationIcons: Record<string, React.ElementType> = {
@@ -57,22 +59,74 @@ export default function NotificationsPage() {
     if (notification.type === 'buyer_message') {
       return '/dashboard/messages';
     }
-    // Auction won goes to invoice
+
+    // Offer notifications - route to offers page for review/action
+    // Seller receives: new_offer, offer_response_needed
+    // Buyer receives: offer_accepted, offer_declined, offer_countered, counter_offer
+    if (['new_offer', 'offer_response_needed'].includes(notification.type)) {
+      // Seller needs to review/respond to offer
+      return '/dashboard/offers';
+    }
+    if (['offer_accepted', 'offer_declined', 'offer_countered', 'counter_offer'].includes(notification.type)) {
+      // Buyer can view their offers
+      return '/dashboard/my-offers';
+    }
+
+    // Bid notifications - route to appropriate bid management page
+    if (notification.type === 'new_bid' || notification.type === 'reserve_met') {
+      // Seller sees new bid on their listing - go to sales/listings
+      return '/dashboard/listings';
+    }
+    if (notification.type === 'outbid') {
+      // Buyer was outbid - go to their bids page to bid again
+      return '/dashboard/bids';
+    }
+
+    // Auction ended/won notifications
     if (notification.type === 'auction_won' && notification.invoice_id) {
       return `/dashboard/invoices/${notification.invoice_id}`;
     }
+    if (notification.type === 'auction_won') {
+      // If no invoice yet, go to purchases
+      return '/dashboard/purchases';
+    }
+    if (notification.type === 'auction_ended') {
+      // Seller's auction ended - go to listings
+      return '/dashboard/listings';
+    }
+
     // Payment notifications go to invoice
     if ((notification.type === 'payment_received' || notification.type === 'payment_reminder') && notification.invoice_id) {
       return `/dashboard/invoices/${notification.invoice_id}`;
     }
+
     // Shipping notifications go to invoice
     if (notification.type === 'item_shipped' && notification.invoice_id) {
       return `/dashboard/invoices/${notification.invoice_id}`;
     }
-    // Most other notifications go to the listing
+
+    // Payout notifications - go to sales
+    if (notification.type === 'payout_processed') {
+      return '/dashboard/sales';
+    }
+
+    // Review received - go to seller profile or reviews
+    if (notification.type === 'review_received') {
+      return '/dashboard/reviews';
+    }
+
+    // Price drop or saved search notifications - go to the listing
+    if (notification.type === 'price_drop' || notification.type === 'new_listing_saved_search') {
+      if (notification.listing_id) {
+        return `/listing/${notification.listing_id}`;
+      }
+    }
+
+    // Fallback: if we have a listing_id, go to the listing
     if (notification.listing_id) {
       return `/listing/${notification.listing_id}`;
     }
+
     return null;
   };
 
