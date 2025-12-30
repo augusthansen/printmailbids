@@ -17,7 +17,6 @@ import {
   X,
   Gavel,
   MessageSquare,
-  FlaskConical,
   HandCoins,
   Send,
   Shield,
@@ -33,24 +32,49 @@ interface SidebarLink {
   label: string;
   icon: LucideIcon;
   sellerOnly?: boolean;
-  buyerOnly?: boolean;
   badgeKey?: 'notifications' | 'purchases' | 'messages' | 'offers' | 'myOffers';
 }
 
-const sidebarLinks: SidebarLink[] = [
-  { href: '/dashboard', label: 'Overview', icon: LayoutDashboard },
-  { href: '/dashboard/listings', label: 'My Listings', icon: Package, sellerOnly: true },
-  { href: '/dashboard/offers', label: 'Offers', icon: HandCoins, sellerOnly: true, badgeKey: 'offers' },
-  { href: '/dashboard/bids', label: 'My Bids', icon: Gavel, buyerOnly: true },
-  { href: '/dashboard/my-offers', label: 'My Offers', icon: Send, buyerOnly: true, badgeKey: 'myOffers' },
-  { href: '/dashboard/sales', label: 'Sales', icon: DollarSign, sellerOnly: true },
-  { href: '/dashboard/analytics', label: 'Analytics', icon: BarChart3, sellerOnly: true },
-  { href: '/dashboard/purchases', label: 'Purchases', icon: ShoppingCart, buyerOnly: true, badgeKey: 'purchases' },
-  { href: '/dashboard/watchlist', label: 'Watchlist', icon: Heart, buyerOnly: true },
-  { href: '/dashboard/messages', label: 'Messages', icon: MessageSquare, badgeKey: 'messages' },
-  { href: '/dashboard/notifications', label: 'Notifications', icon: Bell, badgeKey: 'notifications' },
-  { href: '/dashboard/settings', label: 'Settings', icon: Settings },
-  { href: '/dashboard/test-auction', label: 'Test Auction', icon: FlaskConical, sellerOnly: true },
+interface SidebarSection {
+  title: string;
+  sellerOnly?: boolean;
+  links: SidebarLink[];
+}
+
+const sidebarSections: SidebarSection[] = [
+  {
+    title: '',
+    links: [
+      { href: '/dashboard', label: 'Overview', icon: LayoutDashboard },
+    ],
+  },
+  {
+    title: 'Buying',
+    links: [
+      { href: '/dashboard/bids', label: 'My Bids', icon: Gavel },
+      { href: '/dashboard/my-offers', label: 'My Offers', icon: Send, badgeKey: 'myOffers' },
+      { href: '/dashboard/purchases', label: 'Purchases', icon: ShoppingCart, badgeKey: 'purchases' },
+      { href: '/dashboard/watchlist', label: 'Watchlist', icon: Heart },
+    ],
+  },
+  {
+    title: 'Selling',
+    sellerOnly: true,
+    links: [
+      { href: '/dashboard/listings', label: 'My Listings', icon: Package, sellerOnly: true },
+      { href: '/dashboard/offers', label: 'Offers Received', icon: HandCoins, sellerOnly: true, badgeKey: 'offers' },
+      { href: '/dashboard/sales', label: 'Sales & Payouts', icon: DollarSign, sellerOnly: true },
+      { href: '/dashboard/analytics', label: 'Analytics', icon: BarChart3, sellerOnly: true },
+    ],
+  },
+  {
+    title: 'Account',
+    links: [
+      { href: '/dashboard/messages', label: 'Messages', icon: MessageSquare, badgeKey: 'messages' },
+      { href: '/dashboard/notifications', label: 'Notifications', icon: Bell, badgeKey: 'notifications' },
+      { href: '/dashboard/settings', label: 'Settings', icon: Settings },
+    ],
+  },
 ];
 
 export default function DashboardLayout({
@@ -130,16 +154,13 @@ export default function DashboardLayout({
     return () => clearInterval(interval);
   }, [loading, user?.id, supabase]);
 
-  // Filter links based on user role:
-  // - sellerOnly tabs: only show if user is a seller
-  // - buyerOnly tabs: always show (all users can buy)
-  // Note: "Buy & Sell" accounts (isSeller=true) see everything
-  //       "Buyer Only" accounts (isSeller=false) see buyer items + general items (not seller-only)
-  const filteredLinks = sidebarLinks.filter(link => {
-    if (link.sellerOnly && !isSeller) return false;
-    // buyerOnly items are shown to everyone (all users can buy)
-    return true;
-  });
+  // Filter sections based on user role
+  const filteredSections = sidebarSections
+    .filter(section => !section.sellerOnly || isSeller)
+    .map(section => ({
+      ...section,
+      links: section.links.filter(link => !link.sellerOnly || isSeller),
+    }));
 
   // Show loading state while auth is initializing
   if (loading) {
@@ -227,47 +248,58 @@ export default function DashboardLayout({
           </div>
 
           {/* Navigation */}
-          <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
-            {filteredLinks.map((link) => {
-              const isActive = pathname === link.href;
-              const badgeCount = link.badgeKey ? badges[link.badgeKey] : 0;
-              return (
-                <Link
-                  key={link.href}
-                  href={link.href}
-                  className={`
-                    flex items-center justify-between px-4 py-2.5 rounded-xl text-sm font-medium transition-all
-                    ${isActive
-                      ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-lg shadow-blue-500/25'
-                      : 'text-slate-300 hover:bg-slate-800 hover:text-white'
-                    }
-                  `}
-                  onClick={() => setSidebarOpen(false)}
-                >
-                  <span className="flex items-center gap-3">
-                    <link.icon className="h-5 w-5" />
-                    {link.label}
-                  </span>
-                  {badgeCount > 0 && (
-                    <span className={`
-                      min-w-[22px] h-5 px-1.5 rounded-full text-xs font-bold flex items-center justify-center
-                      ${isActive
-                        ? 'bg-white/20 text-white'
-                        : link.badgeKey === 'purchases'
-                        ? 'bg-yellow-500 text-slate-900'
-                        : link.badgeKey === 'offers'
-                        ? 'bg-green-500 text-white'
-                        : link.badgeKey === 'myOffers'
-                        ? 'bg-blue-500 text-white'
-                        : 'bg-red-500 text-white'
-                      }
-                    `}>
-                      {badgeCount > 99 ? '99+' : badgeCount}
-                    </span>
-                  )}
-                </Link>
-              );
-            })}
+          <nav className="flex-1 p-4 overflow-y-auto">
+            {filteredSections.map((section, sectionIndex) => (
+              <div key={section.title || 'main'} className={sectionIndex > 0 ? 'mt-6' : ''}>
+                {section.title && (
+                  <h3 className="px-4 mb-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                    {section.title}
+                  </h3>
+                )}
+                <div className="space-y-1">
+                  {section.links.map((link) => {
+                    const isActive = pathname === link.href;
+                    const badgeCount = link.badgeKey ? badges[link.badgeKey] : 0;
+                    return (
+                      <Link
+                        key={link.href}
+                        href={link.href}
+                        className={`
+                          flex items-center justify-between px-4 py-2.5 rounded-xl text-sm font-medium transition-all
+                          ${isActive
+                            ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-lg shadow-blue-500/25'
+                            : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                          }
+                        `}
+                        onClick={() => setSidebarOpen(false)}
+                      >
+                        <span className="flex items-center gap-3">
+                          <link.icon className="h-5 w-5" />
+                          {link.label}
+                        </span>
+                        {badgeCount > 0 && (
+                          <span className={`
+                            min-w-[22px] h-5 px-1.5 rounded-full text-xs font-bold flex items-center justify-center
+                            ${isActive
+                              ? 'bg-white/20 text-white'
+                              : link.badgeKey === 'purchases'
+                              ? 'bg-yellow-500 text-slate-900'
+                              : link.badgeKey === 'offers'
+                              ? 'bg-green-500 text-white'
+                              : link.badgeKey === 'myOffers'
+                              ? 'bg-blue-500 text-white'
+                              : 'bg-red-500 text-white'
+                            }
+                          `}>
+                            {badgeCount > 99 ? '99+' : badgeCount}
+                          </span>
+                        )}
+                      </Link>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
           </nav>
 
           {/* Sidebar footer */}
