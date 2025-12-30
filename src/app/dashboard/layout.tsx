@@ -154,12 +154,13 @@ export default function DashboardLayout({
     return () => clearInterval(interval);
   }, [loading, user?.id, supabase]);
 
-  // Filter sections based on user role
+  // Filter sections based on user role (admins have all seller capabilities)
+  const canSell = isSeller || isAdmin;
   const filteredSections = sidebarSections
-    .filter(section => !section.sellerOnly || isSeller)
+    .filter(section => !section.sellerOnly || canSell)
     .map(section => ({
       ...section,
-      links: section.links.filter(link => !link.sellerOnly || isSeller),
+      links: section.links.filter(link => !link.sellerOnly || canSell),
     }));
 
   // Show loading state while auth is initializing
