@@ -28,7 +28,9 @@ import {
   X,
   Send,
   XCircle,
-  MessageSquare
+  MessageSquare,
+  Upload,
+  Trash2
 } from 'lucide-react';
 
 interface Invoice {
@@ -66,6 +68,7 @@ interface Invoice {
   packaging_added_at: string | null;
   shipping_note: string | null;
   shipping_added_at: string | null;
+  shipping_quote_url: string | null;
   fees_status: 'none' | 'pending_approval' | 'approved' | 'rejected' | 'disputed';
   fees_submitted_at: string | null;
   fees_responded_at: string | null;
@@ -118,6 +121,8 @@ export default function InvoicePage() {
   const [packagingNote, setPackagingNote] = useState('');
   const [shippingAmount, setShippingAmount] = useState('');
   const [shippingNote, setShippingNote] = useState('');
+  const [shippingQuoteUrl, setShippingQuoteUrl] = useState<string | null>(null);
+  const [uploadingQuote, setUploadingQuote] = useState(false);
   const [savingFees, setSavingFees] = useState(false);
 
   // Buyer approval state
@@ -134,6 +139,7 @@ export default function InvoicePage() {
       setPackagingNote(invoice.packaging_note || '');
       setShippingAmount(invoice.shipping_amount?.toString() || '');
       setShippingNote(invoice.shipping_note || '');
+      setShippingQuoteUrl(invoice.shipping_quote_url || null);
     }
   }, [invoice]);
 
@@ -158,6 +164,7 @@ export default function InvoicePage() {
         shipping_amount: shippingNum,
         shipping_note: shippingNote || null,
         shipping_added_at: shippingNum > 0 ? new Date().toISOString() : null,
+        shipping_quote_url: shippingQuoteUrl,
         total_amount: newTotal,
       };
 
@@ -204,6 +211,61 @@ export default function InvoicePage() {
     } finally {
       setSavingFees(false);
     }
+  };
+
+  // Handle shipping quote PDF upload
+  const handleQuoteUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !invoice) return;
+
+    // Validate file type
+    if (file.type !== 'application/pdf') {
+      setError('Please upload a PDF file');
+      return;
+    }
+
+    // Validate file size (max 10MB)
+    if (file.size > 10 * 1024 * 1024) {
+      setError('File size must be less than 10MB');
+      return;
+    }
+
+    setUploadingQuote(true);
+    setError(null);
+
+    try {
+      const fileExt = 'pdf';
+      const fileName = `${invoice.id}-shipping-quote-${Date.now()}.${fileExt}`;
+      const filePath = `shipping-quotes/${fileName}`;
+
+      // Upload to Supabase Storage
+      const { error: uploadError } = await supabase.storage
+        .from('documents')
+        .upload(filePath, file, { upsert: true });
+
+      if (uploadError) {
+        throw uploadError;
+      }
+
+      // Get public URL
+      const { data: { publicUrl } } = supabase.storage
+        .from('documents')
+        .getPublicUrl(filePath);
+
+      setShippingQuoteUrl(publicUrl);
+    } catch (err) {
+      console.error('Upload error:', err);
+      setError('Failed to upload quote. Please try again.');
+    } finally {
+      setUploadingQuote(false);
+      // Reset the input
+      e.target.value = '';
+    }
+  };
+
+  // Remove shipping quote
+  const handleRemoveQuote = () => {
+    setShippingQuoteUrl(null);
   };
 
   // Handle buyer approving fees
@@ -824,6 +886,18 @@ export default function InvoicePage() {
                     {invoice.shipping_note && (
                       <p className="text-sm text-gray-600 mt-1 ml-6">{invoice.shipping_note}</p>
                     )}
+                    {invoice.shipping_quote_url && (
+                      <a
+                        href={invoice.shipping_quote_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 text-sm text-blue-600 hover:text-blue-700 mt-2 ml-6"
+                      >
+                        <FileText className="h-4 w-4" />
+                        View Shipping Quote (PDF)
+                        <ExternalLink className="h-3 w-3" />
+                      </a>
+                    )}
                   </div>
                 )}
                 <div className="pt-2 border-t">
@@ -1003,6 +1077,63 @@ export default function InvoicePage() {
                   placeholder="Describe shipping details (e.g., LTL freight to buyer's dock, includes liftgate)..."
                   className="w-full mt-2 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 h-20 resize-none text-sm"
                 />
+
+                {/* Shipping Quote Upload */}
+                <div className="mt-3">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <FileText className="h-4 w-4 inline mr-2" />
+                    Shipping Quote (PDF)
+                  </label>
+                  {shippingQuoteUrl ? (
+                    <div className="flex items-center gap-3 p-3 bg-green-50 border border-green-200 rounded-lg">
+                      <FileText className="h-5 w-5 text-green-600 flex-shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-green-800 truncate">
+                          Shipping quote uploaded
+                        </p>
+                        <a
+                          href={shippingQuoteUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-xs text-green-600 hover:underline"
+                        >
+                          View PDF
+                        </a>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleRemoveQuote}
+                        className="p-1 text-red-500 hover:bg-red-100 rounded"
+                        title="Remove quote"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                  ) : (
+                    <label className="flex flex-col items-center justify-center w-full h-24 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100 transition">
+                      <div className="flex flex-col items-center justify-center pt-2 pb-2">
+                        {uploadingQuote ? (
+                          <Loader2 className="h-6 w-6 text-blue-500 animate-spin" />
+                        ) : (
+                          <>
+                            <Upload className="h-6 w-6 text-gray-400 mb-1" />
+                            <p className="text-sm text-gray-500">
+                              <span className="font-medium text-blue-600">Click to upload</span> shipping quote
+                            </p>
+                            <p className="text-xs text-gray-400">PDF only (max 10MB)</p>
+                          </>
+                        )}
+                      </div>
+                      <input
+                        type="file"
+                        className="hidden"
+                        accept=".pdf,application/pdf"
+                        onChange={handleQuoteUpload}
+                        disabled={uploadingQuote}
+                      />
+                    </label>
+                  )}
+                </div>
               </div>
 
               {/* Summary */}
@@ -1264,6 +1395,17 @@ export default function InvoicePage() {
                   </div>
                   {invoice.shipping_note && (
                     <p className="text-xs text-gray-500 mt-1 ml-5">{invoice.shipping_note}</p>
+                  )}
+                  {invoice.shipping_quote_url && (
+                    <a
+                      href={invoice.shipping_quote_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 mt-1 ml-5"
+                    >
+                      <FileText className="h-3 w-3" />
+                      View Quote PDF
+                    </a>
                   )}
                 </div>
               )}
