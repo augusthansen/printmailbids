@@ -14,20 +14,27 @@ import {
   CreditCard,
   AlertCircle,
   MapPin,
-  Loader2
+  Loader2,
+  FileText,
+  DollarSign
 } from 'lucide-react';
 
 type InvoiceStatus = 'pending' | 'paid' | 'overdue' | 'cancelled' | 'refunded';
 type FulfillmentStatus = 'awaiting_payment' | 'processing' | 'shipped' | 'delivered' | 'cancelled';
+
+type FeesStatus = 'none' | 'pending_approval' | 'approved' | 'rejected' | 'disputed';
 
 interface Purchase {
   id: string;
   listing_id: string;
   sale_amount: number;
   buyer_premium_amount: number;
+  packaging_amount: number;
+  shipping_amount: number;
   total_amount: number;
   status: InvoiceStatus;
   fulfillment_status: FulfillmentStatus;
+  fees_status: FeesStatus;
   payment_due_date: string | null;
   paid_at: string | null;
   shipped_at: string | null;
@@ -88,9 +95,12 @@ export default function PurchasesPage() {
           seller_id,
           sale_amount,
           buyer_premium_amount,
+          packaging_amount,
+          shipping_amount,
           total_amount,
           status,
           fulfillment_status,
+          fees_status,
           payment_due_date,
           paid_at,
           shipped_at,
@@ -240,6 +250,42 @@ export default function PurchasesPage() {
         </div>
       </div>
 
+      {/* Fees Pending Approval Alert - Most urgent, show first */}
+      {purchases.some(p => p.fees_status === 'pending_approval') && (
+        <div className="bg-amber-50 border border-amber-300 rounded-xl p-4">
+          <div className="flex items-start gap-3">
+            <div className="p-2 bg-amber-100 rounded-lg flex-shrink-0">
+              <DollarSign className="h-5 w-5 text-amber-600" />
+            </div>
+            <div className="flex-1">
+              <p className="font-semibold text-amber-800">Action Required: Review Fees</p>
+              <p className="text-sm text-amber-700 mt-1">
+                {purchases.filter(p => p.fees_status === 'pending_approval').length} invoice(s) have
+                packaging/shipping fees that need your approval before you can pay.
+              </p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {purchases
+                  .filter(p => p.fees_status === 'pending_approval')
+                  .map(p => (
+                    <Link
+                      key={p.id}
+                      href={`/dashboard/invoices/${p.id}`}
+                      className="inline-flex items-center gap-2 px-3 py-1.5 bg-amber-600 text-white rounded-lg text-sm font-medium hover:bg-amber-700 transition"
+                    >
+                      <FileText className="h-4 w-4" />
+                      {p.listing?.title ? (p.listing.title.length > 30 ? p.listing.title.slice(0, 30) + '...' : p.listing.title) : 'View Invoice'}
+                      <span className="text-amber-200">
+                        +${((p.packaging_amount || 0) + (p.shipping_amount || 0)).toLocaleString()}
+                      </span>
+                    </Link>
+                  ))
+                }
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Action Required Alert */}
       {purchases.some(p => p.status === 'pending') && (
         <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4">
@@ -333,6 +379,12 @@ export default function PurchasesPage() {
                           {fulfillment.label}
                         </span>
                       )}
+                      {purchase.fees_status === 'pending_approval' && (
+                        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-700 animate-pulse">
+                          <DollarSign className="h-3 w-3" />
+                          Fees Need Approval
+                        </span>
+                      )}
                     </div>
                     <Link
                       href={`/listing/${purchase.listing_id}`}
@@ -384,6 +436,16 @@ export default function PurchasesPage() {
                         <p className="text-sm text-gray-500">Tracking</p>
                         <p className="text-sm font-medium text-blue-600">{purchase.tracking_number}</p>
                       </div>
+                    )}
+
+                    {purchase.fees_status === 'pending_approval' && (
+                      <Link
+                        href={`/dashboard/invoices/${purchase.id}`}
+                        className="inline-flex items-center gap-1 bg-amber-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-amber-700 transition-colors"
+                      >
+                        <DollarSign className="h-4 w-4" />
+                        Review Fees
+                      </Link>
                     )}
 
                     <Link

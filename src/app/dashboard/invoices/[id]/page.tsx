@@ -124,6 +124,7 @@ export default function InvoicePage() {
   const [shippingQuoteUrl, setShippingQuoteUrl] = useState<string | null>(null);
   const [uploadingQuote, setUploadingQuote] = useState(false);
   const [savingFees, setSavingFees] = useState(false);
+  const [feeModalSuccess, setFeeModalSuccess] = useState<string | null>(null);
 
   // Buyer approval state
   const [showApprovalModal, setShowApprovalModal] = useState(false);
@@ -145,10 +146,17 @@ export default function InvoicePage() {
 
   // Handle saving packaging/shipping fees (seller)
   const handleSaveFees = async (submitForApproval: boolean = false) => {
-    if (!invoice || !user?.id) return;
+    console.log('=== handleSaveFees START ===');
 
+    if (!invoice || !user?.id) {
+      console.log('handleSaveFees: Missing invoice or user', { invoice: !!invoice, userId: user?.id });
+      return;
+    }
+
+    console.log('handleSaveFees called', { submitForApproval, invoiceId: invoice.id, sellerId: invoice.seller_id, userId: user.id });
     setSavingFees(true);
     setError(null);
+    setSuccess(null);
 
     try {
       const packagingNum = parseFloat(packagingAmount) || 0;
@@ -168,16 +176,21 @@ export default function InvoicePage() {
         total_amount: newTotal,
       };
 
+      console.log('Updating invoice with data:', updateData);
+
       // If submitting for approval
       if (submitForApproval && (packagingNum > 0 || shippingNum > 0)) {
         updateData.fees_status = 'pending_approval';
         updateData.fees_submitted_at = new Date().toISOString();
       }
 
-      const { error: updateError } = await supabase
+      const { error: updateError, data: updateResult } = await supabase
         .from('invoices')
         .update(updateData)
-        .eq('id', invoice.id);
+        .eq('id', invoice.id)
+        .select();
+
+      console.log('Update result:', { error: updateError, data: updateResult });
 
       if (updateError) throw updateError;
 
@@ -204,22 +217,41 @@ export default function InvoicePage() {
         setInvoice(prev => prev ? { ...prev, ...updatedInvoice, fees_status: updatedInvoice.fees_status || 'none' } : null);
       }
 
-      setShowFeeModal(false);
-      setSuccess(submitForApproval ? 'Fees submitted for buyer approval' : 'Fees saved as draft');
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save fees');
-    } finally {
+      // Show success in modal first
+      const successMessage = submitForApproval ? 'Fees submitted for buyer approval!' : 'Fees saved as draft!';
+      setFeeModalSuccess(successMessage);
       setSavingFees(false);
+
+      // Close modal after a short delay so user sees the success message
+      setTimeout(() => {
+        setShowFeeModal(false);
+        setFeeModalSuccess(null);
+        setSuccess(successMessage);
+      }, 1500);
+    } catch (err) {
+      console.error('=== handleSaveFees ERROR ===', err);
+      setError(err instanceof Error ? err.message : 'Failed to save fees');
+      setSavingFees(false);
+    } finally {
+      console.log('=== handleSaveFees COMPLETE ===');
     }
   };
 
   // Handle shipping quote PDF upload
   const handleQuoteUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    console.log('=== handleQuoteUpload START ===');
     const file = e.target.files?.[0];
-    if (!file || !invoice) return;
+    console.log('File selected:', file ? { name: file.name, type: file.type, size: file.size } : 'none');
 
-    // Validate file type
-    if (file.type !== 'application/pdf') {
+    if (!file || !invoice) {
+      console.log('No file or invoice');
+      return;
+    }
+
+    // Validate file type - check both MIME type and extension
+    const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+    if (!isPdf) {
+      console.log('Not a PDF file');
       setError('Please upload a PDF file');
       return;
     }
@@ -234,16 +266,19 @@ export default function InvoicePage() {
     setError(null);
 
     try {
-      const fileExt = 'pdf';
-      const fileName = `${invoice.id}-shipping-quote-${Date.now()}.${fileExt}`;
+      const fileName = `${invoice.id}-shipping-quote-${Date.now()}.pdf`;
       const filePath = `shipping-quotes/${fileName}`;
 
       // Upload to Supabase Storage
       const { error: uploadError } = await supabase.storage
         .from('documents')
-        .upload(filePath, file, { upsert: true });
+        .upload(filePath, file, {
+          upsert: true,
+          contentType: 'application/pdf'
+        });
 
       if (uploadError) {
+        console.error('Upload error details:', uploadError);
         throw uploadError;
       }
 
@@ -252,10 +287,13 @@ export default function InvoicePage() {
         .from('documents')
         .getPublicUrl(filePath);
 
+      console.log('Upload successful, URL:', publicUrl);
       setShippingQuoteUrl(publicUrl);
+      setSuccess('Shipping quote uploaded successfully');
     } catch (err) {
       console.error('Upload error:', err);
-      setError('Failed to upload quote. Please try again.');
+      const errorMessage = err instanceof Error ? err.message : 'Failed to upload quote';
+      setError(`Failed to upload quote: ${errorMessage}`);
     } finally {
       setUploadingQuote(false);
       // Reset the input
@@ -935,11 +973,19 @@ export default function InvoicePage() {
 
       {/* Seller Fee Status Banner */}
       {isSeller && invoice.fees_status === 'pending_approval' && (
-        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-6 flex items-center gap-3">
-          <Clock className="h-5 w-5 text-blue-600" />
-          <div>
-            <p className="font-medium text-blue-800">Awaiting Buyer Approval</p>
-            <p className="text-sm text-blue-700">The buyer is reviewing the packaging/shipping fees you submitted.</p>
+        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-6">
+          <div className="flex items-start gap-3">
+            <Clock className="h-5 w-5 text-blue-600 mt-0.5" />
+            <div className="flex-1">
+              <p className="font-medium text-blue-800">Awaiting Buyer Approval</p>
+              <p className="text-sm text-blue-700">The buyer is reviewing the packaging/shipping fees you submitted.</p>
+              <button
+                onClick={() => setShowFeeModal(true)}
+                className="mt-2 text-sm text-blue-700 underline hover:text-blue-800"
+              >
+                Edit fees before buyer responds
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -1020,10 +1066,24 @@ export default function InvoicePage() {
       {showFeeModal && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-xl shadow-xl max-w-lg w-full p-6">
+            {/* Success State */}
+            {feeModalSuccess ? (
+              <div className="text-center py-8">
+                <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <CheckCircle className="h-8 w-8 text-green-600" />
+                </div>
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">{feeModalSuccess}</h3>
+                <p className="text-sm text-gray-500">The invoice has been updated.</p>
+              </div>
+            ) : (
+              <>
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-lg font-semibold text-gray-900">Add Packaging & Shipping Fees</h3>
               <button
-                onClick={() => setShowFeeModal(false)}
+                onClick={() => {
+                  console.log('Closing fee modal via X button');
+                  setShowFeeModal(false);
+                }}
                 className="p-1 hover:bg-gray-100 rounded"
               >
                 <X className="h-5 w-5 text-gray-500" />
@@ -1158,14 +1218,22 @@ export default function InvoicePage() {
 
               <div className="flex gap-3">
                 <button
-                  onClick={() => handleSaveFees(false)}
+                  type="button"
+                  onClick={() => {
+                    console.log('Save Draft button clicked');
+                    handleSaveFees(false);
+                  }}
                   disabled={savingFees}
                   className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 disabled:opacity-50"
                 >
                   Save Draft
                 </button>
                 <button
-                  onClick={() => handleSaveFees(true)}
+                  type="button"
+                  onClick={() => {
+                    console.log('Submit for Approval button clicked');
+                    handleSaveFees(true);
+                  }}
                   disabled={savingFees || ((parseFloat(packagingAmount) || 0) === 0 && (parseFloat(shippingAmount) || 0) === 0)}
                   className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 flex items-center justify-center gap-2"
                 >
@@ -1178,6 +1246,8 @@ export default function InvoicePage() {
                 The buyer will need to approve these fees before they can complete payment.
               </p>
             </div>
+              </>
+            )}
           </div>
         </div>
       )}
@@ -1341,13 +1411,13 @@ export default function InvoicePage() {
           <div className="bg-white rounded-xl shadow-sm border p-6">
             <div className="flex items-center justify-between mb-4">
               <h2 className="font-semibold text-gray-900">Price Breakdown</h2>
-              {isSeller && invoice.status !== 'paid' && (invoice.fees_status === 'none' || invoice.fees_status === 'rejected') && (
+              {isSeller && invoice.status !== 'paid' && invoice.fees_status !== 'approved' && (
                 <button
                   onClick={() => setShowFeeModal(true)}
                   className="flex items-center gap-1.5 text-sm text-blue-600 hover:text-blue-700 font-medium"
                 >
                   <Edit3 className="h-4 w-4" />
-                  {invoice.packaging_amount > 0 || invoice.shipping_amount > 0 ? 'Edit Fees' : 'Add Fees'}
+                  {invoice.fees_status === 'pending_approval' ? 'Edit Pending Fees' : (invoice.packaging_amount > 0 || invoice.shipping_amount > 0 ? 'Edit Fees' : 'Add Fees')}
                 </button>
               )}
             </div>
