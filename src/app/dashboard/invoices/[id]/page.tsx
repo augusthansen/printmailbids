@@ -777,14 +777,16 @@ export default function InvoicePage() {
       return;
     }
 
-    const statusText = invoice.status === 'paid' ? 'PAID' : (isPastDue ? 'OVERDUE' : 'PENDING');
-    const statusColor = invoice.status === 'paid' ? '#059669' : (isPastDue ? '#dc2626' : '#d97706');
+    const isReceipt = invoice.status === 'paid';
+    const documentTitle = isReceipt ? 'RECEIPT' : 'INVOICE';
+    const statusText = isReceipt ? 'PAID' : (isPastDue ? 'OVERDUE' : 'PENDING');
+    const statusColor = isReceipt ? '#059669' : (isPastDue ? '#dc2626' : '#d97706');
 
     const html = `
       <!DOCTYPE html>
       <html>
       <head>
-        <title>Invoice #${invoice.id.slice(0, 8)} - PrintMailBids</title>
+        <title>${documentTitle} #${invoice.id.slice(0, 8)} - PrintMailBids</title>
         <style>
           * { margin: 0; padding: 0; box-sizing: border-box; }
           body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; padding: 30px 40px; color: #1f2937; line-height: 1.4; font-size: 13px; }
@@ -826,7 +828,7 @@ export default function InvoicePage() {
             <div class="logo-sub">Industrial Printing Equipment Marketplace</div>
           </div>
           <div class="invoice-title">
-            <h1>INVOICE</h1>
+            <h1>${documentTitle}</h1>
             <div class="invoice-number">#${invoice.id.slice(0, 8).toUpperCase()}</div>
             <div class="status">${statusText}</div>
           </div>
@@ -1818,14 +1820,21 @@ export default function InvoicePage() {
             )}
           </div>
 
-          {/* Download Invoice */}
-          <button
-            onClick={handleDownloadPDF}
-            className="w-full flex items-center justify-center gap-2 px-4 py-3 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition"
-          >
-            <Download className="h-5 w-5" />
-            Download PDF
-          </button>
+          {/* Download Invoice/Receipt */}
+          <div className="space-y-2">
+            <button
+              onClick={handleDownloadPDF}
+              className="w-full flex items-center justify-center gap-2 px-4 py-3 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition"
+            >
+              <Download className="h-5 w-5" />
+              Download {invoice.status === 'paid' ? 'Receipt' : 'Invoice'}
+            </button>
+            {invoice.status === 'paid' && (
+              <p className="text-xs text-gray-500 text-center">
+                A receipt was emailed to you upon payment
+              </p>
+            )}
+          </div>
         </div>
       </div>
     </div>

@@ -1088,6 +1088,146 @@ export async function sendWeeklySellerSummaryEmail(params: {
   });
 }
 
+// Payment receipt email
+export async function sendReceiptEmail(params: {
+  to: string;
+  userName: string;
+  invoiceId: string;
+  invoiceNumber: string;
+  listingTitle: string;
+  saleAmount: number;
+  buyerPremiumPercent: number;
+  buyerPremiumAmount: number;
+  packagingAmount?: number;
+  shippingAmount?: number;
+  taxAmount?: number;
+  totalAmount: number;
+  paidAt: Date;
+  paymentMethod: string;
+  sellerName: string;
+  sellerEmail: string;
+}) {
+  const {
+    to,
+    userName,
+    invoiceId,
+    invoiceNumber,
+    listingTitle,
+    saleAmount,
+    buyerPremiumPercent,
+    buyerPremiumAmount,
+    packagingAmount = 0,
+    shippingAmount = 0,
+    taxAmount = 0,
+    totalAmount,
+    paidAt,
+    paymentMethod,
+    sellerName,
+    sellerEmail,
+  } = params;
+
+  const formattedDate = paidAt.toLocaleDateString('en-US', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  });
+
+  const content = `
+    <div style="text-align:center;margin-bottom:24px;">
+      <span style="font-size:48px;">🧾</span>
+    </div>
+    <h2 style="margin:0 0 16px;font-size:24px;color:#18181b;text-align:center;">Payment Receipt</h2>
+    <p style="margin:0 0 24px;font-size:16px;color:#3f3f46;line-height:1.6;">
+      Hi ${userName || 'there'},
+    </p>
+    <p style="margin:0 0 24px;font-size:16px;color:#3f3f46;line-height:1.6;">
+      Thank you for your payment! This is your receipt for the purchase of <strong>${listingTitle}</strong>.
+    </p>
+
+    <!-- Receipt Details -->
+    <div style="background-color:#f8fafc;border-radius:12px;padding:24px;margin:0 0 24px;">
+      <table style="width:100%;border-collapse:collapse;">
+        <tr>
+          <td style="padding:8px 0;font-size:14px;color:#71717a;">Receipt Number</td>
+          <td style="padding:8px 0;font-size:14px;text-align:right;color:#18181b;font-weight:600;">
+            #${invoiceNumber || invoiceId.slice(0, 8).toUpperCase()}
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:8px 0;font-size:14px;color:#71717a;">Date Paid</td>
+          <td style="padding:8px 0;font-size:14px;text-align:right;color:#18181b;">${formattedDate}</td>
+        </tr>
+        <tr>
+          <td style="padding:8px 0;font-size:14px;color:#71717a;">Payment Method</td>
+          <td style="padding:8px 0;font-size:14px;text-align:right;color:#18181b;">${paymentMethod.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}</td>
+        </tr>
+        <tr>
+          <td colspan="2" style="border-top:1px solid #e5e7eb;"></td>
+        </tr>
+        <tr>
+          <td style="padding:12px 0 8px;font-size:14px;color:#71717a;">Item: ${listingTitle}</td>
+          <td style="padding:12px 0 8px;font-size:14px;text-align:right;color:#18181b;">$${saleAmount.toLocaleString()}</td>
+        </tr>
+        <tr>
+          <td style="padding:8px 0;font-size:14px;color:#71717a;">Buyer Premium (${buyerPremiumPercent}%)</td>
+          <td style="padding:8px 0;font-size:14px;text-align:right;color:#18181b;">$${buyerPremiumAmount.toLocaleString()}</td>
+        </tr>
+        ${packagingAmount > 0 ? `
+        <tr>
+          <td style="padding:8px 0;font-size:14px;color:#71717a;">Packaging</td>
+          <td style="padding:8px 0;font-size:14px;text-align:right;color:#18181b;">$${packagingAmount.toLocaleString()}</td>
+        </tr>
+        ` : ''}
+        ${shippingAmount > 0 ? `
+        <tr>
+          <td style="padding:8px 0;font-size:14px;color:#71717a;">Shipping</td>
+          <td style="padding:8px 0;font-size:14px;text-align:right;color:#18181b;">$${shippingAmount.toLocaleString()}</td>
+        </tr>
+        ` : ''}
+        ${taxAmount > 0 ? `
+        <tr>
+          <td style="padding:8px 0;font-size:14px;color:#71717a;">Tax</td>
+          <td style="padding:8px 0;font-size:14px;text-align:right;color:#18181b;">$${taxAmount.toLocaleString()}</td>
+        </tr>
+        ` : ''}
+        <tr>
+          <td colspan="2" style="border-top:2px solid #18181b;"></td>
+        </tr>
+        <tr>
+          <td style="padding:12px 0;font-size:18px;font-weight:700;color:#18181b;">Total Paid</td>
+          <td style="padding:12px 0;font-size:18px;font-weight:700;text-align:right;color:#16a34a;">$${totalAmount.toLocaleString()}</td>
+        </tr>
+      </table>
+    </div>
+
+    <!-- Seller Info -->
+    <div style="background-color:#eff6ff;border-radius:12px;padding:16px;margin:0 0 24px;">
+      <p style="margin:0 0 4px;font-size:12px;color:#71717a;text-transform:uppercase;">Seller</p>
+      <p style="margin:0;font-size:14px;color:#18181b;font-weight:500;">${sellerName}</p>
+      <p style="margin:4px 0 0;font-size:14px;color:#3b82f6;">${sellerEmail}</p>
+    </div>
+
+    <p style="margin:0 0 24px;font-size:14px;color:#71717a;line-height:1.6;">
+      The seller has been notified and will prepare your item for shipping. You can track the shipment status from your invoice page.
+    </p>
+
+    <div style="text-align:center;">
+      ${emailButton('View Invoice', `${SITE_URL}/dashboard/invoices/${invoiceId}`)}
+    </div>
+
+    <p style="margin:24px 0 0;font-size:12px;color:#a1a1aa;text-align:center;">
+      Save this email for your records. If you have any questions, contact us at support@printmailbids.com
+    </p>
+  `;
+
+  return sendEmail({
+    to,
+    subject: `Receipt for "${listingTitle}" - $${totalAmount.toLocaleString()}`,
+    html: emailTemplate(content, `Payment receipt for $${totalAmount.toLocaleString()}`),
+  });
+}
+
 // Welcome email for new users
 export async function sendWelcomeEmail(params: {
   to: string;

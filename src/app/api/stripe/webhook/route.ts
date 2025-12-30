@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { stripe } from '@/lib/stripe/server';
 import { createClient } from '@supabase/supabase-js';
 import Stripe from 'stripe';
+import { sendReceiptEmail, sendPaymentReceivedSellerEmail } from '@/lib/email';
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -94,10 +95,15 @@ async function handleCheckoutComplete(session: Stripe.Checkout.Session) {
     return;
   }
 
-  // Get invoice details for notification
+  // Get full invoice details for receipt
   const { data: invoice, error: fetchError } = await supabaseAdmin
     .from('invoices')
-    .select('invoice_number, total_amount, listing_id')
+    .select(`
+      *,
+      listing:listings(id, title),
+      buyer:profiles!invoices_buyer_id_fkey(id, full_name, email),
+      seller:profiles!invoices_seller_id_fkey(id, full_name, company_name, email)
+    `)
     .eq('id', invoiceId)
     .single();
 
@@ -106,15 +112,17 @@ async function handleCheckoutComplete(session: Stripe.Checkout.Session) {
     console.error('Error fetching invoice:', fetchError);
   }
 
+  const paidAt = new Date();
+
   // Update invoice status
   const { error: invoiceError } = await supabaseAdmin
     .from('invoices')
     .update({
       status: 'paid',
       fulfillment_status: 'processing',
-      paid_at: new Date().toISOString(),
+      paid_at: paidAt.toISOString(),
       payment_method: 'credit_card',
-      updated_at: new Date().toISOString(),
+      updated_at: paidAt.toISOString(),
     })
     .eq('id', invoiceId);
 
@@ -133,7 +141,7 @@ async function handleCheckoutComplete(session: Stripe.Checkout.Session) {
       amount: (session.amount_total || 0) / 100, // Convert from cents
       method: 'credit_card',
       status: 'completed',
-      processed_at: new Date().toISOString(),
+      processed_at: paidAt.toISOString(),
     });
 
   if (paymentError) {
@@ -163,6 +171,58 @@ async function handleCheckoutComplete(session: Stripe.Checkout.Session) {
       related_type: 'invoice',
       related_id: invoiceId,
     });
+  }
+
+  // Send receipt email to buyer
+  if (invoice?.buyer?.email) {
+    const listingTitle = invoice.listing?.title || 'Item';
+    const sellerName = invoice.seller?.company_name || invoice.seller?.full_name || 'Seller';
+
+    try {
+      await sendReceiptEmail({
+        to: invoice.buyer.email,
+        userName: invoice.buyer.full_name || '',
+        invoiceId: invoiceId,
+        invoiceNumber: invoice.invoice_number || '',
+        listingTitle,
+        saleAmount: invoice.sale_amount || 0,
+        buyerPremiumPercent: invoice.buyer_premium_percent || 5,
+        buyerPremiumAmount: invoice.buyer_premium_amount || 0,
+        packagingAmount: invoice.packaging_amount || 0,
+        shippingAmount: invoice.shipping_amount || 0,
+        taxAmount: invoice.tax_amount || 0,
+        totalAmount: invoice.total_amount || 0,
+        paidAt,
+        paymentMethod: 'credit_card',
+        sellerName,
+        sellerEmail: invoice.seller?.email || '',
+      });
+      console.log('Receipt email sent to buyer:', invoice.buyer.email);
+    } catch (emailError) {
+      console.error('Failed to send receipt email:', emailError);
+    }
+  }
+
+  // Send payment notification email to seller
+  if (invoice?.seller?.email) {
+    const listingTitle = invoice.listing?.title || 'Item';
+    const saleAmount = invoice.sale_amount || 0;
+    const platformFee = saleAmount * 0.08; // 8% platform fee
+    const payoutAmount = saleAmount - platformFee;
+
+    try {
+      await sendPaymentReceivedSellerEmail({
+        to: invoice.seller.email,
+        userName: invoice.seller.full_name || '',
+        listingTitle,
+        saleAmount,
+        payoutAmount,
+        buyerName: invoice.buyer?.full_name || 'Buyer',
+      });
+      console.log('Payment notification email sent to seller:', invoice.seller.email);
+    } catch (emailError) {
+      console.error('Failed to send seller notification email:', emailError);
+    }
   }
 
   console.log(`Payment completed for invoice ${invoiceId}`);
