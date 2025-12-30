@@ -295,7 +295,9 @@ export async function POST(request: NextRequest) {
           endTime: new Date(listing.end_time),
         }).catch(console.error);
       }
-    } else if (outbidPreviousHigh && currentHighBidderId) {
+    } else if (outbidPreviousHigh && currentHighBidderId && currentHighBidderId !== user.id) {
+      // Only notify the previous high bidder if they're not the current user
+      // (Don't notify someone that they outbid themselves)
       await adminClient.from('notifications').insert({
         user_id: currentHighBidderId,
         type: 'outbid',
