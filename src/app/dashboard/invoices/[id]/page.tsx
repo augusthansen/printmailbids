@@ -125,6 +125,7 @@ export default function InvoicePage() {
   const [uploadingQuote, setUploadingQuote] = useState(false);
   const [savingFees, setSavingFees] = useState(false);
   const [feeModalSuccess, setFeeModalSuccess] = useState<string | null>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
 
   // Buyer approval state
   const [showApprovalModal, setShowApprovalModal] = useState(false);
@@ -252,51 +253,58 @@ export default function InvoicePage() {
     const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
     if (!isPdf) {
       console.log('Not a PDF file');
-      setError('Please upload a PDF file');
+      setUploadError('Please upload a PDF file');
       return;
     }
 
     // Validate file size (max 10MB)
     if (file.size > 10 * 1024 * 1024) {
-      setError('File size must be less than 10MB');
+      setUploadError('File size must be less than 10MB');
       return;
     }
 
     setUploadingQuote(true);
-    setError(null);
+    setUploadError(null);
 
     try {
       const fileName = `${invoice.id}-shipping-quote-${Date.now()}.pdf`;
       const filePath = `shipping-quotes/${fileName}`;
 
+      console.log('Uploading to path:', filePath);
+
       // Upload to Supabase Storage
-      const { error: uploadError } = await supabase.storage
+      const { error: storageError, data: uploadData } = await supabase.storage
         .from('documents')
         .upload(filePath, file, {
           upsert: true,
           contentType: 'application/pdf'
         });
 
-      if (uploadError) {
-        console.error('Upload error details:', uploadError);
-        throw uploadError;
+      console.log('Upload response:', { error: storageError, data: uploadData });
+
+      if (storageError) {
+        console.error('Upload error details:', storageError);
+        throw new Error(storageError.message || 'Storage upload failed');
       }
 
       // Get public URL
-      const { data: { publicUrl } } = supabase.storage
+      const { data: urlData } = supabase.storage
         .from('documents')
         .getPublicUrl(filePath);
 
+      const publicUrl = urlData.publicUrl;
       console.log('Upload successful, URL:', publicUrl);
+
+      // Set state immediately
       setShippingQuoteUrl(publicUrl);
-      setSuccess('Shipping quote uploaded successfully');
+      console.log('State updated with URL:', publicUrl);
     } catch (err) {
       console.error('Upload error:', err);
       const errorMessage = err instanceof Error ? err.message : 'Failed to upload quote';
-      setError(`Failed to upload quote: ${errorMessage}`);
+      setUploadError(`Upload failed: ${errorMessage}`);
     } finally {
       setUploadingQuote(false);
-      // Reset the input
+      // Reset the input so user can upload again if needed
       e.target.value = '';
     }
   };
@@ -304,6 +312,13 @@ export default function InvoicePage() {
   // Remove shipping quote
   const handleRemoveQuote = () => {
     setShippingQuoteUrl(null);
+    setUploadError(null);
+  };
+
+  // Open fee modal and reset upload error
+  const openFeeModal = () => {
+    setUploadError(null);
+    setShowFeeModal(true);
   };
 
   // Handle buyer approving fees
@@ -980,7 +995,7 @@ export default function InvoicePage() {
               <p className="font-medium text-blue-800">Awaiting Buyer Approval</p>
               <p className="text-sm text-blue-700">The buyer is reviewing the packaging/shipping fees you submitted.</p>
               <button
-                onClick={() => setShowFeeModal(true)}
+                onClick={openFeeModal}
                 className="mt-2 text-sm text-blue-700 underline hover:text-blue-800"
               >
                 Edit fees before buyer responds
@@ -1000,7 +1015,7 @@ export default function InvoicePage() {
                 <p className="text-sm text-red-700 mt-1">Reason: {invoice.fees_rejection_reason}</p>
               )}
               <button
-                onClick={() => setShowFeeModal(true)}
+                onClick={openFeeModal}
                 className="mt-2 text-sm text-red-700 underline hover:text-red-800"
               >
                 Edit and resubmit fees
@@ -1192,6 +1207,11 @@ export default function InvoicePage() {
                         disabled={uploadingQuote}
                       />
                     </label>
+                  )}
+                  {uploadError && (
+                    <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded-lg">
+                      <p className="text-sm text-red-700">{uploadError}</p>
+                    </div>
                   )}
                 </div>
               </div>
@@ -1413,7 +1433,7 @@ export default function InvoicePage() {
               <h2 className="font-semibold text-gray-900">Price Breakdown</h2>
               {isSeller && invoice.status !== 'paid' && invoice.fees_status !== 'approved' && (
                 <button
-                  onClick={() => setShowFeeModal(true)}
+                  onClick={openFeeModal}
                   className="flex items-center gap-1.5 text-sm text-blue-600 hover:text-blue-700 font-medium"
                 >
                   <Edit3 className="h-4 w-4" />
