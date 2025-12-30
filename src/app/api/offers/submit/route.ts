@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { sendOfferReceivedEmail, sendOfferAcceptedEmail } from '@/lib/email';
+import { getCommissionRates, calculateFees } from '@/lib/commissions';
 
 // Configuration
 const MAX_OFFERS_PER_BUYER_PER_LISTING = 3;
@@ -126,12 +127,16 @@ export async function POST(request: NextRequest) {
 
     if (shouldAutoAccept) {
       // Auto-accepted! Create invoice and mark listing as sold
-      const buyerPremiumPercent = 5.0;
-      const buyerPremiumAmount = offerAmount * (buyerPremiumPercent / 100);
-      const totalAmount = offerAmount + buyerPremiumAmount;
-      const sellerCommissionPercent = 8.0;
-      const sellerCommissionAmount = offerAmount * (sellerCommissionPercent / 100);
-      const sellerPayoutAmount = offerAmount - sellerCommissionAmount;
+      // Get commission rates for this seller (checks for custom rates)
+      const commissionRates = await getCommissionRates(listing.seller_id);
+      const fees = calculateFees(offerAmount, commissionRates);
+
+      const buyerPremiumPercent = commissionRates.buyer_premium_percent;
+      const buyerPremiumAmount = fees.buyerPremiumAmount;
+      const totalAmount = fees.totalBuyerPays;
+      const sellerCommissionPercent = commissionRates.seller_commission_percent;
+      const sellerCommissionAmount = fees.sellerCommissionAmount;
+      const sellerPayoutAmount = fees.sellerPayoutAmount;
 
       const paymentDueDate = new Date();
       paymentDueDate.setDate(paymentDueDate.getDate() + (listing.payment_due_days || 7));

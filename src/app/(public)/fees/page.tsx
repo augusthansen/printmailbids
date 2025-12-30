@@ -1,13 +1,37 @@
 import { Metadata } from 'next';
 import Link from 'next/link';
 import { Check, HelpCircle } from 'lucide-react';
+import { getPlatformSettings } from '@/lib/commissions';
 
 export const metadata: Metadata = {
   title: 'Pricing & Fees | PrintMailBids',
   description: 'Simple, transparent pricing for selling on PrintMailBids',
 };
 
-export default function FeesPage() {
+export const revalidate = 60; // Revalidate every 60 seconds
+
+async function getFees() {
+  try {
+    const settings = await getPlatformSettings();
+    return {
+      buyerPremium: settings?.default_buyer_premium_percent ?? 5.0,
+      sellerCommission: settings?.default_seller_commission_percent ?? 8.0,
+    };
+  } catch {
+    return { buyerPremium: 5.0, sellerCommission: 8.0 };
+  }
+}
+
+export default async function FeesPage() {
+  const { buyerPremium, sellerCommission } = await getFees();
+
+  // Generate fee examples based on actual commission rate
+  const feeExamples = [1000, 5000, 10000, 25000, 50000].map((sale) => ({
+    sale,
+    fee: Math.round(sale * (sellerCommission / 100)),
+    net: Math.round(sale * (1 - sellerCommission / 100)),
+  }));
+
   return (
     <div className="min-h-screen bg-stone-50">
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
@@ -21,7 +45,7 @@ export default function FeesPage() {
           <div className="bg-gradient-to-br from-blue-600 to-blue-700 text-white p-8 text-center">
             <h2 className="text-xl font-semibold mb-2">Seller Commission</h2>
             <div className="flex items-baseline justify-center gap-1">
-              <span className="text-5xl font-bold">10%</span>
+              <span className="text-5xl font-bold">{sellerCommission}%</span>
               <span className="text-blue-200">of final sale price</span>
             </div>
           </div>
@@ -55,18 +79,12 @@ export default function FeesPage() {
               <thead>
                 <tr className="border-b border-stone-200">
                   <th className="text-left py-3 text-sm font-medium text-stone-500">Sale Price</th>
-                  <th className="text-left py-3 text-sm font-medium text-stone-500">Commission (10%)</th>
+                  <th className="text-left py-3 text-sm font-medium text-stone-500">Commission ({sellerCommission}%)</th>
                   <th className="text-left py-3 text-sm font-medium text-stone-500">You Receive</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-stone-100">
-                {[
-                  { sale: 1000, fee: 100, net: 900 },
-                  { sale: 5000, fee: 500, net: 4500 },
-                  { sale: 10000, fee: 1000, net: 9000 },
-                  { sale: 25000, fee: 2500, net: 22500 },
-                  { sale: 50000, fee: 5000, net: 45000 },
-                ].map((row) => (
+                {feeExamples.map((row) => (
                   <tr key={row.sale}>
                     <td className="py-3 text-slate-900">${row.sale.toLocaleString()}</td>
                     <td className="py-3 text-stone-600">${row.fee.toLocaleString()}</td>
@@ -81,10 +99,17 @@ export default function FeesPage() {
         {/* Buyer Fees */}
         <div className="bg-blue-50 rounded-xl border border-blue-100 p-6 mb-10">
           <h3 className="font-semibold text-slate-900 mb-2">Buyer Fees</h3>
-          <p className="text-stone-600">
-            <strong>No buyer fees!</strong> The price you see is the price you pay (plus any applicable
-            shipping arranged with the seller).
-          </p>
+          {buyerPremium > 0 ? (
+            <p className="text-stone-600">
+              A <strong>{buyerPremium}% buyer premium</strong> is added to the sale price at checkout.
+              This helps maintain the platform and provide secure payment processing.
+            </p>
+          ) : (
+            <p className="text-stone-600">
+              <strong>No buyer fees!</strong> The price you see is the price you pay (plus any applicable
+              shipping arranged with the seller).
+            </p>
+          )}
         </div>
 
         {/* FAQ Section */}

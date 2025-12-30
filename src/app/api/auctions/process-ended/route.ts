@@ -4,6 +4,7 @@ import {
   sendAuctionWonEmail,
   sendAuctionEndedSellerEmail,
 } from '@/lib/email';
+import { getCommissionRates, calculateFees } from '@/lib/commissions';
 
 // Lazy initialization to avoid build-time errors
 let supabase: SupabaseClient | null = null;
@@ -21,9 +22,6 @@ function getSupabaseAdmin(): SupabaseClient {
   }
   return supabase;
 }
-
-const BUYER_PREMIUM_PERCENT = 5.0;
-const SELLER_COMMISSION_PERCENT = 8.0;
 
 // Generate invoice number: INV-YYYYMMDD-XXXX
 function generateInvoiceNumber(): string {
@@ -91,11 +89,17 @@ export async function POST(request: Request) {
 
         if (winningBid && reserveMet) {
           // Auction has a winner!
+          // Get commission rates for this seller (checks for custom rates)
+          const commissionRates = await getCommissionRates(auction.seller_id);
           const saleAmount = winningBid.amount;
-          const buyerPremium = saleAmount * (BUYER_PREMIUM_PERCENT / 100);
-          const totalAmount = saleAmount + buyerPremium;
-          const sellerCommission = saleAmount * (SELLER_COMMISSION_PERCENT / 100);
-          const sellerPayout = saleAmount - sellerCommission;
+          const fees = calculateFees(saleAmount, commissionRates);
+
+          const buyerPremium = fees.buyerPremiumAmount;
+          const totalAmount = fees.totalBuyerPays;
+          const sellerCommission = fees.sellerCommissionAmount;
+          const sellerPayout = fees.sellerPayoutAmount;
+          const buyerPremiumPercent = commissionRates.buyer_premium_percent;
+          const sellerCommissionPercent = commissionRates.seller_commission_percent;
 
           // Calculate payment due date
           const paymentDueDate = new Date();
@@ -111,10 +115,10 @@ export async function POST(request: Request) {
               seller_id: auction.seller_id,
               buyer_id: winningBid.bidder_id,
               sale_amount: saleAmount,
-              buyer_premium_percent: BUYER_PREMIUM_PERCENT,
+              buyer_premium_percent: buyerPremiumPercent,
               buyer_premium_amount: buyerPremium,
               total_amount: totalAmount,
-              seller_commission_percent: SELLER_COMMISSION_PERCENT,
+              seller_commission_percent: sellerCommissionPercent,
               seller_commission_amount: sellerCommission,
               seller_payout_amount: sellerPayout,
               status: 'pending',
@@ -157,7 +161,7 @@ export async function POST(request: Request) {
             user_id: winningBid.bidder_id,
             type: 'auction_won',
             title: 'Congratulations! You won the auction!',
-            body: `You won "${auction.title}" with a bid of $${saleAmount.toLocaleString()}. Total due (including ${BUYER_PREMIUM_PERCENT}% buyer premium): $${totalAmount.toLocaleString()}. Payment is due by ${paymentDueDate.toLocaleDateString()}.`,
+            body: `You won "${auction.title}" with a bid of $${saleAmount.toLocaleString()}. Total due (including ${buyerPremiumPercent}% buyer premium): $${totalAmount.toLocaleString()}. Payment is due by ${paymentDueDate.toLocaleDateString()}.`,
             listing_id: auction.id,
             invoice_id: invoice.id,
           });

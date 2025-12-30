@@ -136,6 +136,9 @@ export interface Profile {
   notify_push: boolean;
   notify_sms: boolean;
   phone_verified: boolean;
+  // Custom commission rates (null = use platform defaults)
+  custom_buyer_premium_percent: number | null;
+  custom_seller_commission_percent: number | null;
   created_at: string;
   updated_at: string;
 }
@@ -354,4 +357,22 @@ export interface InvoiceWithDetails extends Invoice {
   listing?: Listing;
   seller?: Profile;
   buyer?: Profile;
+}
+
+// Platform Settings (singleton table for global configuration)
+export interface PlatformSettings {
+  id: string;
+  default_buyer_premium_percent: number;
+  default_seller_commission_percent: number;
+  auction_extension_minutes: number;
+  offer_expiry_hours: number;
+  created_at: string;
+  updated_at: string;
+}
+
+// Commission rates for a specific transaction
+export interface CommissionRates {
+  buyer_premium_percent: number;
+  seller_commission_percent: number;
+  is_custom: boolean; // true if seller has custom rates
 }

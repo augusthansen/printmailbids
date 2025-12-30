@@ -1443,13 +1443,13 @@ export default function CreateListingPage() {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Output Stacker Count
+                      Total Cycle Count
                     </label>
                     <input
                       type="number"
                       value={formData.outputStackerCount}
                       onChange={(e) => updateFormData('outputStackerCount', e.target.value)}
-                      placeholder="e.g., 2"
+                      placeholder="e.g., 500000"
                       className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     />
                   </div>
@@ -1457,71 +1457,7 @@ export default function CreateListingPage() {
               )}
             </div>
 
-            {/* Capabilities Section */}
-            <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-              <div className="flex items-center justify-between p-4 border-b bg-gray-50">
-                <h3 className="font-semibold text-gray-900 flex items-center gap-2">
-                  <CheckCircle className="h-5 w-5 text-blue-600" />
-                  Machine Capabilities
-                </h3>
-                <label className="flex items-center gap-2 text-sm cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={formData.capabilitiesNa}
-                    onChange={(e) => updateFormData('capabilitiesNa', e.target.checked)}
-                    className="w-4 h-4 rounded border-gray-300 text-gray-500 focus:ring-gray-400"
-                  />
-                  <span className="text-gray-500">N/A</span>
-                </label>
-              </div>
-              {!formData.capabilitiesNa && (
-                <div className="p-6">
-                  {formData.category && capabilitiesByCategory[formData.category]?.length > 0 ? (
-                    <>
-                      <p className="text-sm text-gray-600 mb-3">
-                        Select all capabilities that apply to this equipment:
-                      </p>
-                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                        {capabilitiesByCategory[formData.category]?.map((capability) => (
-                          <label
-                            key={capability}
-                            className={`
-                              flex items-center gap-2 p-2 border rounded-lg cursor-pointer transition-colors
-                              ${formData.capabilities.includes(capability)
-                                ? 'border-blue-500 bg-blue-50'
-                                : 'border-gray-200 hover:border-gray-300'
-                              }
-                            `}
-                          >
-                            <input
-                              type="checkbox"
-                              checked={formData.capabilities.includes(capability)}
-                              onChange={(e) => {
-                                if (e.target.checked) {
-                                  updateFormData('capabilities', [...formData.capabilities, capability]);
-                                } else {
-                                  updateFormData('capabilities', formData.capabilities.filter((c: string) => c !== capability));
-                                }
-                              }}
-                              className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                            />
-                            <span className="text-sm">{capability}</span>
-                          </label>
-                        ))}
-                      </div>
-                    </>
-                  ) : (
-                    <p className="text-sm text-gray-500 italic">
-                      {formData.category
-                        ? 'No pre-defined capabilities for this category. Use the description field to detail capabilities.'
-                        : 'Select a category in Equipment Details to see relevant capabilities.'}
-                    </p>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {/* Piece Dimensions Section */}
+            {/* Material Specifications Section */}
             <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
               <div className="flex items-center justify-between p-4 border-b bg-gray-50">
                 <h3 className="font-semibold text-gray-900 flex items-center gap-2">
@@ -1539,61 +1475,17 @@ export default function CreateListingPage() {
                 </label>
               </div>
               {!formData.materialNa && (
-                <div className="p-6 space-y-4">
-                  <p className="text-sm text-gray-600">
-                    What types of materials can this equipment handle?
+                <div className="p-6">
+                  <p className="text-sm text-gray-600 mb-3">
+                    Describe the material types, sizes, and weights this equipment can handle.
                   </p>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Material Types
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.materialTypes}
-                      onChange={(e) => updateFormData('materialTypes', e.target.value)}
-                      placeholder="e.g., Paper, Cardstock, Envelopes, Labels, Polymailers"
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    />
-                    <p className="text-xs text-gray-500 mt-1">Comma-separated list of material types</p>
-                  </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Max Material Width
-                      </label>
-                      <input
-                        type="text"
-                        value={formData.maxMaterialWidth}
-                        onChange={(e) => updateFormData('maxMaterialWidth', e.target.value)}
-                        placeholder='e.g., 12"'
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Max Material Length
-                      </label>
-                      <input
-                        type="text"
-                        value={formData.maxMaterialLength}
-                        onChange={(e) => updateFormData('maxMaterialLength', e.target.value)}
-                        placeholder='e.g., 17"'
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Max Material Weight
-                      </label>
-                      <input
-                        type="text"
-                        value={formData.materialWeight}
-                        onChange={(e) => updateFormData('materialWeight', e.target.value)}
-                        placeholder="e.g., 110 lb cover, 20 lb bond"
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      />
-                    </div>
-                  </div>
+                  <textarea
+                    value={formData.materialTypes}
+                    onChange={(e) => updateFormData('materialTypes', e.target.value)}
+                    placeholder="e.g., Handles paper up to 12&quot; x 17&quot;, cardstock up to 110 lb cover, envelopes #10 through 6x9, labels, polymailers..."
+                    rows={4}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
                 </div>
               )}
             </div>
@@ -2350,8 +2242,8 @@ export default function CreateListingPage() {
                       )}
                       {formData.outputStackerCount && (
                         <div>
-                          <p className="text-gray-500">Stackers</p>
-                          <p className="font-medium">{formData.outputStackerCount}</p>
+                          <p className="text-gray-500">Total Cycles</p>
+                          <p className="font-medium">{parseInt(formData.outputStackerCount).toLocaleString()}</p>
                         </div>
                       )}
                     </div>
@@ -2361,53 +2253,11 @@ export default function CreateListingPage() {
                   <p className="text-sm text-gray-400 italic border-t pt-3">Configuration: N/A</p>
                 )}
 
-                {/* Capabilities */}
-                {!formData.capabilitiesNa && formData.capabilities.length > 0 && (
-                  <div className="border-t pt-3">
-                    <p className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">Capabilities</p>
-                    <div className="flex flex-wrap gap-2">
-                      {formData.capabilities.map((cap: string) => (
-                        <span key={cap} className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded">
-                          {cap}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                {formData.capabilitiesNa && (
-                  <p className="text-sm text-gray-400 italic border-t pt-3">Capabilities: N/A</p>
-                )}
-
                 {/* Material Specifications */}
-                {!formData.materialNa && (formData.materialTypes || formData.maxMaterialWidth || formData.maxMaterialLength || formData.materialWeight) && (
+                {!formData.materialNa && formData.materialTypes && (
                   <div className="border-t pt-3">
                     <p className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">Material Specifications</p>
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
-                      {formData.materialTypes && (
-                        <div className="col-span-2 sm:col-span-4">
-                          <p className="text-gray-500">Material Types</p>
-                          <p className="font-medium">{formData.materialTypes}</p>
-                        </div>
-                      )}
-                      {formData.maxMaterialWidth && (
-                        <div>
-                          <p className="text-gray-500">Max Width</p>
-                          <p className="font-medium">{formData.maxMaterialWidth}</p>
-                        </div>
-                      )}
-                      {formData.maxMaterialLength && (
-                        <div>
-                          <p className="text-gray-500">Max Length</p>
-                          <p className="font-medium">{formData.maxMaterialLength}</p>
-                        </div>
-                      )}
-                      {formData.materialWeight && (
-                        <div>
-                          <p className="text-gray-500">Max Weight</p>
-                          <p className="font-medium">{formData.materialWeight}</p>
-                        </div>
-                      )}
-                    </div>
+                    <p className="text-sm font-medium whitespace-pre-wrap">{formData.materialTypes}</p>
                   </div>
                 )}
                 {formData.materialNa && (

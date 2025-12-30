@@ -315,7 +315,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// For updating user roles
+// For updating user roles and settings
 export async function POST(request: NextRequest) {
   const user = await verifyAdmin();
   if (!user) {
@@ -323,7 +323,7 @@ export async function POST(request: NextRequest) {
   }
 
   const body = await request.json();
-  const { action, userId, value, listingId, status } = body;
+  const { action, userId, value, listingId, status, custom_buyer_premium_percent, custom_seller_commission_percent } = body;
   const adminClient = createAdminClient();
 
   try {
@@ -379,6 +379,19 @@ export async function POST(request: NextRequest) {
             updated_at: new Date().toISOString()
           })
           .eq('id', listingId);
+        if (error) throw error;
+        return NextResponse.json({ success: true });
+      }
+
+      case 'updateCommissionRates': {
+        const { error } = await adminClient
+          .from('profiles')
+          .update({
+            custom_buyer_premium_percent: custom_buyer_premium_percent,
+            custom_seller_commission_percent: custom_seller_commission_percent,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', userId);
         if (error) throw error;
         return NextResponse.json({ success: true });
       }

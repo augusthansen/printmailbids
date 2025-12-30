@@ -7,6 +7,7 @@ import {
   sendOfferDeclinedEmail,
   sendCounterOfferEmail,
 } from '@/lib/email';
+import { getCommissionRates, calculateFees } from '@/lib/commissions';
 
 const COUNTER_OFFER_EXPIRY_HOURS = 48;
 const MAX_COUNTER_OFFERS = 3; // Max back-and-forth counters
@@ -107,12 +108,17 @@ export async function POST(request: NextRequest) {
       // Create invoice
       const listing = offer.listing;
       const offerAmount = Number(offer.amount);
-      const buyerPremiumPercent = 5.0;
-      const buyerPremiumAmount = offerAmount * (buyerPremiumPercent / 100);
-      const totalAmount = offerAmount + buyerPremiumAmount;
-      const sellerCommissionPercent = 8.0;
-      const sellerCommissionAmount = offerAmount * (sellerCommissionPercent / 100);
-      const sellerPayoutAmount = offerAmount - sellerCommissionAmount;
+
+      // Get commission rates for this seller (checks for custom rates)
+      const commissionRates = await getCommissionRates(offer.seller_id);
+      const fees = calculateFees(offerAmount, commissionRates);
+
+      const buyerPremiumPercent = commissionRates.buyer_premium_percent;
+      const buyerPremiumAmount = fees.buyerPremiumAmount;
+      const totalAmount = fees.totalBuyerPays;
+      const sellerCommissionPercent = commissionRates.seller_commission_percent;
+      const sellerCommissionAmount = fees.sellerCommissionAmount;
+      const sellerPayoutAmount = fees.sellerPayoutAmount;
 
       const paymentDueDate = new Date();
       paymentDueDate.setDate(paymentDueDate.getDate() + (listing?.payment_due_days || 7));

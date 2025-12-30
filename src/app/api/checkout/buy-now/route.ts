@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { stripe } from '@/lib/stripe/server';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { getCommissionRates, calculateFees } from '@/lib/commissions';
 
 // Generate invoice number: INV-YYYYMMDD-XXXX
 function generateInvoiceNumber(): string {
@@ -65,15 +66,20 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'This listing does not have a buy now price' }, { status: 400 });
     }
 
+    // Get commission rates for this seller (checks for custom rates)
+    const commissionRates = await getCommissionRates(listing.seller_id);
+
     // Calculate amounts
     const saleAmount = Number(salePrice);
-    const buyerPremiumPercent = 5.00; // 5% buyer premium
-    const buyerPremiumAmount = saleAmount * (buyerPremiumPercent / 100);
-    const totalAmount = saleAmount + buyerPremiumAmount;
+    const fees = calculateFees(saleAmount, commissionRates);
 
-    const sellerCommissionPercent = 8.00; // 8% seller commission
-    const sellerCommissionAmount = saleAmount * (sellerCommissionPercent / 100);
-    const sellerPayoutAmount = saleAmount - sellerCommissionAmount;
+    const buyerPremiumPercent = commissionRates.buyer_premium_percent;
+    const buyerPremiumAmount = fees.buyerPremiumAmount;
+    const totalAmount = fees.totalBuyerPays;
+
+    const sellerCommissionPercent = commissionRates.seller_commission_percent;
+    const sellerCommissionAmount = fees.sellerCommissionAmount;
+    const sellerPayoutAmount = fees.sellerPayoutAmount;
 
     // Payment due in 7 days (or from listing settings)
     const paymentDueDate = new Date();
@@ -138,7 +144,7 @@ export async function POST(request: NextRequest) {
           price_data: {
             currency: 'usd',
             product_data: {
-              name: 'Buyer Premium (5%)',
+              name: `Buyer Premium (${buyerPremiumPercent}%)`,
               description: 'Platform fee',
             },
             unit_amount: Math.round(buyerPremiumAmount * 100),

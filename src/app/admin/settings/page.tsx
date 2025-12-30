@@ -1,55 +1,165 @@
 'use client';
 
-import { useState } from 'react';
-import { Settings, Save, Percent, DollarSign, Clock, AlertTriangle } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Settings, Save, Percent, Clock, AlertTriangle, CheckCircle, Loader2 } from 'lucide-react';
+
+interface PlatformSettings {
+  id: string;
+  default_buyer_premium_percent: number;
+  default_seller_commission_percent: number;
+  auction_extension_minutes: number;
+  offer_expiry_hours: number;
+  updated_at: string;
+}
 
 export default function AdminSettingsPage() {
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState(false);
+  const [settings, setSettings] = useState<PlatformSettings | null>(null);
+
+  // Form state
   const [buyerPremium, setBuyerPremium] = useState('5.0');
   const [sellerCommission, setSellerCommission] = useState('8.0');
   const [auctionExtension, setAuctionExtension] = useState('2');
   const [offerExpiry, setOfferExpiry] = useState('48');
-  const [saving, setSaving] = useState(false);
+
+  // Track if there are unsaved changes
+  const [hasChanges, setHasChanges] = useState(false);
+
+  useEffect(() => {
+    fetchSettings();
+  }, []);
+
+  useEffect(() => {
+    if (settings) {
+      const changed =
+        parseFloat(buyerPremium) !== settings.default_buyer_premium_percent ||
+        parseFloat(sellerCommission) !== settings.default_seller_commission_percent ||
+        parseInt(auctionExtension) !== settings.auction_extension_minutes ||
+        parseInt(offerExpiry) !== settings.offer_expiry_hours;
+      setHasChanges(changed);
+    }
+  }, [buyerPremium, sellerCommission, auctionExtension, offerExpiry, settings]);
+
+  async function fetchSettings() {
+    try {
+      setLoading(true);
+      setError(null);
+
+      const response = await fetch('/api/admin/settings');
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to fetch settings');
+      }
+
+      const s = data.settings;
+      setSettings(s);
+      setBuyerPremium(s.default_buyer_premium_percent.toString());
+      setSellerCommission(s.default_seller_commission_percent.toString());
+      setAuctionExtension(s.auction_extension_minutes.toString());
+      setOfferExpiry(s.offer_expiry_hours.toString());
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load settings');
+    } finally {
+      setLoading(false);
+    }
+  }
 
   async function handleSave() {
     setSaving(true);
-    // TODO: Implement settings save to database
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    setSaving(false);
-    alert('Settings would be saved (not yet implemented - settings are currently hardcoded)');
+    setError(null);
+    setSuccess(false);
+
+    try {
+      const response = await fetch('/api/admin/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          default_buyer_premium_percent: parseFloat(buyerPremium),
+          default_seller_commission_percent: parseFloat(sellerCommission),
+          auction_extension_minutes: parseInt(auctionExtension),
+          offer_expiry_hours: parseInt(offerExpiry),
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to save settings');
+      }
+
+      setSettings(data.settings);
+      setSuccess(true);
+      setHasChanges(false);
+
+      // Clear success message after 3 seconds
+      setTimeout(() => setSuccess(false), 3000);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save settings');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <Loader2 className="h-8 w-8 text-slate-400 animate-spin" />
+      </div>
+    );
   }
 
   return (
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold text-white">Settings</h1>
-        <p className="text-slate-400 mt-1">Configure platform settings</p>
+        <h1 className="text-2xl font-bold text-white">Platform Settings</h1>
+        <p className="text-slate-400 mt-1">Configure global platform settings and commission rates</p>
       </div>
 
-      {/* Warning */}
-      <div className="bg-yellow-900/20 border border-yellow-700 rounded-xl p-4 flex items-start gap-3">
-        <AlertTriangle className="h-5 w-5 text-yellow-500 flex-shrink-0 mt-0.5" />
-        <div>
-          <p className="text-sm font-medium text-yellow-400">Settings Not Yet Implemented</p>
-          <p className="text-sm text-yellow-400/70 mt-1">
-            These settings are currently hardcoded in the application. Changing values here will not affect the platform until a settings system is implemented.
-          </p>
+      {/* Error Message */}
+      {error && (
+        <div className="bg-red-900/20 border border-red-700 rounded-xl p-4 flex items-start gap-3">
+          <AlertTriangle className="h-5 w-5 text-red-500 flex-shrink-0 mt-0.5" />
+          <div>
+            <p className="text-sm font-medium text-red-400">Error</p>
+            <p className="text-sm text-red-400/70 mt-1">{error}</p>
+          </div>
         </div>
-      </div>
+      )}
+
+      {/* Success Message */}
+      {success && (
+        <div className="bg-green-900/20 border border-green-700 rounded-xl p-4 flex items-start gap-3">
+          <CheckCircle className="h-5 w-5 text-green-500 flex-shrink-0 mt-0.5" />
+          <div>
+            <p className="text-sm font-medium text-green-400">Settings saved successfully</p>
+            <p className="text-sm text-green-400/70 mt-1">
+              Commission rates have been updated. New transactions will use these rates.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Fee Settings */}
       <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
         <div className="p-4 border-b border-slate-700">
           <h2 className="text-lg font-semibold text-white flex items-center gap-2">
             <Percent className="h-5 w-5 text-green-400" />
-            Fee Settings
+            Commission Settings
           </h2>
+          <p className="text-sm text-slate-400 mt-1">
+            Default rates applied to all sellers. You can set custom rates for specific sellers in User Management.
+          </p>
         </div>
         <div className="p-6 space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
               <label className="block text-sm font-medium text-slate-300 mb-2">
-                Buyer Premium (%)
+                Default Buyer Premium (%)
               </label>
               <div className="relative">
                 <input
@@ -70,7 +180,7 @@ export default function AdminSettingsPage() {
 
             <div>
               <label className="block text-sm font-medium text-slate-300 mb-2">
-                Seller Commission (%)
+                Default Seller Commission (%)
               </label>
               <div className="relative">
                 <input
@@ -153,42 +263,39 @@ export default function AdminSettingsPage() {
         </div>
       </div>
 
-      {/* Current Hardcoded Values */}
-      <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
-        <div className="p-4 border-b border-slate-700">
-          <h2 className="text-lg font-semibold text-white">Current Hardcoded Values</h2>
+      {/* Last Updated Info */}
+      {settings && (
+        <div className="text-sm text-slate-500">
+          Last updated: {new Date(settings.updated_at).toLocaleString()}
         </div>
-        <div className="p-6">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-            <div className="bg-slate-700/50 rounded-lg p-3">
-              <p className="text-slate-400">Buyer Premium</p>
-              <p className="text-white font-bold">5%</p>
-            </div>
-            <div className="bg-slate-700/50 rounded-lg p-3">
-              <p className="text-slate-400">Seller Commission</p>
-              <p className="text-white font-bold">8%</p>
-            </div>
-            <div className="bg-slate-700/50 rounded-lg p-3">
-              <p className="text-slate-400">Auction Extension</p>
-              <p className="text-white font-bold">2 min</p>
-            </div>
-            <div className="bg-slate-700/50 rounded-lg p-3">
-              <p className="text-slate-400">Offer Expiry</p>
-              <p className="text-white font-bold">48 hrs</p>
-            </div>
-          </div>
-        </div>
-      </div>
+      )}
 
       {/* Save Button */}
-      <div className="flex justify-end">
+      <div className="flex justify-end gap-4">
+        {hasChanges && (
+          <button
+            onClick={fetchSettings}
+            className="px-4 py-2 text-slate-400 hover:text-white transition-colors"
+          >
+            Discard Changes
+          </button>
+        )}
         <button
           onClick={handleSave}
-          disabled={saving}
-          className="flex items-center gap-2 px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 transition-colors"
+          disabled={saving || !hasChanges}
+          className="flex items-center gap-2 px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >
-          <Save className="h-4 w-4" />
-          {saving ? 'Saving...' : 'Save Settings'}
+          {saving ? (
+            <>
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Saving...
+            </>
+          ) : (
+            <>
+              <Save className="h-4 w-4" />
+              Save Settings
+            </>
+          )}
         </button>
       </div>
     </div>

@@ -1133,12 +1133,12 @@ export default function EditListingPage() {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Output Stacker Count</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Total Cycle Count</label>
                     <input
                       type="number"
                       value={formData.output_stacker_count}
                       onChange={(e) => updateFormData('output_stacker_count', e.target.value)}
-                      placeholder="e.g., 2"
+                      placeholder="e.g., 500000"
                       className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                     />
                   </div>
@@ -1166,46 +1166,14 @@ export default function EditListingPage() {
               {!formData.material_na && (
                 <div className="space-y-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Material Types</label>
-                    <input
-                      type="text"
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Material Specifications</label>
+                    <textarea
                       value={formData.material_types}
                       onChange={(e) => updateFormData('material_types', e.target.value)}
-                      placeholder="e.g., Paper, Cardstock, Envelopes"
+                      placeholder="e.g., Handles paper up to 12&quot; x 17&quot;, cardstock up to 110 lb cover, envelopes #10 through 6x9, labels, polymailers..."
+                      rows={4}
                       className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                     />
-                  </div>
-                  <div className="grid grid-cols-3 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Max Material Width</label>
-                      <input
-                        type="text"
-                        value={formData.max_material_width}
-                        onChange={(e) => updateFormData('max_material_width', e.target.value)}
-                        placeholder='e.g., 12"'
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Max Material Length</label>
-                      <input
-                        type="text"
-                        value={formData.max_material_length}
-                        onChange={(e) => updateFormData('max_material_length', e.target.value)}
-                        placeholder='e.g., 17"'
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Max Material Weight</label>
-                      <input
-                        type="text"
-                        value={formData.material_weight}
-                        onChange={(e) => updateFormData('material_weight', e.target.value)}
-                        placeholder="e.g., 110 lb cover"
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                      />
-                    </div>
                   </div>
                 </div>
               )}

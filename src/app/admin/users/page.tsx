@@ -9,7 +9,10 @@ import {
   User,
   ChevronLeft,
   ChevronRight,
-  CheckCircle
+  CheckCircle,
+  Percent,
+  X,
+  Loader2
 } from 'lucide-react';
 
 interface UserProfile {
@@ -23,7 +26,160 @@ interface UserProfile {
   is_admin: boolean;
   seller_rating: number;
   buyer_rating: number;
+  custom_buyer_premium_percent: number | null;
+  custom_seller_commission_percent: number | null;
   created_at: string;
+}
+
+interface CommissionModalProps {
+  user: UserProfile;
+  onClose: () => void;
+  onSave: (userId: string, buyerPremium: number | null, sellerCommission: number | null) => Promise<void>;
+}
+
+function CommissionModal({ user, onClose, onSave }: CommissionModalProps) {
+  const [useCustomBuyer, setUseCustomBuyer] = useState(user.custom_buyer_premium_percent !== null);
+  const [useCustomSeller, setUseCustomSeller] = useState(user.custom_seller_commission_percent !== null);
+  const [buyerPremium, setBuyerPremium] = useState(
+    user.custom_buyer_premium_percent?.toString() || '5.0'
+  );
+  const [sellerCommission, setSellerCommission] = useState(
+    user.custom_seller_commission_percent?.toString() || '8.0'
+  );
+  const [saving, setSaving] = useState(false);
+
+  async function handleSave() {
+    setSaving(true);
+    try {
+      await onSave(
+        user.id,
+        useCustomBuyer ? parseFloat(buyerPremium) : null,
+        useCustomSeller ? parseFloat(sellerCommission) : null
+      );
+      onClose();
+    } catch (error) {
+      console.error('Error saving commission rates:', error);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-slate-800 rounded-xl border border-slate-700 w-full max-w-md">
+        <div className="flex items-center justify-between p-4 border-b border-slate-700">
+          <div>
+            <h2 className="text-lg font-semibold text-white">Commission Rates</h2>
+            <p className="text-sm text-slate-400">{user.full_name || user.email}</p>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-700"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        <div className="p-4 space-y-4">
+          {/* Buyer Premium */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <label className="text-sm font-medium text-slate-300">Buyer Premium</label>
+              <label className="flex items-center gap-2 text-sm text-slate-400">
+                <input
+                  type="checkbox"
+                  checked={useCustomBuyer}
+                  onChange={(e) => setUseCustomBuyer(e.target.checked)}
+                  className="rounded border-slate-600 bg-slate-700 text-red-500 focus:ring-red-500"
+                />
+                Custom rate
+              </label>
+            </div>
+            {useCustomBuyer ? (
+              <div className="relative">
+                <input
+                  type="number"
+                  step="0.1"
+                  min="0"
+                  max="100"
+                  value={buyerPremium}
+                  onChange={(e) => setBuyerPremium(e.target.value)}
+                  className="w-full px-4 py-2 pr-10 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-red-500"
+                />
+                <Percent className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+              </div>
+            ) : (
+              <div className="px-4 py-2 bg-slate-700/50 rounded-lg text-slate-400 text-sm">
+                Using platform default
+              </div>
+            )}
+          </div>
+
+          {/* Seller Commission */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <label className="text-sm font-medium text-slate-300">Seller Commission</label>
+              <label className="flex items-center gap-2 text-sm text-slate-400">
+                <input
+                  type="checkbox"
+                  checked={useCustomSeller}
+                  onChange={(e) => setUseCustomSeller(e.target.checked)}
+                  className="rounded border-slate-600 bg-slate-700 text-red-500 focus:ring-red-500"
+                />
+                Custom rate
+              </label>
+            </div>
+            {useCustomSeller ? (
+              <div className="relative">
+                <input
+                  type="number"
+                  step="0.1"
+                  min="0"
+                  max="100"
+                  value={sellerCommission}
+                  onChange={(e) => setSellerCommission(e.target.value)}
+                  className="w-full px-4 py-2 pr-10 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-red-500"
+                />
+                <Percent className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+              </div>
+            ) : (
+              <div className="px-4 py-2 bg-slate-700/50 rounded-lg text-slate-400 text-sm">
+                Using platform default
+              </div>
+            )}
+          </div>
+
+          <div className="bg-slate-700/50 rounded-lg p-3 text-xs text-slate-400">
+            <p className="font-medium text-slate-300 mb-1">Note:</p>
+            <p>Custom rates override platform defaults for this seller&apos;s transactions only.</p>
+          </div>
+        </div>
+
+        <div className="flex justify-end gap-3 p-4 border-t border-slate-700">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 text-slate-400 hover:text-white transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 transition-colors"
+          >
+            {saving ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Saving...
+              </>
+            ) : (
+              'Save Rates'
+            )}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 const ITEMS_PER_PAGE = 20;
@@ -36,6 +192,7 @@ export default function AdminUsersPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [commissionModal, setCommissionModal] = useState<UserProfile | null>(null);
 
   useEffect(() => {
     loadUsers();
@@ -130,10 +287,48 @@ export default function AdminUsersPage() {
     }
   }
 
+  async function updateCommissionRates(
+    userId: string,
+    buyerPremium: number | null,
+    sellerCommission: number | null
+  ) {
+    const res = await fetch('/api/admin/data', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'updateCommissionRates',
+        userId,
+        custom_buyer_premium_percent: buyerPremium,
+        custom_seller_commission_percent: sellerCommission,
+      }),
+    });
+
+    if (!res.ok) throw new Error('Failed to update commission rates');
+
+    setUsers(users.map(u =>
+      u.id === userId
+        ? {
+            ...u,
+            custom_buyer_premium_percent: buyerPremium,
+            custom_seller_commission_percent: sellerCommission,
+          }
+        : u
+    ));
+  }
+
   const totalPages = Math.ceil(totalCount / ITEMS_PER_PAGE);
 
   return (
     <div className="space-y-6">
+      {/* Commission Modal */}
+      {commissionModal && (
+        <CommissionModal
+          user={commissionModal}
+          onClose={() => setCommissionModal(null)}
+          onSave={updateCommissionRates}
+        />
+      )}
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -206,10 +401,10 @@ export default function AdminUsersPage() {
                     Role
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">
-                    Status
+                    Commission
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">
-                    Rating
+                    Status
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">
                     Joined
@@ -264,6 +459,34 @@ export default function AdminUsersPage() {
                       </div>
                     </td>
                     <td className="px-4 py-4">
+                      {user.is_seller ? (
+                        user.custom_buyer_premium_percent !== null ||
+                        user.custom_seller_commission_percent !== null ? (
+                          <div className="text-xs">
+                            <span className="px-2 py-0.5 rounded-full bg-yellow-900/50 text-yellow-400">
+                              Custom
+                            </span>
+                            <div className="mt-1 text-slate-400">
+                              {user.custom_buyer_premium_percent !== null && (
+                                <span>BP: {user.custom_buyer_premium_percent}%</span>
+                              )}
+                              {user.custom_buyer_premium_percent !== null &&
+                                user.custom_seller_commission_percent !== null && (
+                                  <span className="mx-1">|</span>
+                                )}
+                              {user.custom_seller_commission_percent !== null && (
+                                <span>SC: {user.custom_seller_commission_percent}%</span>
+                              )}
+                            </div>
+                          </div>
+                        ) : (
+                          <span className="text-xs text-slate-500">Default</span>
+                        )
+                      ) : (
+                        <span className="text-xs text-slate-500">-</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-4">
                       {user.is_verified ? (
                         <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full bg-green-900/50 text-green-400">
                           <CheckCircle className="h-3 w-3" />
@@ -275,20 +498,20 @@ export default function AdminUsersPage() {
                         </span>
                       )}
                     </td>
-                    <td className="px-4 py-4 text-sm text-slate-300">
-                      {user.is_seller && user.seller_rating > 0 ? (
-                        <span>{user.seller_rating.toFixed(1)} ★</span>
-                      ) : user.buyer_rating > 0 ? (
-                        <span>{user.buyer_rating.toFixed(1)} ★</span>
-                      ) : (
-                        <span className="text-slate-500">-</span>
-                      )}
-                    </td>
                     <td className="px-4 py-4 text-sm text-slate-400">
                       {new Date(user.created_at).toLocaleDateString()}
                     </td>
                     <td className="px-4 py-4">
                       <div className="flex items-center justify-end gap-2">
+                        {user.is_seller && (
+                          <button
+                            onClick={() => setCommissionModal(user)}
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-yellow-400 hover:bg-yellow-900/30 transition-colors"
+                            title="Edit commission rates"
+                          >
+                            <Percent className="h-4 w-4" />
+                          </button>
+                        )}
                         <button
                           onClick={() => toggleVerifiedStatus(user.id, user.is_verified)}
                           disabled={actionLoading === user.id}
