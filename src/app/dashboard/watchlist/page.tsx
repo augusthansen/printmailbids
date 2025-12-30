@@ -178,7 +178,7 @@ export default function WatchlistPage() {
 
                 <div className="flex items-center justify-between">
                   <div>
-                    {item.listing.listing_type === 'auction' ? (
+                    {item.listing.listing_type === 'auction' || item.listing.listing_type === 'auction_buy_now' || item.listing.listing_type === 'auction_offers' ? (
                       <>
                         <p className="text-lg font-bold text-gray-900">
                           ${(item.listing.current_bid || item.listing.starting_price || 0).toLocaleString()}
