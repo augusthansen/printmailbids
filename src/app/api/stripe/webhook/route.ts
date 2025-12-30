@@ -114,7 +114,6 @@ async function handleCheckoutComplete(session: Stripe.Checkout.Session) {
       fulfillment_status: 'processing',
       paid_at: new Date().toISOString(),
       payment_method: 'credit_card',
-      stripe_payment_intent_id: session.payment_intent as string,
       updated_at: new Date().toISOString(),
     })
     .eq('id', invoiceId);
@@ -134,7 +133,6 @@ async function handleCheckoutComplete(session: Stripe.Checkout.Session) {
       amount: (session.amount_total || 0) / 100, // Convert from cents
       method: 'credit_card',
       status: 'completed',
-      stripe_payment_intent_id: session.payment_intent as string,
       processed_at: new Date().toISOString(),
     });
 
@@ -176,32 +174,7 @@ async function handlePaymentSucceeded(paymentIntent: Stripe.PaymentIntent) {
 }
 
 async function handlePaymentFailed(paymentIntent: Stripe.PaymentIntent) {
-  // Find invoice by payment intent ID and update status
-  const { data: invoice } = await supabaseAdmin
-    .from('invoices')
-    .select('id')
-    .eq('stripe_payment_intent_id', paymentIntent.id)
-    .single();
-
-  if (invoice) {
-    await supabaseAdmin
-      .from('invoices')
-      .update({
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', invoice.id);
-
-    // Create payment record with failed status
-    await supabaseAdmin
-      .from('payments')
-      .insert({
-        invoice_id: invoice.id,
-        amount: (paymentIntent.amount || 0) / 100,
-        method: 'credit_card',
-        status: 'failed',
-        stripe_payment_intent_id: paymentIntent.id,
-      });
-  }
-
+  // Log the failed payment - we can't easily find the invoice without storing the payment intent ID
   console.log(`PaymentIntent failed: ${paymentIntent.id}`);
+  console.log('Payment failure details:', paymentIntent.last_payment_error?.message);
 }
