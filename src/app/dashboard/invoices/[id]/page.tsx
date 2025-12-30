@@ -23,7 +23,12 @@ import {
   MapPin,
   ExternalLink,
   Gavel,
-  CircleDot
+  CircleDot,
+  Edit3,
+  X,
+  Send,
+  XCircle,
+  MessageSquare
 } from 'lucide-react';
 
 interface Invoice {
@@ -36,6 +41,7 @@ interface Invoice {
   buyer_premium_percent: number;
   buyer_premium_amount: number;
   shipping_amount: number;
+  packaging_amount: number;
   tax_amount: number;
   total_amount: number;
   status: string;
@@ -55,12 +61,27 @@ interface Invoice {
     country?: string;
   } | null;
   created_at: string;
+  // Fee workflow fields
+  packaging_note: string | null;
+  packaging_added_at: string | null;
+  shipping_note: string | null;
+  shipping_added_at: string | null;
+  fees_status: 'none' | 'pending_approval' | 'approved' | 'rejected' | 'disputed';
+  fees_submitted_at: string | null;
+  fees_responded_at: string | null;
+  fees_rejection_reason: string | null;
   listing?: {
     id: string;
     title: string;
     images?: { url: string; is_primary: boolean }[];
   };
   seller?: {
+    id: string;
+    full_name: string;
+    company_name: string;
+    email: string;
+  };
+  buyer?: {
     id: string;
     full_name: string;
     company_name: string;
@@ -90,6 +111,182 @@ export default function InvoicePage() {
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+
+  // Fee editing state
+  const [showFeeModal, setShowFeeModal] = useState(false);
+  const [packagingAmount, setPackagingAmount] = useState('');
+  const [packagingNote, setPackagingNote] = useState('');
+  const [shippingAmount, setShippingAmount] = useState('');
+  const [shippingNote, setShippingNote] = useState('');
+  const [savingFees, setSavingFees] = useState(false);
+
+  // Buyer approval state
+  const [showApprovalModal, setShowApprovalModal] = useState(false);
+  const [rejectionReason, setRejectionReason] = useState('');
+  const [approvingFees, setApprovingFees] = useState(false);
+
+  const isSeller = user?.id === invoice?.seller_id;
+
+  // Initialize fee form values when invoice loads
+  useEffect(() => {
+    if (invoice) {
+      setPackagingAmount(invoice.packaging_amount?.toString() || '');
+      setPackagingNote(invoice.packaging_note || '');
+      setShippingAmount(invoice.shipping_amount?.toString() || '');
+      setShippingNote(invoice.shipping_note || '');
+    }
+  }, [invoice]);
+
+  // Handle saving packaging/shipping fees (seller)
+  const handleSaveFees = async (submitForApproval: boolean = false) => {
+    if (!invoice || !user?.id) return;
+
+    setSavingFees(true);
+    setError(null);
+
+    try {
+      const packagingNum = parseFloat(packagingAmount) || 0;
+      const shippingNum = parseFloat(shippingAmount) || 0;
+
+      // Calculate new total
+      const newTotal = invoice.sale_amount + invoice.buyer_premium_amount + packagingNum + shippingNum + (invoice.tax_amount || 0);
+
+      const updateData: Record<string, unknown> = {
+        packaging_amount: packagingNum,
+        packaging_note: packagingNote || null,
+        packaging_added_at: packagingNum > 0 ? new Date().toISOString() : null,
+        shipping_amount: shippingNum,
+        shipping_note: shippingNote || null,
+        shipping_added_at: shippingNum > 0 ? new Date().toISOString() : null,
+        total_amount: newTotal,
+      };
+
+      // If submitting for approval
+      if (submitForApproval && (packagingNum > 0 || shippingNum > 0)) {
+        updateData.fees_status = 'pending_approval';
+        updateData.fees_submitted_at = new Date().toISOString();
+      }
+
+      const { error: updateError } = await supabase
+        .from('invoices')
+        .update(updateData)
+        .eq('id', invoice.id);
+
+      if (updateError) throw updateError;
+
+      // Send notification to buyer if submitting for approval
+      if (submitForApproval && (packagingNum > 0 || shippingNum > 0)) {
+        await supabase.from('notifications').insert({
+          user_id: invoice.buyer_id,
+          type: 'fees_added',
+          title: 'Fees Added to Invoice',
+          message: `The seller has added ${packagingNum > 0 ? `$${packagingNum.toLocaleString()} packaging` : ''}${packagingNum > 0 && shippingNum > 0 ? ' and ' : ''}${shippingNum > 0 ? `$${shippingNum.toLocaleString()} shipping` : ''} fees to your invoice. Please review and approve.`,
+          related_type: 'invoice',
+          related_id: invoice.id,
+        });
+      }
+
+      // Reload invoice data
+      const { data: updatedInvoice } = await supabase
+        .from('invoices')
+        .select('*')
+        .eq('id', invoice.id)
+        .single();
+
+      if (updatedInvoice) {
+        setInvoice(prev => prev ? { ...prev, ...updatedInvoice, fees_status: updatedInvoice.fees_status || 'none' } : null);
+      }
+
+      setShowFeeModal(false);
+      setSuccess(submitForApproval ? 'Fees submitted for buyer approval' : 'Fees saved as draft');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save fees');
+    } finally {
+      setSavingFees(false);
+    }
+  };
+
+  // Handle buyer approving fees
+  const handleApproveFees = async () => {
+    if (!invoice || !user?.id) return;
+
+    setApprovingFees(true);
+    setError(null);
+
+    try {
+      const { error: updateError } = await supabase
+        .from('invoices')
+        .update({
+          fees_status: 'approved',
+          fees_responded_at: new Date().toISOString(),
+        })
+        .eq('id', invoice.id);
+
+      if (updateError) throw updateError;
+
+      // Notify seller
+      await supabase.from('notifications').insert({
+        user_id: invoice.seller_id,
+        type: 'fees_approved',
+        title: 'Fees Approved',
+        message: `The buyer has approved the packaging/shipping fees for invoice #${invoice.id.slice(0, 8)}.`,
+        related_type: 'invoice',
+        related_id: invoice.id,
+      });
+
+      setInvoice(prev => prev ? { ...prev, fees_status: 'approved', fees_responded_at: new Date().toISOString() } : null);
+      setSuccess('Fees approved! You can now proceed with payment.');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to approve fees');
+    } finally {
+      setApprovingFees(false);
+    }
+  };
+
+  // Handle buyer rejecting fees
+  const handleRejectFees = async () => {
+    if (!invoice || !user?.id || !rejectionReason.trim()) return;
+
+    setApprovingFees(true);
+    setError(null);
+
+    try {
+      const { error: updateError } = await supabase
+        .from('invoices')
+        .update({
+          fees_status: 'rejected',
+          fees_responded_at: new Date().toISOString(),
+          fees_rejection_reason: rejectionReason.trim(),
+        })
+        .eq('id', invoice.id);
+
+      if (updateError) throw updateError;
+
+      // Notify seller
+      await supabase.from('notifications').insert({
+        user_id: invoice.seller_id,
+        type: 'fees_rejected',
+        title: 'Fees Rejected',
+        message: `The buyer has rejected the packaging/shipping fees for invoice #${invoice.id.slice(0, 8)}. Reason: ${rejectionReason.trim()}`,
+        related_type: 'invoice',
+        related_id: invoice.id,
+      });
+
+      setInvoice(prev => prev ? {
+        ...prev,
+        fees_status: 'rejected',
+        fees_responded_at: new Date().toISOString(),
+        fees_rejection_reason: rejectionReason.trim()
+      } : null);
+      setShowApprovalModal(false);
+      setRejectionReason('');
+      setSuccess('Fees rejected. The seller has been notified.');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to reject fees');
+    } finally {
+      setApprovingFees(false);
+    }
+  };
 
   // Check for payment success/cancel from Stripe redirect
   useEffect(() => {
@@ -139,7 +336,7 @@ export default function InvoicePage() {
       }
 
       // Fetch related data separately
-      const [listingResult, sellerResult] = await Promise.all([
+      const [listingResult, sellerResult, buyerResult] = await Promise.all([
         supabase
           .from('listings')
           .select('id, title')
@@ -149,6 +346,11 @@ export default function InvoicePage() {
           .from('profiles')
           .select('id, full_name, company_name, email')
           .eq('id', data.seller_id)
+          .single(),
+        supabase
+          .from('profiles')
+          .select('id, full_name, company_name, email')
+          .eq('id', data.buyer_id)
           .single(),
       ]);
 
@@ -160,11 +362,13 @@ export default function InvoicePage() {
 
       const invoiceWithDetails: Invoice = {
         ...data,
+        fees_status: data.fees_status || 'none',
         listing: listingResult.data ? {
           ...listingResult.data,
           images: imagesData || [],
         } : undefined,
         seller: sellerResult.data || undefined,
+        buyer: buyerResult.data || undefined,
       };
 
       setInvoice(invoiceWithDetails);
@@ -580,6 +784,273 @@ export default function InvoicePage() {
         </div>
       )}
 
+      {/* Buyer Fee Approval Banner */}
+      {isBuyer && invoice.fees_status === 'pending_approval' && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-6 mb-6">
+          <div className="flex items-start gap-4">
+            <div className="p-2 bg-amber-100 rounded-lg">
+              <AlertCircle className="h-6 w-6 text-amber-600" />
+            </div>
+            <div className="flex-1">
+              <h3 className="font-semibold text-amber-800 mb-1">Action Required: Review Additional Fees</h3>
+              <p className="text-amber-700 text-sm mb-4">
+                The seller has added packaging and/or shipping fees to your invoice. Please review and approve before making payment.
+              </p>
+
+              <div className="bg-white rounded-lg p-4 mb-4 space-y-3">
+                {invoice.packaging_amount > 0 && (
+                  <div>
+                    <div className="flex justify-between items-center">
+                      <span className="font-medium text-gray-900 flex items-center gap-2">
+                        <Package className="h-4 w-4 text-gray-500" />
+                        Packaging / Crating
+                      </span>
+                      <span className="font-semibold text-gray-900">${invoice.packaging_amount.toLocaleString()}</span>
+                    </div>
+                    {invoice.packaging_note && (
+                      <p className="text-sm text-gray-600 mt-1 ml-6">{invoice.packaging_note}</p>
+                    )}
+                  </div>
+                )}
+                {invoice.shipping_amount > 0 && (
+                  <div>
+                    <div className="flex justify-between items-center">
+                      <span className="font-medium text-gray-900 flex items-center gap-2">
+                        <Truck className="h-4 w-4 text-gray-500" />
+                        Shipping / Freight
+                      </span>
+                      <span className="font-semibold text-gray-900">${invoice.shipping_amount.toLocaleString()}</span>
+                    </div>
+                    {invoice.shipping_note && (
+                      <p className="text-sm text-gray-600 mt-1 ml-6">{invoice.shipping_note}</p>
+                    )}
+                  </div>
+                )}
+                <div className="pt-2 border-t">
+                  <div className="flex justify-between items-center">
+                    <span className="font-medium text-gray-700">Additional Fees Total</span>
+                    <span className="font-bold text-gray-900">
+                      ${((invoice.packaging_amount || 0) + (invoice.shipping_amount || 0)).toLocaleString()}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={handleApproveFees}
+                  disabled={approvingFees}
+                  className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition disabled:opacity-50"
+                >
+                  {approvingFees ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle className="h-4 w-4" />}
+                  Approve Fees
+                </button>
+                <button
+                  onClick={() => setShowApprovalModal(true)}
+                  disabled={approvingFees}
+                  className="flex items-center gap-2 px-4 py-2 border border-red-300 text-red-600 rounded-lg font-medium hover:bg-red-50 transition disabled:opacity-50"
+                >
+                  <XCircle className="h-4 w-4" />
+                  Reject Fees
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Seller Fee Status Banner */}
+      {isSeller && invoice.fees_status === 'pending_approval' && (
+        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-6 flex items-center gap-3">
+          <Clock className="h-5 w-5 text-blue-600" />
+          <div>
+            <p className="font-medium text-blue-800">Awaiting Buyer Approval</p>
+            <p className="text-sm text-blue-700">The buyer is reviewing the packaging/shipping fees you submitted.</p>
+          </div>
+        </div>
+      )}
+
+      {isSeller && invoice.fees_status === 'rejected' && (
+        <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-6">
+          <div className="flex items-start gap-3">
+            <XCircle className="h-5 w-5 text-red-600 mt-0.5" />
+            <div className="flex-1">
+              <p className="font-medium text-red-800">Fees Rejected by Buyer</p>
+              {invoice.fees_rejection_reason && (
+                <p className="text-sm text-red-700 mt-1">Reason: {invoice.fees_rejection_reason}</p>
+              )}
+              <button
+                onClick={() => setShowFeeModal(true)}
+                className="mt-2 text-sm text-red-700 underline hover:text-red-800"
+              >
+                Edit and resubmit fees
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isSeller && invoice.fees_status === 'approved' && (invoice.packaging_amount > 0 || invoice.shipping_amount > 0) && (
+        <div className="bg-green-50 border border-green-200 rounded-xl p-4 mb-6 flex items-center gap-3">
+          <CheckCircle className="h-5 w-5 text-green-600" />
+          <div>
+            <p className="font-medium text-green-800">Fees Approved</p>
+            <p className="text-sm text-green-700">The buyer has approved the packaging/shipping fees.</p>
+          </div>
+        </div>
+      )}
+
+      {/* Fee Rejection Modal */}
+      {showApprovalModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">Reject Fees</h3>
+              <button
+                onClick={() => { setShowApprovalModal(false); setRejectionReason(''); }}
+                className="p-1 hover:bg-gray-100 rounded"
+              >
+                <X className="h-5 w-5 text-gray-500" />
+              </button>
+            </div>
+            <p className="text-gray-600 text-sm mb-4">
+              Please explain why you&apos;re rejecting these fees. The seller will be able to revise and resubmit.
+            </p>
+            <textarea
+              value={rejectionReason}
+              onChange={(e) => setRejectionReason(e.target.value)}
+              placeholder="e.g., Shipping cost seems too high, I'd like to arrange my own freight..."
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 h-24 resize-none"
+            />
+            <div className="flex gap-3 mt-4">
+              <button
+                onClick={() => { setShowApprovalModal(false); setRejectionReason(''); }}
+                className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleRejectFees}
+                disabled={!rejectionReason.trim() || approvingFees}
+                className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg font-medium hover:bg-red-700 disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {approvingFees ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                Reject Fees
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Fee Editing Modal (Seller) */}
+      {showFeeModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-xl max-w-lg w-full p-6">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-lg font-semibold text-gray-900">Add Packaging & Shipping Fees</h3>
+              <button
+                onClick={() => setShowFeeModal(false)}
+                className="p-1 hover:bg-gray-100 rounded"
+              >
+                <X className="h-5 w-5 text-gray-500" />
+              </button>
+            </div>
+
+            <div className="space-y-6">
+              {/* Packaging Section */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <Package className="h-4 w-4 inline mr-2" />
+                  Packaging / Crating Cost
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
+                  <input
+                    type="number"
+                    value={packagingAmount}
+                    onChange={(e) => setPackagingAmount(e.target.value)}
+                    placeholder="0.00"
+                    className="w-full pl-8 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+                <textarea
+                  value={packagingNote}
+                  onChange={(e) => setPackagingNote(e.target.value)}
+                  placeholder="Describe what's included (e.g., custom crating, palletizing, shrink wrap)..."
+                  className="w-full mt-2 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 h-20 resize-none text-sm"
+                />
+              </div>
+
+              {/* Shipping Section */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <Truck className="h-4 w-4 inline mr-2" />
+                  Shipping / Freight Cost
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
+                  <input
+                    type="number"
+                    value={shippingAmount}
+                    onChange={(e) => setShippingAmount(e.target.value)}
+                    placeholder="0.00"
+                    className="w-full pl-8 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+                <textarea
+                  value={shippingNote}
+                  onChange={(e) => setShippingNote(e.target.value)}
+                  placeholder="Describe shipping details (e.g., LTL freight to buyer's dock, includes liftgate)..."
+                  className="w-full mt-2 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 h-20 resize-none text-sm"
+                />
+              </div>
+
+              {/* Summary */}
+              <div className="bg-gray-50 rounded-lg p-4">
+                <div className="flex justify-between text-sm text-gray-600 mb-1">
+                  <span>Current invoice total</span>
+                  <span>${(invoice.sale_amount + invoice.buyer_premium_amount + (invoice.tax_amount || 0)).toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between text-sm text-gray-600 mb-1">
+                  <span>+ Packaging</span>
+                  <span>${(parseFloat(packagingAmount) || 0).toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between text-sm text-gray-600 mb-2">
+                  <span>+ Shipping</span>
+                  <span>${(parseFloat(shippingAmount) || 0).toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between font-semibold text-gray-900 pt-2 border-t">
+                  <span>New Total</span>
+                  <span>${(invoice.sale_amount + invoice.buyer_premium_amount + (invoice.tax_amount || 0) + (parseFloat(packagingAmount) || 0) + (parseFloat(shippingAmount) || 0)).toLocaleString()}</span>
+                </div>
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => handleSaveFees(false)}
+                  disabled={savingFees}
+                  className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 disabled:opacity-50"
+                >
+                  Save Draft
+                </button>
+                <button
+                  onClick={() => handleSaveFees(true)}
+                  disabled={savingFees || ((parseFloat(packagingAmount) || 0) === 0 && (parseFloat(shippingAmount) || 0) === 0)}
+                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {savingFees ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                  Submit for Approval
+                </button>
+              </div>
+
+              <p className="text-xs text-gray-500 text-center">
+                The buyer will need to approve these fees before they can complete payment.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="grid lg:grid-cols-3 gap-6">
         {/* Invoice Details */}
         <div className="lg:col-span-2 space-y-6">
@@ -737,7 +1208,18 @@ export default function InvoicePage() {
 
           {/* Price Breakdown */}
           <div className="bg-white rounded-xl shadow-sm border p-6">
-            <h2 className="font-semibold text-gray-900 mb-4">Price Breakdown</h2>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="font-semibold text-gray-900">Price Breakdown</h2>
+              {isSeller && invoice.status !== 'paid' && (invoice.fees_status === 'none' || invoice.fees_status === 'rejected') && (
+                <button
+                  onClick={() => setShowFeeModal(true)}
+                  className="flex items-center gap-1.5 text-sm text-blue-600 hover:text-blue-700 font-medium"
+                >
+                  <Edit3 className="h-4 w-4" />
+                  {invoice.packaging_amount > 0 || invoice.shipping_amount > 0 ? 'Edit Fees' : 'Add Fees'}
+                </button>
+              )}
+            </div>
             <div className="space-y-3">
               <div className="flex justify-between">
                 <span className="text-gray-600">Winning Bid</span>
@@ -747,12 +1229,45 @@ export default function InvoicePage() {
                 <span className="text-gray-600">Buyer Premium ({invoice.buyer_premium_percent || 5}%)</span>
                 <span className="font-medium">${invoice.buyer_premium_amount?.toLocaleString() || '0'}</span>
               </div>
-              {invoice.shipping_amount > 0 && (
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Shipping</span>
-                  <span className="font-medium">${invoice.shipping_amount.toLocaleString()}</span>
+
+              {/* Packaging Fee */}
+              {invoice.packaging_amount > 0 && (
+                <div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-600 flex items-center gap-1.5">
+                      <Package className="h-4 w-4" />
+                      Packaging / Crating
+                      {invoice.fees_status === 'pending_approval' && (
+                        <span className="text-xs bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded">Pending</span>
+                      )}
+                    </span>
+                    <span className="font-medium">${invoice.packaging_amount.toLocaleString()}</span>
+                  </div>
+                  {invoice.packaging_note && (
+                    <p className="text-xs text-gray-500 mt-1 ml-5">{invoice.packaging_note}</p>
+                  )}
                 </div>
               )}
+
+              {/* Shipping Fee */}
+              {invoice.shipping_amount > 0 && (
+                <div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-600 flex items-center gap-1.5">
+                      <Truck className="h-4 w-4" />
+                      Shipping / Freight
+                      {invoice.fees_status === 'pending_approval' && (
+                        <span className="text-xs bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded">Pending</span>
+                      )}
+                    </span>
+                    <span className="font-medium">${invoice.shipping_amount.toLocaleString()}</span>
+                  </div>
+                  {invoice.shipping_note && (
+                    <p className="text-xs text-gray-500 mt-1 ml-5">{invoice.shipping_note}</p>
+                  )}
+                </div>
+              )}
+
               {invoice.tax_amount > 0 && (
                 <div className="flex justify-between">
                   <span className="text-gray-600">Tax</span>
@@ -812,40 +1327,52 @@ export default function InvoicePage() {
 
                 {isBuyer && (
                   <div className="space-y-3">
-                    <button
-                      onClick={() => handlePayment('credit_card')}
-                      disabled={processing}
-                      className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition disabled:opacity-50"
-                    >
-                      {processing ? (
-                        <Loader2 className="h-5 w-5 animate-spin" />
-                      ) : (
-                        <CreditCard className="h-5 w-5" />
-                      )}
-                      Pay with Card
-                    </button>
+                    {invoice.fees_status === 'pending_approval' ? (
+                      <div className="text-center py-3">
+                        <Clock className="h-8 w-8 text-amber-500 mx-auto mb-2" />
+                        <p className="text-sm font-medium text-amber-700">Review Required</p>
+                        <p className="text-xs text-gray-500 mt-1">
+                          Please approve or reject the packaging/shipping fees above before paying.
+                        </p>
+                      </div>
+                    ) : (
+                      <>
+                        <button
+                          onClick={() => handlePayment('credit_card')}
+                          disabled={processing}
+                          className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition disabled:opacity-50"
+                        >
+                          {processing ? (
+                            <Loader2 className="h-5 w-5 animate-spin" />
+                          ) : (
+                            <CreditCard className="h-5 w-5" />
+                          )}
+                          Pay with Card
+                        </button>
 
-                    <button
-                      onClick={() => handlePayment('ach')}
-                      disabled={processing}
-                      className="w-full flex items-center justify-center gap-2 px-4 py-3 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition disabled:opacity-50"
-                    >
-                      <Building2 className="h-5 w-5" />
-                      Pay with ACH
-                    </button>
+                        <button
+                          onClick={() => handlePayment('ach')}
+                          disabled={processing}
+                          className="w-full flex items-center justify-center gap-2 px-4 py-3 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition disabled:opacity-50"
+                        >
+                          <Building2 className="h-5 w-5" />
+                          Pay with ACH
+                        </button>
 
-                    <button
-                      onClick={() => handlePayment('wire')}
-                      disabled={processing}
-                      className="w-full flex items-center justify-center gap-2 px-4 py-3 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition disabled:opacity-50"
-                    >
-                      <FileText className="h-5 w-5" />
-                      Wire Transfer
-                    </button>
+                        <button
+                          onClick={() => handlePayment('wire')}
+                          disabled={processing}
+                          className="w-full flex items-center justify-center gap-2 px-4 py-3 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition disabled:opacity-50"
+                        >
+                          <FileText className="h-5 w-5" />
+                          Wire Transfer
+                        </button>
 
-                    <p className="text-xs text-gray-500 text-center">
-                      Credit card: 2.9% + $0.30 fee | ACH: 0.8% fee (max $5)
-                    </p>
+                        <p className="text-xs text-gray-500 text-center">
+                          Credit card: 2.9% + $0.30 fee | ACH: 0.8% fee (max $5)
+                        </p>
+                      </>
+                    )}
                   </div>
                 )}
               </>
