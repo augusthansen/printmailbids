@@ -79,12 +79,19 @@ async function handleCheckoutComplete(session: Stripe.Checkout.Session) {
     return;
   }
 
+  // Get invoice details for notification
+  const { data: invoice } = await supabaseAdmin
+    .from('invoices')
+    .select('invoice_number, total_amount, listing_id')
+    .eq('id', invoiceId)
+    .single();
+
   // Update invoice status
   const { error: invoiceError } = await supabaseAdmin
     .from('invoices')
     .update({
       status: 'paid',
-      fulfillment_status: 'paid',
+      fulfillment_status: 'processing',
       paid_at: new Date().toISOString(),
       payment_method: 'credit_card',
       stripe_payment_intent_id: session.payment_intent as string,
@@ -115,11 +122,14 @@ async function handleCheckoutComplete(session: Stripe.Checkout.Session) {
 
   // Create notification for seller
   if (sellerId) {
+    const amount = invoice?.total_amount ? `$${invoice.total_amount.toLocaleString()}` : 'Payment';
     await supabaseAdmin.from('notifications').insert({
       user_id: sellerId,
       type: 'payment_received',
       title: 'Payment Received',
-      body: `Payment received for invoice. The buyer has completed payment.`,
+      message: `${amount} payment received for invoice #${invoiceId.slice(0, 8)}. The item is ready to be shipped.`,
+      related_type: 'invoice',
+      related_id: invoiceId,
     });
   }
 
@@ -129,7 +139,9 @@ async function handleCheckoutComplete(session: Stripe.Checkout.Session) {
       user_id: buyerId,
       type: 'payment_confirmed',
       title: 'Payment Confirmed',
-      body: `Your payment has been processed successfully.`,
+      message: `Your payment for invoice #${invoiceId.slice(0, 8)} has been processed successfully. The seller will prepare your item for shipping.`,
+      related_type: 'invoice',
+      related_id: invoiceId,
     });
   }
 

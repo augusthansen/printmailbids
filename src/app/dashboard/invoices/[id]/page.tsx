@@ -132,6 +132,11 @@ export default function InvoicePage() {
   const [rejectionReason, setRejectionReason] = useState('');
   const [approvingFees, setApprovingFees] = useState(false);
 
+  // Shipping update state (seller)
+  const [showShippingModal, setShowShippingModal] = useState(false);
+  const [trackingNumber, setTrackingNumber] = useState('');
+  const [updatingShipping, setUpdatingShipping] = useState(false);
+
   const isSeller = user?.id === invoice?.seller_id;
 
   // Initialize fee form values when invoice loads
@@ -400,6 +405,97 @@ export default function InvoicePage() {
       setError(err instanceof Error ? err.message : 'Failed to reject fees');
     } finally {
       setApprovingFees(false);
+    }
+  };
+
+  // Handle seller marking item as shipped
+  const handleMarkShipped = async () => {
+    if (!invoice || !user?.id) return;
+
+    setUpdatingShipping(true);
+    setError(null);
+
+    try {
+      const updateData: Record<string, unknown> = {
+        fulfillment_status: 'shipped',
+        shipped_at: new Date().toISOString(),
+      };
+
+      if (trackingNumber.trim()) {
+        updateData.tracking_number = trackingNumber.trim();
+      }
+
+      const { error: updateError } = await supabase
+        .from('invoices')
+        .update(updateData)
+        .eq('id', invoice.id);
+
+      if (updateError) throw updateError;
+
+      // Notify buyer
+      await supabase.from('notifications').insert({
+        user_id: invoice.buyer_id,
+        type: 'item_shipped',
+        title: 'Item Shipped',
+        message: `Your item has been shipped!${trackingNumber.trim() ? ` Tracking: ${trackingNumber.trim()}` : ''} Check your invoice for details.`,
+        related_type: 'invoice',
+        related_id: invoice.id,
+      });
+
+      setInvoice(prev => prev ? {
+        ...prev,
+        fulfillment_status: 'shipped',
+        shipped_at: new Date().toISOString(),
+        tracking_number: trackingNumber.trim() || prev.tracking_number,
+      } : null);
+      setShowShippingModal(false);
+      setTrackingNumber('');
+      setSuccess('Item marked as shipped! The buyer has been notified.');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update shipping status');
+    } finally {
+      setUpdatingShipping(false);
+    }
+  };
+
+  // Handle seller marking item as delivered
+  const handleMarkDelivered = async () => {
+    if (!invoice || !user?.id) return;
+
+    setUpdatingShipping(true);
+    setError(null);
+
+    try {
+      const { error: updateError } = await supabase
+        .from('invoices')
+        .update({
+          fulfillment_status: 'delivered',
+          delivered_at: new Date().toISOString(),
+        })
+        .eq('id', invoice.id);
+
+      if (updateError) throw updateError;
+
+      // Notify buyer
+      await supabase.from('notifications').insert({
+        user_id: invoice.buyer_id,
+        type: 'item_delivered',
+        title: 'Item Delivered',
+        message: `Your item has been marked as delivered. Thank you for your purchase!`,
+        related_type: 'invoice',
+        related_id: invoice.id,
+      });
+
+      setInvoice(prev => prev ? {
+        ...prev,
+        fulfillment_status: 'delivered',
+        delivered_at: new Date().toISOString(),
+      } : null);
+      setSuccess('Item marked as delivered!');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update delivery status');
+    } finally {
+      setUpdatingShipping(false);
     }
   };
 
@@ -1031,6 +1127,117 @@ export default function InvoicePage() {
           <div>
             <p className="font-medium text-green-800">Fees Approved</p>
             <p className="text-sm text-green-700">The buyer has approved the packaging/shipping fees.</p>
+          </div>
+        </div>
+      )}
+
+      {/* Seller Shipping Controls - Show when invoice is paid */}
+      {isSeller && invoice.status === 'paid' && invoice.fulfillment_status !== 'delivered' && (
+        <div className="bg-blue-50 border border-blue-200 rounded-xl p-6 mb-6">
+          <div className="flex items-start gap-4">
+            <div className="p-2 bg-blue-100 rounded-lg">
+              <Truck className="h-6 w-6 text-blue-600" />
+            </div>
+            <div className="flex-1">
+              <h3 className="font-semibold text-blue-800 mb-1">
+                {invoice.fulfillment_status === 'shipped' ? 'Item Shipped' : 'Ready to Ship'}
+              </h3>
+              <p className="text-blue-700 text-sm mb-4">
+                {invoice.fulfillment_status === 'shipped'
+                  ? `Shipped on ${formatDate(invoice.shipped_at)}${invoice.tracking_number ? ` • Tracking: ${invoice.tracking_number}` : ''}`
+                  : 'Payment received! Please ship the item and update the tracking information.'}
+              </p>
+
+              <div className="flex flex-wrap gap-3">
+                {invoice.fulfillment_status !== 'shipped' && (
+                  <button
+                    onClick={() => setShowShippingModal(true)}
+                    disabled={updatingShipping}
+                    className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition disabled:opacity-50"
+                  >
+                    <Truck className="h-4 w-4" />
+                    Mark as Shipped
+                  </button>
+                )}
+                {invoice.fulfillment_status === 'shipped' && (
+                  <>
+                    <button
+                      onClick={handleMarkDelivered}
+                      disabled={updatingShipping}
+                      className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition disabled:opacity-50"
+                    >
+                      {updatingShipping ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle className="h-4 w-4" />}
+                      Mark as Delivered
+                    </button>
+                    <button
+                      onClick={() => {
+                        setTrackingNumber(invoice.tracking_number || '');
+                        setShowShippingModal(true);
+                      }}
+                      className="flex items-center gap-2 px-4 py-2 border border-blue-300 text-blue-700 rounded-lg font-medium hover:bg-blue-100 transition"
+                    >
+                      <Edit3 className="h-4 w-4" />
+                      Update Tracking
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Shipping Modal */}
+      {showShippingModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">
+                {invoice.fulfillment_status === 'shipped' ? 'Update Tracking' : 'Mark as Shipped'}
+              </h3>
+              <button
+                onClick={() => { setShowShippingModal(false); setTrackingNumber(''); }}
+                className="p-1 hover:bg-gray-100 rounded"
+              >
+                <X className="h-5 w-5 text-gray-500" />
+              </button>
+            </div>
+            <p className="text-gray-600 text-sm mb-4">
+              {invoice.fulfillment_status === 'shipped'
+                ? 'Update the tracking number for this shipment.'
+                : 'Enter the tracking number (optional) and mark this item as shipped. The buyer will be notified.'}
+            </p>
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Tracking Number (optional)
+              </label>
+              <input
+                type="text"
+                value={trackingNumber}
+                onChange={(e) => setTrackingNumber(e.target.value)}
+                placeholder="e.g., 1Z999AA10123456784"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                Supports UPS, FedEx, USPS, and other carriers
+              </p>
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={() => { setShowShippingModal(false); setTrackingNumber(''); }}
+                className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleMarkShipped}
+                disabled={updatingShipping}
+                className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {updatingShipping ? <Loader2 className="h-4 w-4 animate-spin" /> : <Truck className="h-4 w-4" />}
+                {invoice.fulfillment_status === 'shipped' ? 'Update' : 'Mark Shipped'}
+              </button>
+            </div>
           </div>
         </div>
       )}
