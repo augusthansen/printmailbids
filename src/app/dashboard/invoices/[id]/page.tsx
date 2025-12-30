@@ -911,7 +911,7 @@ export default function InvoicePage() {
             ${invoice.shipping_amount > 0 ? `<div class="totals-row"><span>Shipping</span><span>$${invoice.shipping_amount.toLocaleString()}</span></div>` : ''}
             ${invoice.tax_amount > 0 ? `<div class="totals-row"><span>Tax</span><span>$${invoice.tax_amount.toLocaleString()}</span></div>` : ''}
             <div class="totals-row total">
-              <span>Total Due</span>
+              <span>${isReceipt ? 'Total Paid' : 'Total Due'}</span>
               <span>$${invoice.total_amount?.toLocaleString() || '0'}</span>
             </div>
           </div>
