@@ -20,10 +20,26 @@ import {
   Package,
   Settings,
   FileText,
-  ShoppingBag
+  ShoppingBag,
+  Check,
+  Trash2,
+  DollarSign,
+  Truck,
+  AlertCircle
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { createClient } from '@/lib/supabase/client';
+
+interface Notification {
+  id: string;
+  type: string;
+  title: string;
+  body: string;
+  is_read: boolean;
+  created_at: string;
+  listing_id: string | null;
+  invoice_id: string | null;
+}
 
 const categories = [
   { name: 'Mailing & Fulfillment', slug: 'mailing-fulfillment' },
@@ -48,7 +64,10 @@ export function Header() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [categoryMenuOpen, setCategoryMenuOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [notificationsLoading, setNotificationsLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<SearchSuggestion[]>([]);
   const [showSearchResults, setShowSearchResults] = useState(false);
@@ -57,6 +76,7 @@ export function Header() {
   const mobileSearchRef = useRef<HTMLDivElement>(null);
   const { user, loading, signOut, profileName } = useAuth();
   const userMenuRef = useRef<HTMLDivElement>(null);
+  const notificationsRef = useRef<HTMLDivElement>(null);
   const supabase = createClient();
 
   // Fetch unread notification count - wait for auth to be loaded
@@ -151,6 +171,9 @@ export function Header() {
       if (userMenuRef.current && !userMenuRef.current.contains(event.target as Node)) {
         setUserMenuOpen(false);
       }
+      if (notificationsRef.current && !notificationsRef.current.contains(event.target as Node)) {
+        setNotificationsOpen(false);
+      }
     }
 
     document.addEventListener('mousedown', handleClickOutside);
@@ -170,6 +193,158 @@ export function Header() {
     router.push(`/listing/${listingId}`);
     setShowSearchResults(false);
     setSearchQuery('');
+  };
+
+  // Load notifications when dropdown opens
+  const loadNotifications = async () => {
+    if (!user?.id) return;
+
+    setNotificationsLoading(true);
+    const { data, error } = await supabase
+      .from('notifications')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false })
+      .limit(10);
+
+    if (data && !error) {
+      setNotifications(data);
+    }
+    setNotificationsLoading(false);
+  };
+
+  // Toggle notifications dropdown
+  const toggleNotifications = () => {
+    if (!notificationsOpen) {
+      loadNotifications();
+    }
+    setNotificationsOpen(!notificationsOpen);
+  };
+
+  // Mark notification as read
+  const markAsRead = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    await supabase
+      .from('notifications')
+      .update({ is_read: true, read_at: new Date().toISOString() })
+      .eq('id', id);
+
+    setNotifications(notifications.map(n =>
+      n.id === id ? { ...n, is_read: true } : n
+    ));
+    setUnreadCount(prev => Math.max(0, prev - 1));
+  };
+
+  // Mark all as read
+  const markAllAsRead = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!user?.id) return;
+
+    await supabase
+      .from('notifications')
+      .update({ is_read: true, read_at: new Date().toISOString() })
+      .eq('user_id', user.id)
+      .eq('is_read', false);
+
+    setNotifications(notifications.map(n => ({ ...n, is_read: true })));
+    setUnreadCount(0);
+  };
+
+  // Delete notification
+  const deleteNotification = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const notification = notifications.find(n => n.id === id);
+
+    await supabase
+      .from('notifications')
+      .delete()
+      .eq('id', id);
+
+    setNotifications(notifications.filter(n => n.id !== id));
+    if (notification && !notification.is_read) {
+      setUnreadCount(prev => Math.max(0, prev - 1));
+    }
+  };
+
+  // Get notification destination URL
+  const getNotificationUrl = (notification: Notification): string | null => {
+    if (notification.type === 'buyer_message') {
+      return '/dashboard/messages';
+    }
+    if (notification.type === 'auction_won' && notification.invoice_id) {
+      return `/dashboard/invoices/${notification.invoice_id}`;
+    }
+    if ((notification.type === 'payment_received' || notification.type === 'payment_reminder') && notification.invoice_id) {
+      return `/dashboard/invoices/${notification.invoice_id}`;
+    }
+    if (notification.type === 'item_shipped' && notification.invoice_id) {
+      return `/dashboard/invoices/${notification.invoice_id}`;
+    }
+    if (notification.listing_id) {
+      return `/listing/${notification.listing_id}`;
+    }
+    return null;
+  };
+
+  // Handle notification click
+  const handleNotificationClick = async (notification: Notification) => {
+    if (!notification.is_read) {
+      await supabase
+        .from('notifications')
+        .update({ is_read: true, read_at: new Date().toISOString() })
+        .eq('id', notification.id);
+
+      setNotifications(notifications.map(n =>
+        n.id === notification.id ? { ...n, is_read: true } : n
+      ));
+      setUnreadCount(prev => Math.max(0, prev - 1));
+    }
+
+    const url = getNotificationUrl(notification);
+    if (url) {
+      setNotificationsOpen(false);
+      router.push(url);
+    }
+  };
+
+  // Get icon for notification type
+  const getNotificationIcon = (type: string) => {
+    switch (type) {
+      case 'new_bid':
+      case 'outbid':
+      case 'auction_won':
+      case 'auction_ended':
+        return <Gavel className="h-4 w-4 text-blue-600" />;
+      case 'new_offer':
+      case 'offer_accepted':
+      case 'offer_declined':
+      case 'payment_received':
+        return <DollarSign className="h-4 w-4 text-green-600" />;
+      case 'payment_reminder':
+        return <AlertCircle className="h-4 w-4 text-yellow-600" />;
+      case 'item_shipped':
+        return <Truck className="h-4 w-4 text-purple-600" />;
+      case 'buyer_message':
+        return <MessageSquare className="h-4 w-4 text-blue-600" />;
+      default:
+        return <Bell className="h-4 w-4 text-gray-600" />;
+    }
+  };
+
+  // Format time ago
+  const formatTimeAgo = (dateString: string) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diff = now.getTime() - date.getTime();
+
+    const minutes = Math.floor(diff / 60000);
+    const hours = Math.floor(diff / 3600000);
+    const days = Math.floor(diff / 86400000);
+
+    if (minutes < 60) return `${minutes}m`;
+    if (hours < 24) return `${hours}h`;
+    if (days < 7) return `${days}d`;
+    return date.toLocaleDateString();
   };
 
   return (
@@ -333,18 +508,113 @@ export function Header() {
                   >
                     <MessageSquare className="h-5 w-5" />
                   </Link>
-                  <Link
-                    href="/dashboard/notifications"
-                    className="relative p-2 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                    title="Notifications"
-                  >
-                    <Bell className="h-5 w-5" />
-                    {unreadCount > 0 && (
-                      <span className="absolute top-0.5 right-0.5 bg-blue-500 text-white text-xs w-4 h-4 rounded-full flex items-center justify-center font-medium">
-                        {unreadCount > 9 ? '9+' : unreadCount}
-                      </span>
+                  {/* Notifications dropdown */}
+                  <div className="relative" ref={notificationsRef}>
+                    <button
+                      onClick={toggleNotifications}
+                      className="relative p-2 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                      title="Notifications"
+                    >
+                      <Bell className="h-5 w-5" />
+                      {unreadCount > 0 && (
+                        <span className="absolute top-0.5 right-0.5 bg-blue-500 text-white text-xs w-4 h-4 rounded-full flex items-center justify-center font-medium">
+                          {unreadCount > 9 ? '9+' : unreadCount}
+                        </span>
+                      )}
+                    </button>
+                    {notificationsOpen && (
+                      <div className="absolute top-full right-0 mt-2 w-80 bg-white rounded-xl shadow-xl border border-stone-200 z-50 overflow-hidden">
+                        {/* Header */}
+                        <div className="flex items-center justify-between px-4 py-3 border-b border-stone-200 bg-stone-50/50">
+                          <h3 className="font-semibold text-slate-900">Notifications</h3>
+                          {unreadCount > 0 && (
+                            <button
+                              onClick={markAllAsRead}
+                              className="text-xs text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1"
+                            >
+                              <Check className="h-3 w-3" />
+                              Mark all read
+                            </button>
+                          )}
+                        </div>
+
+                        {/* Notifications list */}
+                        <div className="max-h-80 overflow-y-auto">
+                          {notificationsLoading ? (
+                            <div className="flex items-center justify-center py-8">
+                              <Loader2 className="h-6 w-6 text-blue-600 animate-spin" />
+                            </div>
+                          ) : notifications.length === 0 ? (
+                            <div className="py-8 text-center">
+                              <Bell className="h-10 w-10 text-stone-300 mx-auto mb-2" />
+                              <p className="text-stone-500 text-sm">No notifications</p>
+                            </div>
+                          ) : (
+                            notifications.map((notification) => {
+                              const hasDestination = getNotificationUrl(notification) !== null;
+                              return (
+                                <div
+                                  key={notification.id}
+                                  onClick={() => handleNotificationClick(notification)}
+                                  className={`flex items-start gap-3 px-4 py-3 border-b border-stone-100 last:border-0 transition-colors ${
+                                    !notification.is_read ? 'bg-blue-50/50' : ''
+                                  } ${hasDestination ? 'cursor-pointer hover:bg-stone-50' : ''}`}
+                                >
+                                  <div className={`p-1.5 rounded-lg flex-shrink-0 ${
+                                    !notification.is_read ? 'bg-blue-100' : 'bg-stone-100'
+                                  }`}>
+                                    {getNotificationIcon(notification.type)}
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <p className={`text-sm ${!notification.is_read ? 'font-medium text-slate-900' : 'text-slate-700'}`}>
+                                      {notification.title}
+                                    </p>
+                                    {notification.body && (
+                                      <p className="text-xs text-stone-500 truncate mt-0.5">
+                                        {notification.body}
+                                      </p>
+                                    )}
+                                    <p className="text-xs text-stone-400 mt-1">
+                                      {formatTimeAgo(notification.created_at)}
+                                    </p>
+                                  </div>
+                                  <div className="flex items-center gap-1 flex-shrink-0">
+                                    {!notification.is_read && (
+                                      <button
+                                        onClick={(e) => markAsRead(notification.id, e)}
+                                        className="p-1 text-stone-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                                        title="Mark as read"
+                                      >
+                                        <Check className="h-3.5 w-3.5" />
+                                      </button>
+                                    )}
+                                    <button
+                                      onClick={(e) => deleteNotification(notification.id, e)}
+                                      className="p-1 text-stone-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors"
+                                      title="Delete"
+                                    >
+                                      <Trash2 className="h-3.5 w-3.5" />
+                                    </button>
+                                  </div>
+                                </div>
+                              );
+                            })
+                          )}
+                        </div>
+
+                        {/* Footer */}
+                        <div className="px-4 py-2 border-t border-stone-200 bg-stone-50/50">
+                          <Link
+                            href="/dashboard/notifications"
+                            onClick={() => setNotificationsOpen(false)}
+                            className="block text-center text-sm text-blue-600 hover:text-blue-700 font-medium"
+                          >
+                            View all notifications
+                          </Link>
+                        </div>
+                      </div>
                     )}
-                  </Link>
+                  </div>
                 </div>
 
                 {/* User menu */}
