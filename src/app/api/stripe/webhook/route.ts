@@ -9,10 +9,16 @@ const supabaseAdmin = createClient(
 );
 
 export async function POST(request: NextRequest) {
+  console.log('Stripe webhook received');
+
   const body = await request.text();
   const signature = request.headers.get('stripe-signature');
 
+  console.log('Webhook signature present:', !!signature);
+  console.log('Webhook secret configured:', !!process.env.STRIPE_WEBHOOK_SECRET);
+
   if (!signature) {
+    console.error('Missing stripe-signature header');
     return NextResponse.json(
       { error: 'Missing stripe-signature header' },
       { status: 400 }
@@ -27,8 +33,10 @@ export async function POST(request: NextRequest) {
       signature,
       process.env.STRIPE_WEBHOOK_SECRET!
     );
+    console.log('Webhook signature verified successfully, event type:', event.type);
   } catch (err) {
     console.error('Webhook signature verification failed:', err);
+    console.error('Secret starts with:', process.env.STRIPE_WEBHOOK_SECRET?.substring(0, 10));
     return NextResponse.json(
       { error: 'Invalid signature' },
       { status: 400 }
@@ -70,9 +78,16 @@ export async function POST(request: NextRequest) {
 }
 
 async function handleCheckoutComplete(session: Stripe.Checkout.Session) {
+  console.log('handleCheckoutComplete called');
+  console.log('Session metadata:', session.metadata);
+
   const invoiceId = session.metadata?.invoice_id;
   const buyerId = session.metadata?.buyer_id;
   const sellerId = session.metadata?.seller_id;
+
+  console.log('Invoice ID:', invoiceId);
+  console.log('Buyer ID:', buyerId);
+  console.log('Seller ID:', sellerId);
 
   if (!invoiceId) {
     console.error('No invoice_id in session metadata');
@@ -80,11 +95,16 @@ async function handleCheckoutComplete(session: Stripe.Checkout.Session) {
   }
 
   // Get invoice details for notification
-  const { data: invoice } = await supabaseAdmin
+  const { data: invoice, error: fetchError } = await supabaseAdmin
     .from('invoices')
     .select('invoice_number, total_amount, listing_id')
     .eq('id', invoiceId)
     .single();
+
+  console.log('Fetched invoice:', invoice);
+  if (fetchError) {
+    console.error('Error fetching invoice:', fetchError);
+  }
 
   // Update invoice status
   const { error: invoiceError } = await supabaseAdmin
@@ -103,6 +123,8 @@ async function handleCheckoutComplete(session: Stripe.Checkout.Session) {
     console.error('Failed to update invoice:', invoiceError);
     return;
   }
+
+  console.log('Invoice updated successfully to paid status');
 
   // Create payment record
   const { error: paymentError } = await supabaseAdmin
