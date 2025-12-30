@@ -691,11 +691,11 @@ export default function InvoicePage() {
       },
       {
         id: 'paid',
-        title: 'Payment Received',
+        title: invoice.paid_at ? 'Payment Received' : 'Payment Due',
         description: invoice.paid_at
           ? `Paid via ${invoice.payment_method?.replace('_', ' ') || 'card'}`
           : `Total due: $${invoice.total_amount.toLocaleString()}`,
-        date: invoice.paid_at,
+        date: invoice.paid_at || invoice.payment_due_date,
         icon: CreditCard,
         status: invoice.paid_at ? 'completed' : (invoice.status === 'pending' ? 'current' : 'upcoming'),
       },
