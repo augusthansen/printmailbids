@@ -183,6 +183,11 @@ export default function InvoicePage() {
   const [deliveryDamageFiles, setDeliveryDamageFiles] = useState<File[]>([]);
   const [deliveryDamagePreviews, setDeliveryDamagePreviews] = useState<string[]>([]);
 
+  // Inline BOL upload state (buyer - before delivery confirmation)
+  const [inlineBolFile, setInlineBolFile] = useState<File | null>(null);
+  const [inlineBolPreview, setInlineBolPreview] = useState<string | null>(null);
+  const [uploadingInlineBol, setUploadingInlineBol] = useState(false);
+
   const isSeller = user?.id === invoice?.seller_id;
   const isBuyer = user?.id === invoice?.buyer_id;
 
@@ -646,6 +651,80 @@ export default function InvoicePage() {
       } else {
         setDeliveryBolPreview(null);
       }
+    }
+  };
+
+  // Handle inline BOL file selection (buyer - before confirming delivery)
+  const handleInlineBolChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setInlineBolFile(file);
+      if (file.type.startsWith('image/')) {
+        const url = URL.createObjectURL(file);
+        setInlineBolPreview(url);
+      } else {
+        setInlineBolPreview(null);
+      }
+    }
+  };
+
+  // Upload inline BOL without confirming delivery
+  const handleUploadInlineBol = async () => {
+    if (!invoice || !user?.id || !inlineBolFile) return;
+
+    setUploadingInlineBol(true);
+    setError(null);
+
+    try {
+      const fileExt = inlineBolFile.name.split('.').pop();
+      const fileName = `${invoice.id}/bol-${Date.now()}.${fileExt}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('documents')
+        .upload(fileName, inlineBolFile);
+
+      if (uploadError) {
+        throw new Error('Failed to upload Bill of Lading');
+      }
+
+      const { data: urlData } = supabase.storage
+        .from('documents')
+        .getPublicUrl(fileName);
+
+      // Save BOL URL to invoice
+      const { error: updateError } = await supabase
+        .from('invoices')
+        .update({
+          delivery_bol_url: urlData.publicUrl,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', invoice.id);
+
+      if (updateError) throw updateError;
+
+      // Refresh invoice data
+      const { data: refreshedInvoice } = await supabase
+        .from('invoices')
+        .select('*')
+        .eq('id', invoice.id)
+        .single();
+
+      if (refreshedInvoice) {
+        setInvoice(prev => prev ? { ...prev, ...refreshedInvoice } : prev);
+      }
+
+      // Clean up
+      setInlineBolFile(null);
+      if (inlineBolPreview) {
+        URL.revokeObjectURL(inlineBolPreview);
+        setInlineBolPreview(null);
+      }
+
+      setSuccess('Bill of Lading uploaded successfully');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to upload Bill of Lading');
+    } finally {
+      setUploadingInlineBol(false);
     }
   };
 
@@ -2455,6 +2534,110 @@ export default function InvoicePage() {
                         )}
                         {invoice.shipping_address.country && <p>{invoice.shipping_address.country}</p>}
                       </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Buyer: Upload Signed BOL (before confirming delivery) */}
+                {isBuyer && invoice.fulfillment_status === 'shipped' && !invoice.delivery_confirmed_at && (
+                  <div className="pt-4 border-t">
+                    <p className="text-sm font-medium text-gray-700 mb-2">Upload Signed Bill of Lading</p>
+                    <p className="text-sm text-gray-500 mb-3">
+                      Upload the signed BOL after receiving the shipment. You can do this before confirming full delivery.
+                    </p>
+
+                    {/* Show existing BOL if already uploaded */}
+                    {invoice.delivery_bol_url && !inlineBolFile && (
+                      <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-3">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <CheckCircle className="h-5 w-5 text-green-600" />
+                            <span className="text-sm font-medium text-green-800">BOL Uploaded</span>
+                          </div>
+                          <a
+                            href={invoice.delivery_bol_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 text-sm text-blue-600 hover:text-blue-800"
+                          >
+                            <FileText className="h-4 w-4" />
+                            View BOL
+                          </a>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Upload area */}
+                    <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center hover:border-gray-400 transition">
+                      {inlineBolFile ? (
+                        <div className="space-y-3">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                              {inlineBolPreview ? (
+                                <img src={inlineBolPreview} alt="BOL Preview" className="w-16 h-16 object-cover rounded" />
+                              ) : (
+                                <div className="w-16 h-16 bg-gray-100 rounded flex items-center justify-center">
+                                  <FileText className="h-8 w-8 text-gray-400" />
+                                </div>
+                              )}
+                              <span className="text-sm text-gray-700">{inlineBolFile.name}</span>
+                            </div>
+                            <button
+                              onClick={() => {
+                                setInlineBolFile(null);
+                                if (inlineBolPreview) URL.revokeObjectURL(inlineBolPreview);
+                                setInlineBolPreview(null);
+                              }}
+                              className="p-1 hover:bg-gray-100 rounded"
+                            >
+                              <X className="h-5 w-5 text-gray-500" />
+                            </button>
+                          </div>
+                          <button
+                            onClick={handleUploadInlineBol}
+                            disabled={uploadingInlineBol}
+                            className="w-full flex items-center justify-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            {uploadingInlineBol ? (
+                              <>
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                                Uploading...
+                              </>
+                            ) : (
+                              <>
+                                <Upload className="h-4 w-4" />
+                                Upload BOL
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      ) : (
+                        <label className="cursor-pointer">
+                          <Upload className="h-8 w-8 text-gray-400 mx-auto mb-2" />
+                          <p className="text-sm text-gray-600">Click to upload or take a photo of signed BOL</p>
+                          <p className="text-xs text-gray-500 mt-1">PDF, JPG, PNG up to 10MB</p>
+                          <input
+                            type="file"
+                            accept="image/*,.pdf"
+                            onChange={handleInlineBolChange}
+                            className="hidden"
+                          />
+                        </label>
+                      )}
+                    </div>
+
+                    {/* Confirm Delivery Button */}
+                    <div className="mt-4 pt-4 border-t border-gray-100">
+                      <button
+                        onClick={() => setShowDeliveryModal(true)}
+                        className="w-full flex items-center justify-center gap-2 bg-green-600 text-white px-4 py-3 rounded-lg font-medium hover:bg-green-700"
+                      >
+                        <CheckCircle className="h-5 w-5" />
+                        Confirm Delivery
+                      </button>
+                      <p className="text-xs text-gray-500 text-center mt-2">
+                        Confirm delivery once you&apos;ve received the item and inspected it
+                      </p>
                     </div>
                   </div>
                 )}
