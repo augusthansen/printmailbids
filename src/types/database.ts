@@ -318,6 +318,26 @@ export interface Invoice {
   tracking_number: string | null;
   shipped_at: string | null;
   delivered_at: string | null;
+  // Freight shipping fields
+  freight_bol_number: string | null;
+  freight_pro_number: string | null;
+  freight_class: string | null;
+  freight_weight_lbs: number | null;
+  freight_pickup_date: string | null;
+  freight_estimated_delivery: string | null;
+  freight_pickup_contact: {
+    name?: string;
+    phone?: string;
+    email?: string;
+    company?: string;
+  } | null;
+  freight_delivery_contact: {
+    name?: string;
+    phone?: string;
+    email?: string;
+    company?: string;
+  } | null;
+  freight_special_instructions: string | null;
   stripe_payment_intent_id: string | null;
   stripe_transfer_id: string | null;
   seller_notes: string | null;

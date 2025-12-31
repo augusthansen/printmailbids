@@ -33,6 +33,13 @@ import {
   Trash2
 } from 'lucide-react';
 
+interface FreightContact {
+  name?: string;
+  phone?: string;
+  email?: string;
+  company?: string;
+}
+
 interface Invoice {
   id: string;
   invoice_number: string;
@@ -54,6 +61,7 @@ interface Invoice {
   shipped_at: string | null;
   delivered_at: string | null;
   tracking_number: string | null;
+  shipping_carrier: string | null;
   shipping_address: {
     name?: string;
     street?: string;
@@ -73,6 +81,16 @@ interface Invoice {
   fees_submitted_at: string | null;
   fees_responded_at: string | null;
   fees_rejection_reason: string | null;
+  // Freight shipping fields
+  freight_bol_number: string | null;
+  freight_pro_number: string | null;
+  freight_class: string | null;
+  freight_weight_lbs: number | null;
+  freight_pickup_date: string | null;
+  freight_estimated_delivery: string | null;
+  freight_pickup_contact: FreightContact | null;
+  freight_delivery_contact: FreightContact | null;
+  freight_special_instructions: string | null;
   listing?: {
     id: string;
     title: string;
@@ -134,8 +152,18 @@ export default function InvoicePage() {
 
   // Shipping update state (seller)
   const [showShippingModal, setShowShippingModal] = useState(false);
-  const [trackingNumber, setTrackingNumber] = useState('');
   const [updatingShipping, setUpdatingShipping] = useState(false);
+  // Freight shipping form state
+  const [freightCarrier, setFreightCarrier] = useState('');
+  const [freightBolNumber, setFreightBolNumber] = useState('');
+  const [freightProNumber, setFreightProNumber] = useState('');
+  const [freightClass, setFreightClass] = useState('');
+  const [freightWeightLbs, setFreightWeightLbs] = useState('');
+  const [freightPickupDate, setFreightPickupDate] = useState('');
+  const [freightEstimatedDelivery, setFreightEstimatedDelivery] = useState('');
+  const [freightPickupContact, setFreightPickupContact] = useState<FreightContact>({ name: '', phone: '', email: '', company: '' });
+  const [freightDeliveryContact, setFreightDeliveryContact] = useState<FreightContact>({ name: '', phone: '', email: '', company: '' });
+  const [freightSpecialInstructions, setFreightSpecialInstructions] = useState('');
 
   const isSeller = user?.id === invoice?.seller_id;
 
@@ -450,9 +478,24 @@ export default function InvoicePage() {
         shipped_at: new Date().toISOString(),
       };
 
-      if (trackingNumber.trim()) {
-        updateData.tracking_number = trackingNumber.trim();
+      // Add freight shipping details
+      if (freightCarrier.trim()) updateData.shipping_carrier = freightCarrier.trim();
+      if (freightBolNumber.trim()) updateData.freight_bol_number = freightBolNumber.trim();
+      if (freightProNumber.trim()) {
+        updateData.freight_pro_number = freightProNumber.trim();
+        updateData.tracking_number = freightProNumber.trim(); // PRO number is the tracking number for freight
       }
+      if (freightClass.trim()) updateData.freight_class = freightClass.trim();
+      if (freightWeightLbs) updateData.freight_weight_lbs = parseInt(freightWeightLbs);
+      if (freightPickupDate) updateData.freight_pickup_date = freightPickupDate;
+      if (freightEstimatedDelivery) updateData.freight_estimated_delivery = freightEstimatedDelivery;
+      if (freightPickupContact.name || freightPickupContact.phone) {
+        updateData.freight_pickup_contact = freightPickupContact;
+      }
+      if (freightDeliveryContact.name || freightDeliveryContact.phone) {
+        updateData.freight_delivery_contact = freightDeliveryContact;
+      }
+      if (freightSpecialInstructions.trim()) updateData.freight_special_instructions = freightSpecialInstructions.trim();
 
       const { error: updateError } = await supabase
         .from('invoices')
@@ -461,12 +504,16 @@ export default function InvoicePage() {
 
       if (updateError) throw updateError;
 
+      // Build notification message
+      const trackingInfo = freightProNumber.trim() ? ` PRO #: ${freightProNumber.trim()}` : '';
+      const carrierInfo = freightCarrier.trim() ? ` via ${freightCarrier.trim()}` : '';
+
       // Notify buyer
       await supabase.from('notifications').insert({
         user_id: invoice.buyer_id,
         type: 'item_shipped',
         title: 'Item Shipped',
-        message: `Your item has been shipped!${trackingNumber.trim() ? ` Tracking: ${trackingNumber.trim()}` : ''} Check your invoice for details.`,
+        message: `Your item has been shipped${carrierInfo}!${trackingInfo} Check your invoice for freight details.`,
         related_type: 'invoice',
         related_id: invoice.id,
       });
@@ -475,15 +522,55 @@ export default function InvoicePage() {
         ...prev,
         fulfillment_status: 'shipped',
         shipped_at: new Date().toISOString(),
-        tracking_number: trackingNumber.trim() || prev.tracking_number,
+        shipping_carrier: freightCarrier.trim() || prev.shipping_carrier,
+        tracking_number: freightProNumber.trim() || prev.tracking_number,
+        freight_bol_number: freightBolNumber.trim() || prev.freight_bol_number,
+        freight_pro_number: freightProNumber.trim() || prev.freight_pro_number,
+        freight_class: freightClass.trim() || prev.freight_class,
+        freight_weight_lbs: freightWeightLbs ? parseInt(freightWeightLbs) : prev.freight_weight_lbs,
+        freight_pickup_date: freightPickupDate || prev.freight_pickup_date,
+        freight_estimated_delivery: freightEstimatedDelivery || prev.freight_estimated_delivery,
+        freight_pickup_contact: (freightPickupContact.name || freightPickupContact.phone) ? freightPickupContact : prev.freight_pickup_contact,
+        freight_delivery_contact: (freightDeliveryContact.name || freightDeliveryContact.phone) ? freightDeliveryContact : prev.freight_delivery_contact,
+        freight_special_instructions: freightSpecialInstructions.trim() || prev.freight_special_instructions,
       } : null);
       setShowShippingModal(false);
-      setTrackingNumber('');
+      resetFreightForm();
       setSuccess('Item marked as shipped! The buyer has been notified.');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to update shipping status');
     } finally {
       setUpdatingShipping(false);
+    }
+  };
+
+  // Reset freight form
+  const resetFreightForm = () => {
+    setFreightCarrier('');
+    setFreightBolNumber('');
+    setFreightProNumber('');
+    setFreightClass('');
+    setFreightWeightLbs('');
+    setFreightPickupDate('');
+    setFreightEstimatedDelivery('');
+    setFreightPickupContact({ name: '', phone: '', email: '', company: '' });
+    setFreightDeliveryContact({ name: '', phone: '', email: '', company: '' });
+    setFreightSpecialInstructions('');
+  };
+
+  // Initialize freight form when editing existing shipment
+  const initFreightFormFromInvoice = () => {
+    if (invoice) {
+      setFreightCarrier(invoice.shipping_carrier || '');
+      setFreightBolNumber(invoice.freight_bol_number || '');
+      setFreightProNumber(invoice.freight_pro_number || invoice.tracking_number || '');
+      setFreightClass(invoice.freight_class || '');
+      setFreightWeightLbs(invoice.freight_weight_lbs?.toString() || '');
+      setFreightPickupDate(invoice.freight_pickup_date || '');
+      setFreightEstimatedDelivery(invoice.freight_estimated_delivery || '');
+      setFreightPickupContact(invoice.freight_pickup_contact || { name: '', phone: '', email: '', company: '' });
+      setFreightDeliveryContact(invoice.freight_delivery_contact || { name: '', phone: '', email: '', company: '' });
+      setFreightSpecialInstructions(invoice.freight_special_instructions || '');
     }
   };
 
@@ -1210,13 +1297,13 @@ export default function InvoicePage() {
                     </button>
                     <button
                       onClick={() => {
-                        setTrackingNumber(invoice.tracking_number || '');
+                        initFreightFormFromInvoice();
                         setShowShippingModal(true);
                       }}
                       className="flex items-center gap-2 px-4 py-2 border border-blue-300 text-blue-700 rounded-lg font-medium hover:bg-blue-100 transition"
                     >
                       <Edit3 className="h-4 w-4" />
-                      Update Tracking
+                      Update Freight Details
                     </button>
                   </>
                 )}
@@ -1226,55 +1313,263 @@ export default function InvoicePage() {
         </div>
       )}
 
-      {/* Shipping Modal */}
+      {/* Freight Shipping Modal */}
       {showShippingModal && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6">
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full p-6 my-8">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold text-gray-900">
-                {invoice.fulfillment_status === 'shipped' ? 'Update Tracking' : 'Mark as Shipped'}
+                {invoice.fulfillment_status === 'shipped' ? 'Update Freight Details' : 'Enter Freight Shipping Details'}
               </h3>
               <button
-                onClick={() => { setShowShippingModal(false); setTrackingNumber(''); }}
+                onClick={() => { setShowShippingModal(false); resetFreightForm(); }}
                 className="p-1 hover:bg-gray-100 rounded"
               >
                 <X className="h-5 w-5 text-gray-500" />
               </button>
             </div>
-            <p className="text-gray-600 text-sm mb-4">
-              {invoice.fulfillment_status === 'shipped'
-                ? 'Update the tracking number for this shipment.'
-                : 'Enter the tracking number (optional) and mark this item as shipped. The buyer will be notified.'}
+            <p className="text-gray-600 text-sm mb-6">
+              Enter the freight shipping details for this equipment. The buyer will be notified with this information.
             </p>
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Tracking Number (optional)
-              </label>
-              <input
-                type="text"
-                value={trackingNumber}
-                onChange={(e) => setTrackingNumber(e.target.value)}
-                placeholder="e.g., 1Z999AA10123456784"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              />
-              <p className="text-xs text-gray-500 mt-1">
-                Supports UPS, FedEx, USPS, and other carriers
-              </p>
+
+            <div className="space-y-6 max-h-[60vh] overflow-y-auto pr-2">
+              {/* Carrier & Tracking */}
+              <div>
+                <h4 className="font-medium text-gray-900 mb-3">Carrier & Tracking</h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Freight Carrier <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={freightCarrier}
+                      onChange={(e) => setFreightCarrier(e.target.value)}
+                      placeholder="e.g., XPO Logistics, Old Dominion, ABF"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      PRO Number (Tracking)
+                    </label>
+                    <input
+                      type="text"
+                      value={freightProNumber}
+                      onChange={(e) => setFreightProNumber(e.target.value)}
+                      placeholder="e.g., 123456789"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Bill of Lading (BOL) Number
+                    </label>
+                    <input
+                      type="text"
+                      value={freightBolNumber}
+                      onChange={(e) => setFreightBolNumber(e.target.value)}
+                      placeholder="e.g., BOL-2024-12345"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Freight Class
+                    </label>
+                    <select
+                      value={freightClass}
+                      onChange={(e) => setFreightClass(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    >
+                      <option value="">Select freight class</option>
+                      <option value="50">Class 50 (Clean freight)</option>
+                      <option value="55">Class 55</option>
+                      <option value="60">Class 60</option>
+                      <option value="65">Class 65</option>
+                      <option value="70">Class 70</option>
+                      <option value="77.5">Class 77.5</option>
+                      <option value="85">Class 85</option>
+                      <option value="92.5">Class 92.5</option>
+                      <option value="100">Class 100</option>
+                      <option value="110">Class 110</option>
+                      <option value="125">Class 125</option>
+                      <option value="150">Class 150</option>
+                      <option value="175">Class 175</option>
+                      <option value="200">Class 200</option>
+                      <option value="250">Class 250</option>
+                      <option value="300">Class 300</option>
+                      <option value="400">Class 400</option>
+                      <option value="500">Class 500 (Low density)</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              {/* Weight & Dates */}
+              <div>
+                <h4 className="font-medium text-gray-900 mb-3">Weight & Schedule</h4>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Weight (lbs)
+                    </label>
+                    <input
+                      type="number"
+                      value={freightWeightLbs}
+                      onChange={(e) => setFreightWeightLbs(e.target.value)}
+                      placeholder="e.g., 5000"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Pickup Date
+                    </label>
+                    <input
+                      type="date"
+                      value={freightPickupDate}
+                      onChange={(e) => setFreightPickupDate(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Est. Delivery Date
+                    </label>
+                    <input
+                      type="date"
+                      value={freightEstimatedDelivery}
+                      onChange={(e) => setFreightEstimatedDelivery(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Pickup Contact */}
+              <div>
+                <h4 className="font-medium text-gray-900 mb-3">Pickup Contact (Shipper)</h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Contact Name</label>
+                    <input
+                      type="text"
+                      value={freightPickupContact.name || ''}
+                      onChange={(e) => setFreightPickupContact(prev => ({ ...prev, name: e.target.value }))}
+                      placeholder="Name"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Company</label>
+                    <input
+                      type="text"
+                      value={freightPickupContact.company || ''}
+                      onChange={(e) => setFreightPickupContact(prev => ({ ...prev, company: e.target.value }))}
+                      placeholder="Company name"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
+                    <input
+                      type="tel"
+                      value={freightPickupContact.phone || ''}
+                      onChange={(e) => setFreightPickupContact(prev => ({ ...prev, phone: e.target.value }))}
+                      placeholder="(555) 123-4567"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                    <input
+                      type="email"
+                      value={freightPickupContact.email || ''}
+                      onChange={(e) => setFreightPickupContact(prev => ({ ...prev, email: e.target.value }))}
+                      placeholder="email@company.com"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Delivery Contact */}
+              <div>
+                <h4 className="font-medium text-gray-900 mb-3">Delivery Contact (Consignee)</h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Contact Name</label>
+                    <input
+                      type="text"
+                      value={freightDeliveryContact.name || ''}
+                      onChange={(e) => setFreightDeliveryContact(prev => ({ ...prev, name: e.target.value }))}
+                      placeholder="Name"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Company</label>
+                    <input
+                      type="text"
+                      value={freightDeliveryContact.company || ''}
+                      onChange={(e) => setFreightDeliveryContact(prev => ({ ...prev, company: e.target.value }))}
+                      placeholder="Company name"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
+                    <input
+                      type="tel"
+                      value={freightDeliveryContact.phone || ''}
+                      onChange={(e) => setFreightDeliveryContact(prev => ({ ...prev, phone: e.target.value }))}
+                      placeholder="(555) 123-4567"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                    <input
+                      type="email"
+                      value={freightDeliveryContact.email || ''}
+                      onChange={(e) => setFreightDeliveryContact(prev => ({ ...prev, email: e.target.value }))}
+                      placeholder="email@company.com"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Special Instructions */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Special Instructions / Notes
+                </label>
+                <textarea
+                  value={freightSpecialInstructions}
+                  onChange={(e) => setFreightSpecialInstructions(e.target.value)}
+                  placeholder="e.g., Liftgate required, call before delivery, dock hours 8am-4pm..."
+                  rows={3}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
             </div>
-            <div className="flex gap-3">
+
+            <div className="flex gap-3 mt-6 pt-4 border-t">
               <button
-                onClick={() => { setShowShippingModal(false); setTrackingNumber(''); }}
+                onClick={() => { setShowShippingModal(false); resetFreightForm(); }}
                 className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50"
               >
                 Cancel
               </button>
               <button
                 onClick={handleMarkShipped}
-                disabled={updatingShipping}
+                disabled={updatingShipping || !freightCarrier.trim()}
                 className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 flex items-center justify-center gap-2"
               >
                 {updatingShipping ? <Loader2 className="h-4 w-4 animate-spin" /> : <Truck className="h-4 w-4" />}
-                {invoice.fulfillment_status === 'shipped' ? 'Update' : 'Mark Shipped'}
+                {invoice.fulfillment_status === 'shipped' ? 'Update Shipment' : 'Mark as Shipped'}
               </button>
             </div>
           </div>
@@ -1584,55 +1879,162 @@ export default function InvoicePage() {
             </div>
           </div>
 
-          {/* Shipping Details (if shipped) */}
-          {(invoice.shipped_at || invoice.tracking_number) && (
+          {/* Freight Shipping Details (if shipped) */}
+          {(invoice.shipped_at || invoice.shipping_carrier || invoice.freight_bol_number) && (
             <div className="bg-white rounded-xl shadow-sm border p-6">
               <h2 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
                 <Truck className="h-5 w-5 text-blue-600" />
-                Shipping Details
+                Freight Shipping Details
               </h2>
 
-              <div className="grid sm:grid-cols-2 gap-4">
-                {invoice.tracking_number && (
-                  <div>
-                    <p className="text-sm text-gray-500">Tracking Number</p>
-                    <div className="flex items-center gap-2">
-                      <p className="font-mono font-medium text-gray-900">{invoice.tracking_number}</p>
-                      {carrier && (
-                        <a
-                          href={carrier.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-blue-600 hover:text-blue-700"
-                        >
-                          <ExternalLink className="h-4 w-4" />
-                        </a>
-                      )}
+              <div className="space-y-6">
+                {/* Carrier & Tracking Row */}
+                <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                  {invoice.shipping_carrier && (
+                    <div>
+                      <p className="text-sm text-gray-500">Carrier</p>
+                      <p className="font-medium text-gray-900">{invoice.shipping_carrier}</p>
                     </div>
-                    {carrier && <p className="text-xs text-gray-500 mt-1">via {carrier.name}</p>}
+                  )}
+
+                  {(invoice.freight_pro_number || invoice.tracking_number) && (
+                    <div>
+                      <p className="text-sm text-gray-500">PRO Number</p>
+                      <p className="font-mono font-medium text-gray-900">{invoice.freight_pro_number || invoice.tracking_number}</p>
+                    </div>
+                  )}
+
+                  {invoice.freight_bol_number && (
+                    <div>
+                      <p className="text-sm text-gray-500">Bill of Lading</p>
+                      <p className="font-mono font-medium text-gray-900">{invoice.freight_bol_number}</p>
+                    </div>
+                  )}
+
+                  {invoice.freight_class && (
+                    <div>
+                      <p className="text-sm text-gray-500">Freight Class</p>
+                      <p className="font-medium text-gray-900">Class {invoice.freight_class}</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Weight & Dates Row */}
+                <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                  {invoice.freight_weight_lbs && (
+                    <div>
+                      <p className="text-sm text-gray-500">Weight</p>
+                      <p className="font-medium text-gray-900">{invoice.freight_weight_lbs.toLocaleString()} lbs</p>
+                    </div>
+                  )}
+
+                  {invoice.shipped_at && (
+                    <div>
+                      <p className="text-sm text-gray-500">Shipped Date</p>
+                      <p className="font-medium text-gray-900">{formatDate(invoice.shipped_at)}</p>
+                    </div>
+                  )}
+
+                  {invoice.freight_pickup_date && (
+                    <div>
+                      <p className="text-sm text-gray-500">Pickup Date</p>
+                      <p className="font-medium text-gray-900">{formatDate(invoice.freight_pickup_date)}</p>
+                    </div>
+                  )}
+
+                  {invoice.freight_estimated_delivery && (
+                    <div>
+                      <p className="text-sm text-gray-500">Est. Delivery</p>
+                      <p className="font-medium text-gray-900">{formatDate(invoice.freight_estimated_delivery)}</p>
+                    </div>
+                  )}
+
+                  {invoice.delivered_at && (
+                    <div>
+                      <p className="text-sm text-gray-500">Delivered Date</p>
+                      <p className="font-medium text-green-600">{formatDate(invoice.delivered_at)}</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Contacts Row */}
+                {(invoice.freight_pickup_contact || invoice.freight_delivery_contact) && (
+                  <div className="grid sm:grid-cols-2 gap-4 pt-4 border-t">
+                    {invoice.freight_pickup_contact && (invoice.freight_pickup_contact.name || invoice.freight_pickup_contact.phone) && (
+                      <div>
+                        <p className="text-sm font-medium text-gray-700 mb-2">Pickup Contact (Shipper)</p>
+                        <div className="bg-gray-50 rounded-lg p-3 text-sm">
+                          {invoice.freight_pickup_contact.name && (
+                            <p className="font-medium text-gray-900">{invoice.freight_pickup_contact.name}</p>
+                          )}
+                          {invoice.freight_pickup_contact.company && (
+                            <p className="text-gray-600">{invoice.freight_pickup_contact.company}</p>
+                          )}
+                          {invoice.freight_pickup_contact.phone && (
+                            <p className="text-gray-600">
+                              <a href={`tel:${invoice.freight_pickup_contact.phone}`} className="text-blue-600 hover:underline">
+                                {invoice.freight_pickup_contact.phone}
+                              </a>
+                            </p>
+                          )}
+                          {invoice.freight_pickup_contact.email && (
+                            <p className="text-gray-600">
+                              <a href={`mailto:${invoice.freight_pickup_contact.email}`} className="text-blue-600 hover:underline">
+                                {invoice.freight_pickup_contact.email}
+                              </a>
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {invoice.freight_delivery_contact && (invoice.freight_delivery_contact.name || invoice.freight_delivery_contact.phone) && (
+                      <div>
+                        <p className="text-sm font-medium text-gray-700 mb-2">Delivery Contact (Consignee)</p>
+                        <div className="bg-gray-50 rounded-lg p-3 text-sm">
+                          {invoice.freight_delivery_contact.name && (
+                            <p className="font-medium text-gray-900">{invoice.freight_delivery_contact.name}</p>
+                          )}
+                          {invoice.freight_delivery_contact.company && (
+                            <p className="text-gray-600">{invoice.freight_delivery_contact.company}</p>
+                          )}
+                          {invoice.freight_delivery_contact.phone && (
+                            <p className="text-gray-600">
+                              <a href={`tel:${invoice.freight_delivery_contact.phone}`} className="text-blue-600 hover:underline">
+                                {invoice.freight_delivery_contact.phone}
+                              </a>
+                            </p>
+                          )}
+                          {invoice.freight_delivery_contact.email && (
+                            <p className="text-gray-600">
+                              <a href={`mailto:${invoice.freight_delivery_contact.email}`} className="text-blue-600 hover:underline">
+                                {invoice.freight_delivery_contact.email}
+                              </a>
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
 
-                {invoice.shipped_at && (
-                  <div>
-                    <p className="text-sm text-gray-500">Shipped Date</p>
-                    <p className="font-medium text-gray-900">{formatDate(invoice.shipped_at)}</p>
+                {/* Special Instructions */}
+                {invoice.freight_special_instructions && (
+                  <div className="pt-4 border-t">
+                    <p className="text-sm font-medium text-gray-700 mb-2">Special Instructions</p>
+                    <p className="text-gray-600 bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-sm">
+                      {invoice.freight_special_instructions}
+                    </p>
                   </div>
                 )}
 
-                {invoice.delivered_at && (
-                  <div>
-                    <p className="text-sm text-gray-500">Delivered Date</p>
-                    <p className="font-medium text-gray-900">{formatDate(invoice.delivered_at)}</p>
-                  </div>
-                )}
-
+                {/* Shipping Address */}
                 {invoice.shipping_address && (
-                  <div className="sm:col-span-2">
-                    <p className="text-sm text-gray-500 mb-1">Shipping Address</p>
+                  <div className="pt-4 border-t">
+                    <p className="text-sm font-medium text-gray-700 mb-2">Delivery Address</p>
                     <div className="flex items-start gap-2">
                       <MapPin className="h-4 w-4 text-gray-400 mt-0.5 flex-shrink-0" />
-                      <div className="text-gray-900">
+                      <div className="text-gray-900 text-sm">
                         {invoice.shipping_address.name && <p className="font-medium">{invoice.shipping_address.name}</p>}
                         {invoice.shipping_address.street && <p>{invoice.shipping_address.street}</p>}
                         {(invoice.shipping_address.city || invoice.shipping_address.state || invoice.shipping_address.zip) && (
