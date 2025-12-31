@@ -17,7 +17,8 @@ import {
   MapPin,
   Loader2,
   FileText,
-  DollarSign
+  DollarSign,
+  ClipboardCheck
 } from 'lucide-react';
 
 type InvoiceStatus = 'pending' | 'paid' | 'overdue' | 'cancelled' | 'refunded';
@@ -474,11 +475,22 @@ export default function PurchasesPage() {
                       </div>
                     )}
 
-                    {purchase.fulfillment_status === 'shipped' && purchase.tracking_number && (
-                      <div className="text-right">
-                        <p className="text-sm text-gray-500">Tracking</p>
-                        <p className="text-sm font-medium text-blue-600">{purchase.tracking_number}</p>
-                      </div>
+                    {purchase.fulfillment_status === 'shipped' && (
+                      <>
+                        {purchase.tracking_number && (
+                          <div className="text-right">
+                            <p className="text-sm text-gray-500">Tracking</p>
+                            <p className="text-sm font-medium text-blue-600">{purchase.tracking_number}</p>
+                          </div>
+                        )}
+                        <Link
+                          href={`/dashboard/invoices/${purchase.id}#shipping-details`}
+                          className="inline-flex items-center gap-1 bg-purple-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-purple-700 transition-colors"
+                        >
+                          <ClipboardCheck className="h-4 w-4" />
+                          Shipping Details
+                        </Link>
+                      </>
                     )}
 
                     {purchase.fees_status === 'pending_approval' && (
