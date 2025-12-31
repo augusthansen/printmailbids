@@ -86,7 +86,7 @@ export default function PurchasesPage() {
         return;
       }
 
-      // Get invoices with joined listing and seller data
+      // Get invoices first
       const { data: invoicesData, error: invoicesError } = await supabase
         .from('invoices')
         .select(`
@@ -106,18 +106,7 @@ export default function PurchasesPage() {
           shipped_at,
           tracking_number,
           delivered_at,
-          created_at,
-          listing:listings!listing_id (
-            id,
-            title,
-            city,
-            state
-          ),
-          seller:profiles!seller_id (
-            id,
-            full_name,
-            company_name
-          )
+          created_at
         `)
         .eq('buyer_id', user.id)
         .order('created_at', { ascending: false });
@@ -134,16 +123,43 @@ export default function PurchasesPage() {
         return;
       }
 
-      // The data comes back with listing and seller already nested correctly
-      const purchasesWithDetails = invoicesData.map((invoice: {
-        listing_id: string;
-        seller_id: string;
-        listing: { id: string; title: string; city: string | null; state: string | null } | null;
-        seller: { id: string; full_name: string | null; company_name: string | null } | null;
-      }) => ({
+      // Get unique listing and seller IDs
+      const listingIds = [...new Set(invoicesData.map((i: { listing_id: string }) => i.listing_id).filter(Boolean))];
+      const sellerIds = [...new Set(invoicesData.map((i: { seller_id: string }) => i.seller_id).filter(Boolean))];
+
+      // Fetch listings - use individual queries since RLS now allows buyer access
+      let listingsData: { id: string; title: string; city: string | null; state: string | null }[] = [];
+      if (listingIds.length > 0) {
+        const listingsPromises = listingIds.map(id =>
+          supabase.from('listings').select('id, title, city, state').eq('id', id).single()
+        );
+        const results = await Promise.all(listingsPromises);
+        listingsData = results
+          .filter(r => r.data && !r.error)
+          .map(r => r.data as { id: string; title: string; city: string | null; state: string | null });
+      }
+
+      // Fetch sellers
+      let sellersData: { id: string; full_name: string | null; company_name: string | null }[] = [];
+      if (sellerIds.length > 0) {
+        const sellersPromises = sellerIds.map(id =>
+          supabase.from('profiles').select('id, full_name, company_name').eq('id', id).single()
+        );
+        const results = await Promise.all(sellersPromises);
+        sellersData = results
+          .filter(r => r.data && !r.error)
+          .map(r => r.data as { id: string; full_name: string | null; company_name: string | null });
+      }
+
+      // Create lookup maps
+      const listingsMap = new Map(listingsData.map(l => [l.id, l]));
+      const sellersMap = new Map(sellersData.map(s => [s.id, s]));
+
+      // Merge data
+      const purchasesWithDetails = invoicesData.map((invoice: { listing_id: string; seller_id: string }) => ({
         ...invoice,
-        listing: invoice.listing,
-        seller: invoice.seller
+        listing: listingsMap.get(invoice.listing_id) || null,
+        seller: sellersMap.get(invoice.seller_id) || null
       }));
 
       setPurchases(purchasesWithDetails as Purchase[]);
