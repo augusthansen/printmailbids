@@ -760,7 +760,10 @@ export default function DashboardPage() {
       ) : (
         // Buyer Stats
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="bg-white rounded-2xl p-6 shadow-sm border border-stone-200/50 hover:shadow-md transition-shadow">
+          <Link
+            href="/dashboard/bids"
+            className="bg-white rounded-2xl p-6 shadow-sm border border-stone-200/50 hover:shadow-md hover:border-blue-300 transition-all"
+          >
             <div className="flex items-center justify-between mb-4">
               <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-blue-100">
                 <Gavel className="h-6 w-6 text-blue-600" />
@@ -776,9 +779,12 @@ export default function DashboardPage() {
             {buyerStats.outbidCount > 0 && (
               <p className="text-xs text-red-500 mt-0.5">{buyerStats.outbidCount} outbid</p>
             )}
-          </div>
+          </Link>
 
-          <div className="bg-white rounded-2xl p-6 shadow-sm border border-stone-200/50 hover:shadow-md transition-shadow">
+          <Link
+            href="/dashboard/watchlist"
+            className="bg-white rounded-2xl p-6 shadow-sm border border-stone-200/50 hover:shadow-md hover:border-red-300 transition-all"
+          >
             <div className="flex items-center justify-between mb-4">
               <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-red-100">
                 <Heart className="h-6 w-6 text-red-600" />
@@ -787,9 +793,12 @@ export default function DashboardPage() {
             <p className="text-3xl font-bold text-slate-900">{buyerStats.watchlistCount}</p>
             <p className="text-sm text-slate-600 font-medium mt-1">Watchlist</p>
             <p className="text-xs text-stone-500 mt-0.5">items saved</p>
-          </div>
+          </Link>
 
-          <div className="bg-white rounded-2xl p-6 shadow-sm border border-stone-200/50 hover:shadow-md transition-shadow">
+          <Link
+            href="/dashboard/purchases?status=pending"
+            className="bg-white rounded-2xl p-6 shadow-sm border border-stone-200/50 hover:shadow-md hover:border-yellow-300 transition-all"
+          >
             <div className="flex items-center justify-between mb-4">
               <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-yellow-100">
                 <CreditCard className="h-6 w-6 text-yellow-600" />
@@ -805,9 +814,12 @@ export default function DashboardPage() {
             <p className="text-xs text-stone-500 mt-0.5">
               {buyerStats.pendingPaymentAmount > 0 ? `$${buyerStats.pendingPaymentAmount.toLocaleString()} due` : 'All paid'}
             </p>
-          </div>
+          </Link>
 
-          <div className="bg-white rounded-2xl p-6 shadow-sm border border-stone-200/50 hover:shadow-md transition-shadow">
+          <Link
+            href="/dashboard/my-offers"
+            className="bg-white rounded-2xl p-6 shadow-sm border border-stone-200/50 hover:shadow-md hover:border-green-300 transition-all"
+          >
             <div className="flex items-center justify-between mb-4">
               <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-green-100">
                 <Send className="h-6 w-6 text-green-600" />
@@ -820,10 +832,8 @@ export default function DashboardPage() {
             </div>
             <p className="text-3xl font-bold text-slate-900">{buyerStats.pendingOffers}</p>
             <p className="text-sm text-slate-600 font-medium mt-1">Pending Offers</p>
-            <Link href="/dashboard/my-offers" className="text-xs text-blue-600 hover:text-blue-700 mt-0.5 inline-block">
-              View offers →
-            </Link>
-          </div>
+            <p className="text-xs text-green-600 mt-0.5">View offers →</p>
+          </Link>
         </div>
       )}
 

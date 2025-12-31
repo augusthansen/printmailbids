@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useState, useEffect, useMemo } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { createClient } from '@/lib/supabase/client';
 import {
@@ -72,11 +73,20 @@ const fulfillmentConfig: Record<string, { label: string; color: string; icon: Re
 
 export default function PurchasesPage() {
   const { user, loading: authLoading } = useAuth();
+  const searchParams = useSearchParams();
   const supabase = useMemo(() => createClient(), []);
   const [purchases, setPurchases] = useState<Purchase[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Check for status param on mount
+  useEffect(() => {
+    const status = searchParams.get('status');
+    if (status && ['pending', 'paid', 'shipped', 'delivered'].includes(status)) {
+      setStatusFilter(status);
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     async function loadPurchases() {
