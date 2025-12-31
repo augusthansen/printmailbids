@@ -784,11 +784,28 @@ export default function InvoicePage() {
   useEffect(() => {
     const paymentStatus = searchParams.get('payment');
     if (paymentStatus === 'success') {
-      setSuccess('Payment successful! The seller has been notified.');
+      // Verify and process payment (fallback if webhook didn't fire)
+      fetch('/api/stripe/verify-payment', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ invoiceId }),
+      })
+        .then(res => res.json())
+        .then(data => {
+          if (data.success) {
+            setSuccess('Payment successful! The seller has been notified.');
+            // Reload invoice to get updated status
+            window.location.href = `/dashboard/invoices/${invoiceId}`;
+          }
+        })
+        .catch(err => {
+          console.error('Payment verification error:', err);
+          setSuccess('Payment successful! The seller has been notified.');
+        });
     } else if (paymentStatus === 'cancelled') {
       setError('Payment was cancelled. You can try again when ready.');
     }
-  }, [searchParams]);
+  }, [searchParams, invoiceId]);
 
   // Auto-open shipping modal when action=ship
   useEffect(() => {
