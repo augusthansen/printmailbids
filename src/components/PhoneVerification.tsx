@@ -254,7 +254,10 @@ export default function PhoneVerification({
               disabled={loading}
             />
             <p className="mt-1 text-xs text-gray-500">
-              US phone numbers only. Standard SMS rates may apply.
+              US phone numbers only. By clicking &quot;Send Verification Code,&quot; you agree to receive SMS messages from PrintMailBids.com. Message and data rates may apply. See our{' '}
+              <a href="/sms-terms" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
+                SMS Terms
+              </a>.
             </p>
           </div>
 

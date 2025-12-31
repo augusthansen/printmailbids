@@ -254,13 +254,19 @@ export default function PrivacyPage() {
           </div>
 
           {/* Section 16 */}
-          <h2 className="text-xl font-semibold text-slate-900 mt-8 mb-4">16. Terms and Conditions</h2>
+          <h2 className="text-xl font-semibold text-slate-900 mt-8 mb-4">16. SMS Messaging</h2>
+          <p className="text-stone-600 mb-4">
+            If you provide your mobile phone number and opt in to receive SMS messages from PrintMailBids.com, your phone number will be used to send you verification codes, transaction alerts, auction notifications, and other service-related messages. For complete details about our SMS messaging practices, including how to opt out, please review our <a href="/sms-terms" className="text-blue-600 hover:underline">SMS Terms & Conditions</a>.
+          </p>
+
+          {/* Section 17 */}
+          <h2 className="text-xl font-semibold text-slate-900 mt-8 mb-4">17. Terms and Conditions</h2>
           <p className="text-stone-600 mb-4">
             This Privacy Policy is incorporated into and subject to our Terms and Conditions. Please review our <a href="/terms" className="text-blue-600 hover:underline">Terms and Conditions</a> for additional information about your rights and obligations when using the Platform.
           </p>
 
-          {/* Section 17 */}
-          <h2 className="text-xl font-semibold text-slate-900 mt-8 mb-4">17. Your Consent</h2>
+          {/* Section 18 */}
+          <h2 className="text-xl font-semibold text-slate-900 mt-8 mb-4">18. Your Consent</h2>
           <p className="text-stone-600 mb-4">
             By using PrintMailBids.com, you signify your acceptance of this Privacy Policy. If you do not agree to this Privacy Policy, please do not use our Website or services.
           </p>
