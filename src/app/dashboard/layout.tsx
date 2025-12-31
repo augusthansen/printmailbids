@@ -45,7 +45,7 @@ const sidebarSections: SidebarSection[] = [
   {
     title: '',
     links: [
-      { href: '/dashboard', label: 'Overview', icon: LayoutDashboard },
+      { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
     ],
   },
   {

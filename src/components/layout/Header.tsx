@@ -1292,7 +1292,7 @@ export function Header() {
                   <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Dashboard</p>
                   <div className="grid grid-cols-2 gap-1.5">
                     <Link href="/dashboard" onClick={() => setMobileMenuOpen(false)} className="flex items-center gap-2 text-sm text-slate-300 hover:text-blue-400 py-2 px-2 rounded hover:bg-slate-800 transition-colors">
-                      <LayoutDashboard className="h-4 w-4" /> Overview
+                      <LayoutDashboard className="h-4 w-4" /> Dashboard
                     </Link>
                     <Link href="/dashboard/bids" onClick={() => setMobileMenuOpen(false)} className="flex items-center gap-2 text-sm text-slate-300 hover:text-blue-400 py-2 px-2 rounded hover:bg-slate-800 transition-colors">
                       <Gavel className="h-4 w-4" /> My Bids

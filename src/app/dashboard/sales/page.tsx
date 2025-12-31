@@ -78,11 +78,28 @@ export default function SalesPage() {
   const [fulfillmentFilter, setFulfillmentFilter] = useState<FulfillmentStatus | 'needs_shipping' | 'all'>('all');
   const [searchQuery, setSearchQuery] = useState('');
 
+  // Type for active pipeline filter
+  type PipelineFilter = 'awaiting_payment' | 'ready_to_ship' | 'in_transit' | 'delivered' | null;
+  const [activePipeline, setActivePipeline] = useState<PipelineFilter>(null);
+
   // Check for filter param on mount
   useEffect(() => {
     const filter = searchParams.get('filter');
+    const pipeline = searchParams.get('pipeline');
+
     if (filter === 'needs_shipping') {
       setFulfillmentFilter('needs_shipping');
+      setActivePipeline('ready_to_ship');
+    } else if (pipeline === 'awaiting_payment') {
+      setStatusFilter('pending');
+      setFulfillmentFilter('all');
+      setActivePipeline('awaiting_payment');
+    } else if (pipeline === 'in_transit') {
+      setFulfillmentFilter('shipped');
+      setActivePipeline('in_transit');
+    } else if (pipeline === 'delivered') {
+      setFulfillmentFilter('delivered');
+      setActivePipeline('delivered');
     }
   }, [searchParams]);
 
@@ -127,28 +144,36 @@ export default function SalesPage() {
           return;
         }
 
-        // Fetch listing and buyer details separately
-        const listingIds = [...new Set(invoicesData.map((inv: { listing_id: string }) => inv.listing_id))];
-        const buyerIds = [...new Set(invoicesData.map((inv: { buyer_id: string }) => inv.buyer_id))];
+        // Fetch listing and buyer details separately - use individual queries to avoid .in() issues
+        const listingIds = [...new Set(invoicesData.map((inv: { listing_id: string }) => inv.listing_id).filter(Boolean))];
+        const buyerIds = [...new Set(invoicesData.map((inv: { buyer_id: string }) => inv.buyer_id).filter(Boolean))];
 
-        const [listingsResult, buyersResult] = await Promise.all([
-          supabase
-            .from('listings')
-            .select('id, title')
-            .in('id', listingIds),
-          supabase
-            .from('profiles')
-            .select('id, full_name, company_name, email')
-            .in('id', buyerIds),
-        ]);
+        let listingsData: { id: string; title: string }[] = [];
+        let buyersData: { id: string; full_name: string | null; company_name: string | null; email: string | null }[] = [];
+
+        if (listingIds.length > 0) {
+          const listingsPromises = listingIds.map(id =>
+            supabase.from('listings').select('id, title').eq('id', id).single()
+          );
+          const results = await Promise.all(listingsPromises);
+          listingsData = results
+            .filter(r => r.data && !r.error)
+            .map(r => r.data as { id: string; title: string });
+        }
+
+        if (buyerIds.length > 0) {
+          const buyersPromises = buyerIds.map(id =>
+            supabase.from('profiles').select('id, full_name, company_name, email').eq('id', id).single()
+          );
+          const results = await Promise.all(buyersPromises);
+          buyersData = results
+            .filter(r => r.data && !r.error)
+            .map(r => r.data as { id: string; full_name: string | null; company_name: string | null; email: string | null });
+        }
 
         // Create lookup maps
-        const listingsMap = new Map(
-          (listingsResult.data || []).map((l: { id: string }) => [l.id, l])
-        );
-        const buyersMap = new Map(
-          (buyersResult.data || []).map((b: { id: string }) => [b.id, b])
-        );
+        const listingsMap = new Map(listingsData.map(l => [l.id, l]));
+        const buyersMap = new Map(buyersData.map(b => [b.id, b]));
 
         // Merge data
         const salesWithDetails: Sale[] = invoicesData.map((invoice: { listing_id: string; buyer_id: string }) => ({
@@ -195,16 +220,43 @@ export default function SalesPage() {
     .filter(s => s.status !== 'cancelled' && s.status !== 'refunded')
     .reduce((acc, s) => acc + (s.seller_payout_amount || 0), 0);
 
-  const pendingPayments = sales
-    .filter(s => s.status === 'pending')
-    .reduce((acc, s) => acc + (s.seller_payout_amount || 0), 0);
+  // Pipeline stage counts
+  const awaitingPaymentCount = sales.filter(s => s.status === 'pending').length;
 
-  const readyToShip = sales.filter(s =>
+  const readyToShipCount = sales.filter(s =>
     s.status === 'paid' &&
     (s.fulfillment_status === 'awaiting_payment' || s.fulfillment_status === 'processing')
   ).length;
 
-  const completedSales = sales.filter(s => s.fulfillment_status === 'delivered').length;
+  const inTransitCount = sales.filter(s => s.fulfillment_status === 'shipped').length;
+
+  const deliveredCount = sales.filter(s => s.fulfillment_status === 'delivered').length;
+
+  // Handle pipeline card click
+  const handlePipelineClick = (filter: PipelineFilter) => {
+    if (activePipeline === filter) {
+      // Clear filter if clicking same card
+      setActivePipeline(null);
+      setFulfillmentFilter('all');
+      setStatusFilter('all');
+    } else {
+      setActivePipeline(filter);
+      // Set appropriate filters based on pipeline stage
+      if (filter === 'awaiting_payment') {
+        setStatusFilter('pending');
+        setFulfillmentFilter('all');
+      } else if (filter === 'ready_to_ship') {
+        setFulfillmentFilter('needs_shipping');
+        setStatusFilter('all');
+      } else if (filter === 'in_transit') {
+        setFulfillmentFilter('shipped');
+        setStatusFilter('all');
+      } else if (filter === 'delivered') {
+        setFulfillmentFilter('delivered');
+        setStatusFilter('all');
+      }
+    }
+  };
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('en-US', {
@@ -258,52 +310,104 @@ export default function SalesPage() {
         </button>
       </div>
 
-      {/* Stats summary */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
-              <DollarSign className="h-5 w-5 text-green-600" />
-            </div>
-            <div>
-              <p className="text-sm text-gray-500">Total Revenue</p>
-              <p className="text-xl font-bold text-gray-900">{formatCurrency(totalRevenue)}</p>
-            </div>
+      {/* Total Revenue */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
+            <DollarSign className="h-5 w-5 text-green-600" />
+          </div>
+          <div>
+            <p className="text-sm text-gray-500">Total Revenue</p>
+            <p className="text-xl font-bold text-gray-900">{formatCurrency(totalRevenue)}</p>
           </div>
         </div>
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
+      </div>
+
+      {/* Pipeline Status Cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <button
+          onClick={() => handlePipelineClick('awaiting_payment')}
+          className={`text-left rounded-xl shadow-sm border-2 p-4 transition-all hover:shadow-md ${
+            activePipeline === 'awaiting_payment'
+              ? 'border-yellow-500 bg-yellow-50'
+              : 'border-gray-100 bg-white hover:border-yellow-300'
+          }`}
+        >
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-yellow-100 rounded-lg flex items-center justify-center">
+            <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+              activePipeline === 'awaiting_payment' ? 'bg-yellow-200' : 'bg-yellow-100'
+            }`}>
               <Clock className="h-5 w-5 text-yellow-600" />
             </div>
             <div>
-              <p className="text-sm text-gray-500">Pending Payments</p>
-              <p className="text-xl font-bold text-gray-900">{formatCurrency(pendingPayments)}</p>
+              <p className="text-sm text-gray-500">Awaiting Payment</p>
+              <p className="text-2xl font-bold text-gray-900">{awaitingPaymentCount}</p>
             </div>
           </div>
-        </div>
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
+        </button>
+
+        <button
+          onClick={() => handlePipelineClick('ready_to_ship')}
+          className={`text-left rounded-xl shadow-sm border-2 p-4 transition-all hover:shadow-md ${
+            activePipeline === 'ready_to_ship'
+              ? 'border-blue-500 bg-blue-50'
+              : 'border-gray-100 bg-white hover:border-blue-300'
+          }`}
+        >
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-              <Truck className="h-5 w-5 text-blue-600" />
+            <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+              activePipeline === 'ready_to_ship' ? 'bg-blue-200' : 'bg-blue-100'
+            }`}>
+              <Package className="h-5 w-5 text-blue-600" />
             </div>
             <div>
               <p className="text-sm text-gray-500">Ready to Ship</p>
-              <p className="text-xl font-bold text-gray-900">{readyToShip}</p>
+              <p className="text-2xl font-bold text-gray-900">{readyToShipCount}</p>
             </div>
           </div>
-        </div>
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
+        </button>
+
+        <button
+          onClick={() => handlePipelineClick('in_transit')}
+          className={`text-left rounded-xl shadow-sm border-2 p-4 transition-all hover:shadow-md ${
+            activePipeline === 'in_transit'
+              ? 'border-purple-500 bg-purple-50'
+              : 'border-gray-100 bg-white hover:border-purple-300'
+          }`}
+        >
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
-              <CheckCircle className="h-5 w-5 text-purple-600" />
+            <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+              activePipeline === 'in_transit' ? 'bg-purple-200' : 'bg-purple-100'
+            }`}>
+              <Truck className="h-5 w-5 text-purple-600" />
             </div>
             <div>
-              <p className="text-sm text-gray-500">Completed Sales</p>
-              <p className="text-xl font-bold text-gray-900">{completedSales}</p>
+              <p className="text-sm text-gray-500">In Transit</p>
+              <p className="text-2xl font-bold text-gray-900">{inTransitCount}</p>
             </div>
           </div>
-        </div>
+        </button>
+
+        <button
+          onClick={() => handlePipelineClick('delivered')}
+          className={`text-left rounded-xl shadow-sm border-2 p-4 transition-all hover:shadow-md ${
+            activePipeline === 'delivered'
+              ? 'border-green-500 bg-green-50'
+              : 'border-gray-100 bg-white hover:border-green-300'
+          }`}
+        >
+          <div className="flex items-center gap-3">
+            <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+              activePipeline === 'delivered' ? 'bg-green-200' : 'bg-green-100'
+            }`}>
+              <CheckCircle className="h-5 w-5 text-green-600" />
+            </div>
+            <div>
+              <p className="text-sm text-gray-500">Delivered</p>
+              <p className="text-2xl font-bold text-gray-900">{deliveredCount}</p>
+            </div>
+          </div>
+        </button>
       </div>
 
       {/* Filters */}
@@ -349,18 +453,51 @@ export default function SalesPage() {
       </div>
 
       {/* Filter active banner */}
-      {fulfillmentFilter === 'needs_shipping' && (
-        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 flex items-center justify-between">
+      {activePipeline && (
+        <div className={`rounded-xl p-4 flex items-center justify-between ${
+          activePipeline === 'awaiting_payment' ? 'bg-yellow-50 border border-yellow-200' :
+          activePipeline === 'ready_to_ship' ? 'bg-blue-50 border border-blue-200' :
+          activePipeline === 'in_transit' ? 'bg-purple-50 border border-purple-200' :
+          'bg-green-50 border border-green-200'
+        }`}>
           <div className="flex items-center gap-3">
-            <Truck className="h-5 w-5 text-blue-600" />
+            {activePipeline === 'awaiting_payment' && <Clock className="h-5 w-5 text-yellow-600" />}
+            {activePipeline === 'ready_to_ship' && <Package className="h-5 w-5 text-blue-600" />}
+            {activePipeline === 'in_transit' && <Truck className="h-5 w-5 text-purple-600" />}
+            {activePipeline === 'delivered' && <CheckCircle className="h-5 w-5 text-green-600" />}
             <div>
-              <p className="font-medium text-blue-900">Showing items that need shipping</p>
-              <p className="text-sm text-blue-700">These items are paid and awaiting shipment</p>
+              <p className={`font-medium ${
+                activePipeline === 'awaiting_payment' ? 'text-yellow-900' :
+                activePipeline === 'ready_to_ship' ? 'text-blue-900' :
+                activePipeline === 'in_transit' ? 'text-purple-900' :
+                'text-green-900'
+              }`}>
+                {activePipeline === 'awaiting_payment' && 'Showing items awaiting payment'}
+                {activePipeline === 'ready_to_ship' && 'Showing items ready to ship'}
+                {activePipeline === 'in_transit' && 'Showing items in transit'}
+                {activePipeline === 'delivered' && 'Showing delivered items'}
+              </p>
+              <p className={`text-sm ${
+                activePipeline === 'awaiting_payment' ? 'text-yellow-700' :
+                activePipeline === 'ready_to_ship' ? 'text-blue-700' :
+                activePipeline === 'in_transit' ? 'text-purple-700' :
+                'text-green-700'
+              }`}>
+                {activePipeline === 'awaiting_payment' && 'Invoices pending buyer payment'}
+                {activePipeline === 'ready_to_ship' && 'Paid items awaiting freight shipping details'}
+                {activePipeline === 'in_transit' && 'Items shipped and on the way to buyers'}
+                {activePipeline === 'delivered' && 'Completed transactions'}
+              </p>
             </div>
           </div>
           <button
-            onClick={() => setFulfillmentFilter('all')}
-            className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+            onClick={() => handlePipelineClick(null)}
+            className={`text-sm font-medium ${
+              activePipeline === 'awaiting_payment' ? 'text-yellow-600 hover:text-yellow-800' :
+              activePipeline === 'ready_to_ship' ? 'text-blue-600 hover:text-blue-800' :
+              activePipeline === 'in_transit' ? 'text-purple-600 hover:text-purple-800' :
+              'text-green-600 hover:text-green-800'
+            }`}
           >
             Clear filter
           </button>

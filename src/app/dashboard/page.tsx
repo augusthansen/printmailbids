@@ -23,7 +23,9 @@ import {
   XCircle,
   Bell,
   Send,
-  Activity
+  Activity,
+  Truck,
+  CheckCircle
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { createClient } from '@/lib/supabase/client';
@@ -46,6 +48,20 @@ interface SellerStats {
   pendingOffers: number;
   thisWeekViews: number;
   recentBidsCount: number;
+  // Pipeline counts
+  awaitingPaymentCount: number;
+  readyToShipCount: number;
+  inTransitCount: number;
+  deliveredCount: number;
+}
+
+interface InShippingItem {
+  id: string;
+  listingTitle: string;
+  buyerName: string;
+  shippedAt: string;
+  carrier: string | null;
+  estimatedDelivery: string | null;
 }
 
 interface WatchedListing {
@@ -105,8 +121,13 @@ export default function DashboardPage() {
     pendingOffers: 0,
     thisWeekViews: 0,
     recentBidsCount: 0,
+    awaitingPaymentCount: 0,
+    readyToShipCount: 0,
+    inTransitCount: 0,
+    deliveredCount: 0,
   });
   const [watchedListings, setWatchedListings] = useState<WatchedListing[]>([]);
+  const [inShippingItems, setInShippingItems] = useState<InShippingItem[]>([]);
   const [pendingActions, setPendingActions] = useState<PendingAction[]>([]);
   const [recentActivity, setRecentActivity] = useState<ActivityItem[]>([]);
   const [recentBids, setRecentBids] = useState<RecentBid[]>([]);
@@ -263,7 +284,7 @@ export default function DashboardPage() {
           const oneWeekAgo = new Date();
           oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
 
-          const [listingsResult, salesResult, sellerOffersResult, recentBidsResult] = await Promise.all([
+          const [listingsResult, salesResult, sellerOffersResult, recentBidsResult, inShippingResult] = await Promise.all([
             supabase
               .from('listings')
               .select('id, status, view_count, created_at')
@@ -289,6 +310,21 @@ export default function DashboardPage() {
               .eq('listing.seller_id', user.id)
               .order('created_at', { ascending: false })
               .limit(5),
+            // Items currently in shipping
+            supabase
+              .from('invoices')
+              .select(`
+                id,
+                shipped_at,
+                shipping_carrier,
+                freight_estimated_delivery,
+                listing:listings(title),
+                buyer:profiles!invoices_buyer_id_fkey(full_name, company_name)
+              `)
+              .eq('seller_id', user.id)
+              .eq('fulfillment_status', 'shipped')
+              .order('shipped_at', { ascending: false })
+              .limit(5),
           ]);
 
           const listings = listingsResult.data || [];
@@ -299,8 +335,16 @@ export default function DashboardPage() {
           const paidSales = sales.filter((s: { status: string }) => s.status === 'paid');
           const totalSales = paidSales.reduce((sum: number, s: { total_amount: number }) => sum + (s.total_amount || 0), 0);
           const pendingShipments = sales.filter((s: { status: string; fulfillment_status: string }) =>
-            s.status === 'paid' && s.fulfillment_status === 'processing'
+            s.status === 'paid' && (s.fulfillment_status === 'processing' || s.fulfillment_status === 'awaiting_payment')
           ).length;
+
+          // Calculate pipeline counts
+          const awaitingPaymentCount = sales.filter((s: { status: string }) => s.status === 'pending').length;
+          const readyToShipCount = sales.filter((s: { status: string; fulfillment_status: string }) =>
+            s.status === 'paid' && (s.fulfillment_status === 'processing' || s.fulfillment_status === 'awaiting_payment')
+          ).length;
+          const inTransitCount = sales.filter((s: { fulfillment_status: string }) => s.fulfillment_status === 'shipped').length;
+          const deliveredCount = sales.filter((s: { fulfillment_status: string }) => s.fulfillment_status === 'delivered').length;
 
           setSellerStats({
             activeListings,
@@ -310,9 +354,31 @@ export default function DashboardPage() {
             pendingOffers: sellerOffersResult.count || 0,
             thisWeekViews: 0, // Could calculate from analytics if tracked
             recentBidsCount: recentBidsResult.data?.length || 0,
+            awaitingPaymentCount,
+            readyToShipCount,
+            inTransitCount,
+            deliveredCount,
           });
 
           setRecentBids(recentBidsResult.data || []);
+
+          // Process in-shipping items
+          const shippingItems: InShippingItem[] = (inShippingResult.data || []).map((item: {
+            id: string;
+            shipped_at: string;
+            shipping_carrier: string | null;
+            freight_estimated_delivery: string | null;
+            listing: { title: string } | null;
+            buyer: { full_name: string | null; company_name: string | null } | null;
+          }) => ({
+            id: item.id,
+            listingTitle: item.listing?.title || 'Unknown',
+            buyerName: item.buyer?.company_name || item.buyer?.full_name || 'Unknown',
+            shippedAt: item.shipped_at,
+            carrier: item.shipping_carrier,
+            estimatedDelivery: item.freight_estimated_delivery,
+          }));
+          setInShippingItems(shippingItems);
 
           // Add seller actions
           if (pendingShipments > 0) {
@@ -507,61 +573,190 @@ export default function DashboardPage() {
 
       {/* Stats cards - Different for Buyer vs Seller */}
       {isSeller ? (
-        // Seller Stats
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="bg-white rounded-2xl p-6 shadow-sm border border-stone-200/50 hover:shadow-md transition-shadow">
-            <div className="flex items-center justify-between mb-4">
-              <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-blue-100">
-                <Package className="h-6 w-6 text-blue-600" />
+        <>
+          {/* Seller Quick Stats */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="bg-white rounded-2xl p-6 shadow-sm border border-stone-200/50 hover:shadow-md transition-shadow">
+              <div className="flex items-center justify-between mb-4">
+                <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-blue-100">
+                  <Package className="h-6 w-6 text-blue-600" />
+                </div>
+                {sellerStats.activeListings > 0 && <TrendingUp className="h-4 w-4 text-green-500" />}
               </div>
-              {sellerStats.activeListings > 0 && <TrendingUp className="h-4 w-4 text-green-500" />}
+              <p className="text-3xl font-bold text-slate-900">{sellerStats.activeListings}</p>
+              <p className="text-sm text-slate-600 font-medium mt-1">Active Listings</p>
+              <p className="text-xs text-stone-500 mt-0.5">currently live</p>
             </div>
-            <p className="text-3xl font-bold text-slate-900">{sellerStats.activeListings}</p>
-            <p className="text-sm text-slate-600 font-medium mt-1">Active Listings</p>
-            <p className="text-xs text-stone-500 mt-0.5">currently live</p>
+
+            <div className="bg-white rounded-2xl p-6 shadow-sm border border-stone-200/50 hover:shadow-md transition-shadow">
+              <div className="flex items-center justify-between mb-4">
+                <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-green-100">
+                  <DollarSign className="h-6 w-6 text-green-600" />
+                </div>
+                <TrendingUp className="h-4 w-4 text-green-500" />
+              </div>
+              <p className="text-3xl font-bold text-slate-900">${sellerStats.totalSales.toLocaleString()}</p>
+              <p className="text-sm text-slate-600 font-medium mt-1">Total Sales</p>
+              <p className="text-xs text-stone-500 mt-0.5">lifetime revenue</p>
+            </div>
+
+            <div className="bg-white rounded-2xl p-6 shadow-sm border border-stone-200/50 hover:shadow-md transition-shadow">
+              <div className="flex items-center justify-between mb-4">
+                <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-purple-100">
+                  <HandCoins className="h-6 w-6 text-purple-600" />
+                </div>
+                {sellerStats.pendingOffers > 0 && (
+                  <span className="bg-purple-500 text-white text-xs font-bold px-2 py-1 rounded-full">
+                    {sellerStats.pendingOffers}
+                  </span>
+                )}
+              </div>
+              <p className="text-3xl font-bold text-slate-900">{sellerStats.pendingOffers}</p>
+              <p className="text-sm text-slate-600 font-medium mt-1">Pending Offers</p>
+              <Link href="/dashboard/offers" className="text-xs text-blue-600 hover:text-blue-700 mt-0.5 inline-block">
+                View offers →
+              </Link>
+            </div>
+
+            <div className="bg-white rounded-2xl p-6 shadow-sm border border-stone-200/50 hover:shadow-md transition-shadow">
+              <div className="flex items-center justify-between mb-4">
+                <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-slate-100">
+                  <Eye className="h-6 w-6 text-slate-600" />
+                </div>
+              </div>
+              <p className="text-3xl font-bold text-slate-900">{sellerStats.totalViews.toLocaleString()}</p>
+              <p className="text-sm text-slate-600 font-medium mt-1">Total Views</p>
+              <p className="text-xs text-stone-500 mt-0.5">across all listings</p>
+            </div>
           </div>
 
-          <div className="bg-white rounded-2xl p-6 shadow-sm border border-stone-200/50 hover:shadow-md transition-shadow">
+          {/* Sales Pipeline Status Cards */}
+          <div className="bg-white rounded-2xl shadow-sm border border-stone-200/50 p-6">
             <div className="flex items-center justify-between mb-4">
-              <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-green-100">
-                <DollarSign className="h-6 w-6 text-green-600" />
-              </div>
-              <TrendingUp className="h-4 w-4 text-green-500" />
+              <h2 className="font-semibold text-slate-900">Sales Pipeline</h2>
+              <Link href="/dashboard/sales" className="text-sm text-blue-600 hover:text-blue-700 font-medium">
+                View all →
+              </Link>
             </div>
-            <p className="text-3xl font-bold text-slate-900">${sellerStats.totalSales.toLocaleString()}</p>
-            <p className="text-sm text-slate-600 font-medium mt-1">Total Sales</p>
-            <p className="text-xs text-stone-500 mt-0.5">lifetime revenue</p>
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              <Link
+                href="/dashboard/sales?pipeline=awaiting_payment"
+                className="text-left rounded-xl border-2 border-yellow-200 bg-yellow-50 p-4 hover:border-yellow-400 hover:shadow-md transition-all"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-lg flex items-center justify-center bg-yellow-100">
+                    <Clock className="h-5 w-5 text-yellow-600" />
+                  </div>
+                  <div>
+                    <p className="text-sm text-slate-600">Awaiting Payment</p>
+                    <p className="text-2xl font-bold text-slate-900">{sellerStats.awaitingPaymentCount}</p>
+                  </div>
+                </div>
+              </Link>
+
+              <Link
+                href="/dashboard/sales?filter=needs_shipping"
+                className="text-left rounded-xl border-2 border-blue-200 bg-blue-50 p-4 hover:border-blue-400 hover:shadow-md transition-all"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-lg flex items-center justify-center bg-blue-100">
+                    <Package className="h-5 w-5 text-blue-600" />
+                  </div>
+                  <div>
+                    <p className="text-sm text-slate-600">Ready to Ship</p>
+                    <p className="text-2xl font-bold text-slate-900">{sellerStats.readyToShipCount}</p>
+                  </div>
+                </div>
+              </Link>
+
+              <Link
+                href="/dashboard/sales?pipeline=in_transit"
+                className="text-left rounded-xl border-2 border-purple-200 bg-purple-50 p-4 hover:border-purple-400 hover:shadow-md transition-all"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-lg flex items-center justify-center bg-purple-100">
+                    <Truck className="h-5 w-5 text-purple-600" />
+                  </div>
+                  <div>
+                    <p className="text-sm text-slate-600">In Transit</p>
+                    <p className="text-2xl font-bold text-slate-900">{sellerStats.inTransitCount}</p>
+                  </div>
+                </div>
+              </Link>
+
+              <Link
+                href="/dashboard/sales?pipeline=delivered"
+                className="text-left rounded-xl border-2 border-green-200 bg-green-50 p-4 hover:border-green-400 hover:shadow-md transition-all"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-lg flex items-center justify-center bg-green-100">
+                    <CheckCircle className="h-5 w-5 text-green-600" />
+                  </div>
+                  <div>
+                    <p className="text-sm text-slate-600">Delivered</p>
+                    <p className="text-2xl font-bold text-slate-900">{sellerStats.deliveredCount}</p>
+                  </div>
+                </div>
+              </Link>
+            </div>
           </div>
 
-          <div className="bg-white rounded-2xl p-6 shadow-sm border border-stone-200/50 hover:shadow-md transition-shadow">
-            <div className="flex items-center justify-between mb-4">
-              <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-purple-100">
-                <HandCoins className="h-6 w-6 text-purple-600" />
+          {/* In Shipping Section */}
+          {inShippingItems.length > 0 && (
+            <div className="bg-white rounded-2xl shadow-sm border border-purple-200 overflow-hidden">
+              <div className="p-5 border-b border-purple-100 bg-purple-50">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 bg-purple-200 rounded-lg flex items-center justify-center">
+                    <Truck className="h-4 w-4 text-purple-600" />
+                  </div>
+                  <h2 className="font-semibold text-slate-900">Currently In Shipping</h2>
+                  <span className="ml-auto bg-purple-500 text-white text-xs font-bold px-2 py-1 rounded-full">
+                    {inShippingItems.length}
+                  </span>
+                </div>
               </div>
-              {sellerStats.pendingOffers > 0 && (
-                <span className="bg-purple-500 text-white text-xs font-bold px-2 py-1 rounded-full">
-                  {sellerStats.pendingOffers}
-                </span>
-              )}
-            </div>
-            <p className="text-3xl font-bold text-slate-900">{sellerStats.pendingOffers}</p>
-            <p className="text-sm text-slate-600 font-medium mt-1">Pending Offers</p>
-            <Link href="/dashboard/offers" className="text-xs text-blue-600 hover:text-blue-700 mt-0.5 inline-block">
-              View offers →
-            </Link>
-          </div>
-
-          <div className="bg-white rounded-2xl p-6 shadow-sm border border-stone-200/50 hover:shadow-md transition-shadow">
-            <div className="flex items-center justify-between mb-4">
-              <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-slate-100">
-                <Eye className="h-6 w-6 text-slate-600" />
+              <div className="divide-y divide-stone-100">
+                {inShippingItems.map((item) => (
+                  <Link
+                    key={item.id}
+                    href={`/dashboard/invoices/${item.id}`}
+                    className="flex items-center gap-4 p-4 hover:bg-purple-50 transition-colors"
+                  >
+                    <div className="w-10 h-10 bg-purple-100 rounded-xl flex items-center justify-center flex-shrink-0">
+                      <Truck className="h-5 w-5 text-purple-600" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-slate-900 truncate">{item.listingTitle}</p>
+                      <p className="text-sm text-stone-600">
+                        To: {item.buyerName}
+                        {item.carrier && <span className="text-stone-400"> • {item.carrier}</span>}
+                      </p>
+                    </div>
+                    <div className="text-right flex-shrink-0">
+                      <p className="text-sm font-medium text-purple-600">
+                        {item.estimatedDelivery
+                          ? `Est. ${new Date(item.estimatedDelivery).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
+                          : 'In Transit'}
+                      </p>
+                      <p className="text-xs text-stone-500">
+                        Shipped {formatTimeAgo(item.shippedAt)}
+                      </p>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+              <div className="p-4 border-t border-stone-100 bg-stone-50/30">
+                <Link
+                  href="/dashboard/sales?pipeline=in_transit"
+                  className="text-sm text-purple-600 hover:text-purple-700 font-medium flex items-center gap-1 transition-colors"
+                >
+                  View all in-transit items
+                  <ArrowRight className="h-4 w-4" />
+                </Link>
               </div>
             </div>
-            <p className="text-3xl font-bold text-slate-900">{sellerStats.totalViews.toLocaleString()}</p>
-            <p className="text-sm text-slate-600 font-medium mt-1">Total Views</p>
-            <p className="text-xs text-stone-500 mt-0.5">across all listings</p>
-          </div>
-        </div>
+          )}
+        </>
       ) : (
         // Buyer Stats
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">

@@ -123,21 +123,36 @@ export default function PurchasesPage() {
         return;
       }
 
-      // Get listing details for each invoice
-      const listingIds = invoicesData.map((i: { listing_id: string }) => i.listing_id).filter(Boolean);
-      const sellerIds = invoicesData.map((i: { seller_id: string }) => i.seller_id).filter(Boolean);
+      // Get unique listing and seller IDs
+      const listingIds = [...new Set(invoicesData.map((i: { listing_id: string }) => i.listing_id).filter(Boolean))];
+      const sellerIds = [...new Set(invoicesData.map((i: { seller_id: string }) => i.seller_id).filter(Boolean))];
 
-      const [listingsResult, sellersResult] = await Promise.all([
-        listingIds.length > 0
-          ? supabase.from('listings').select('id, title, city, state').in('id', listingIds)
-          : { data: [] },
-        sellerIds.length > 0
-          ? supabase.from('profiles').select('id, full_name, company_name').in('id', sellerIds)
-          : { data: [] }
-      ]);
+      // Fetch listings and sellers individually to avoid .in() query issues
+      let listingsData: { id: string; title: string; city: string | null; state: string | null }[] = [];
+      let sellersData: { id: string; full_name: string | null; company_name: string | null }[] = [];
 
-      const listingsMap = new Map((listingsResult.data || []).map((l: { id: string }) => [l.id, l]));
-      const sellersMap = new Map((sellersResult.data || []).map((s: { id: string }) => [s.id, s]));
+      if (listingIds.length > 0) {
+        const listingsPromises = listingIds.map(id =>
+          supabase.from('listings').select('id, title, city, state').eq('id', id).single()
+        );
+        const results = await Promise.all(listingsPromises);
+        listingsData = results
+          .filter(r => r.data && !r.error)
+          .map(r => r.data as { id: string; title: string; city: string | null; state: string | null });
+      }
+
+      if (sellerIds.length > 0) {
+        const sellersPromises = sellerIds.map(id =>
+          supabase.from('profiles').select('id, full_name, company_name').eq('id', id).single()
+        );
+        const results = await Promise.all(sellersPromises);
+        sellersData = results
+          .filter(r => r.data && !r.error)
+          .map(r => r.data as { id: string; full_name: string | null; company_name: string | null });
+      }
+
+      const listingsMap = new Map(listingsData.map(l => [l.id, l]));
+      const sellersMap = new Map(sellersData.map(s => [s.id, s]));
 
       const purchasesWithDetails = invoicesData.map((invoice: { listing_id: string; seller_id: string }) => ({
         ...invoice,
