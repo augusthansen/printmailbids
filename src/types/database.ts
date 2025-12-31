@@ -84,7 +84,7 @@ export type PaymentStatus =
   | 'failed'
   | 'refunded';
 
-export type NotificationType = 
+export type NotificationType =
   | 'outbid'
   | 'auction_ending_soon'
   | 'auction_won'
@@ -94,7 +94,10 @@ export type NotificationType =
   | 'offer_expired'
   | 'shipping_quote_received'
   | 'item_shipped'
+  | 'item_delivered'
   | 'payment_reminder'
+  | 'payment_received'
+  | 'payment_confirmed'
   | 'new_listing_saved_search'
   | 'price_drop'
   | 'new_bid'
@@ -103,7 +106,9 @@ export type NotificationType =
   | 'auction_ended'
   | 'new_offer'
   | 'offer_response_needed'
-  | 'payment_received'
+  | 'fees_added'
+  | 'fees_approved'
+  | 'fees_rejected'
   | 'shipping_quote_requested'
   | 'buyer_message'
   | 'review_received'
