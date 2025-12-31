@@ -38,8 +38,13 @@ const notificationIcons: Record<string, React.ElementType> = {
   offer_accepted: DollarSign,
   offer_declined: DollarSign,
   payment_received: DollarSign,
+  payment_confirmed: DollarSign,
   payment_reminder: AlertCircle,
+  fees_added: DollarSign,
+  fees_approved: DollarSign,
+  fees_rejected: AlertCircle,
   item_shipped: Truck,
+  item_delivered: Truck,
   buyer_message: MessageSquare,
   new_listing_saved_search: Package,
   default: Bell,
@@ -96,12 +101,17 @@ export default function NotificationsPage() {
     }
 
     // Payment notifications go to invoice
-    if ((notification.type === 'payment_received' || notification.type === 'payment_reminder') && notification.invoice_id) {
+    if ((notification.type === 'payment_received' || notification.type === 'payment_reminder' || notification.type === 'payment_confirmed') && notification.invoice_id) {
       return `/dashboard/invoices/${notification.invoice_id}`;
     }
 
-    // Shipping notifications go to invoice
-    if (notification.type === 'item_shipped' && notification.invoice_id) {
+    // Fee notifications go to invoice (for both buyer and seller)
+    if ((notification.type === 'fees_added' || notification.type === 'fees_approved' || notification.type === 'fees_rejected') && notification.invoice_id) {
+      return `/dashboard/invoices/${notification.invoice_id}`;
+    }
+
+    // Shipping/delivery notifications go to invoice
+    if ((notification.type === 'item_shipped' || notification.type === 'item_delivered') && notification.invoice_id) {
       return `/dashboard/invoices/${notification.invoice_id}`;
     }
 

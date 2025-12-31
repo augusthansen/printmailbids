@@ -344,7 +344,7 @@ export default function InvoicePage() {
 
       if (updateError) throw updateError;
 
-      // Notify seller
+      // Notify seller (in-app notification)
       await supabase.from('notifications').insert({
         user_id: invoice.seller_id,
         type: 'fees_approved',
@@ -353,6 +353,20 @@ export default function InvoicePage() {
         related_type: 'invoice',
         related_id: invoice.id,
       });
+
+      // Send email notification to seller
+      try {
+        await fetch('/api/invoices/notify-fees', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            invoiceId: invoice.id,
+            type: 'approved',
+          }),
+        });
+      } catch (emailErr) {
+        console.error('Failed to send fee approval email:', emailErr);
+      }
 
       setInvoice(prev => prev ? { ...prev, fees_status: 'approved', fees_responded_at: new Date().toISOString() } : null);
       setSuccess('Fees approved! You can now proceed with payment.');
@@ -382,7 +396,7 @@ export default function InvoicePage() {
 
       if (updateError) throw updateError;
 
-      // Notify seller
+      // Notify seller (in-app notification)
       await supabase.from('notifications').insert({
         user_id: invoice.seller_id,
         type: 'fees_rejected',
@@ -391,6 +405,21 @@ export default function InvoicePage() {
         related_type: 'invoice',
         related_id: invoice.id,
       });
+
+      // Send email notification to seller
+      try {
+        await fetch('/api/invoices/notify-fees', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            invoiceId: invoice.id,
+            type: 'rejected',
+            rejectionReason: rejectionReason.trim(),
+          }),
+        });
+      } catch (emailErr) {
+        console.error('Failed to send fee rejection email:', emailErr);
+      }
 
       setInvoice(prev => prev ? {
         ...prev,

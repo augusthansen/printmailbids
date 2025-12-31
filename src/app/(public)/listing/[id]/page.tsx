@@ -77,6 +77,8 @@ interface Listing {
   length_inches: number;
   width_inches: number;
   height_inches: number;
+  floor_length_ft: number | null;
+  floor_width_ft: number | null;
   electrical_requirements: string;
   removal_deadline: string;
   pickup_hours: string;
@@ -1215,6 +1217,14 @@ By placing a bid, you acknowledge that you have read, understood, and agree to t
                   <div className="flex justify-between py-2 border-b border-gray-100">
                     <span className="text-gray-500">Weight</span>
                     <span className="font-medium text-gray-900">{listing.weight_lbs.toLocaleString()} lbs</span>
+                  </div>
+                )}
+                {(listing.floor_length_ft || listing.floor_width_ft) && (
+                  <div className="flex justify-between py-2 border-b border-gray-100">
+                    <span className="text-gray-500">Floor Space</span>
+                    <span className="font-medium text-gray-900">
+                      {listing.floor_length_ft || '—'} ft × {listing.floor_width_ft || '—'} ft
+                    </span>
                   </div>
                 )}
                 {listing.electrical_requirements && (

@@ -535,6 +535,121 @@ export async function sendPaymentReceivedSellerEmail(params: {
   });
 }
 
+// Fee approval notification for seller
+export async function sendFeesApprovedEmail(params: {
+  to: string;
+  userName: string;
+  listingTitle: string;
+  invoiceId: string;
+  packagingAmount: number;
+  shippingAmount: number;
+  buyerName: string;
+}) {
+  const { to, userName, listingTitle, invoiceId, packagingAmount, shippingAmount, buyerName } = params;
+
+  const totalFees = packagingAmount + shippingAmount;
+  const feesText = [
+    packagingAmount > 0 ? `Packaging: $${packagingAmount.toLocaleString()}` : null,
+    shippingAmount > 0 ? `Shipping: $${shippingAmount.toLocaleString()}` : null,
+  ].filter(Boolean).join(' • ');
+
+  const content = `
+    <div style="text-align:center;margin-bottom:24px;">
+      <span style="font-size:48px;">✅</span>
+    </div>
+    <h2 style="margin:0 0 16px;font-size:24px;color:#18181b;text-align:center;">Fees Approved!</h2>
+    <p style="margin:0 0 24px;font-size:16px;color:#3f3f46;line-height:1.6;">
+      Hi ${userName || 'there'},
+    </p>
+    <p style="margin:0 0 24px;font-size:16px;color:#3f3f46;line-height:1.6;">
+      ${buyerName} has approved the additional fees for <strong>${listingTitle}</strong>.
+    </p>
+    <table style="width:100%;margin:0 0 24px;border-collapse:collapse;background-color:#f0fdf4;border-radius:8px;">
+      <tr>
+        <td style="padding:16px;">
+          <p style="margin:0 0 8px;font-size:14px;color:#71717a;">Approved Fees</p>
+          <p style="margin:0;font-size:18px;font-weight:bold;color:#16a34a;">$${totalFees.toLocaleString()}</p>
+          <p style="margin:8px 0 0;font-size:14px;color:#71717a;">${feesText}</p>
+        </td>
+      </tr>
+    </table>
+    <p style="margin:0 0 24px;font-size:14px;color:#71717a;">
+      The buyer can now proceed with payment. You'll receive another notification when payment is completed.
+    </p>
+    <div style="text-align:center;">
+      ${emailButton('View Invoice', `${SITE_URL}/dashboard/invoices/${invoiceId}`)}
+    </div>
+  `;
+
+  return sendEmail({
+    to,
+    subject: `Fees approved for "${listingTitle}"`,
+    html: emailTemplate(content, `${buyerName} approved $${totalFees.toLocaleString()} in fees`),
+  });
+}
+
+// Fee rejection notification for seller
+export async function sendFeesRejectedEmail(params: {
+  to: string;
+  userName: string;
+  listingTitle: string;
+  invoiceId: string;
+  packagingAmount: number;
+  shippingAmount: number;
+  rejectionReason: string;
+  buyerName: string;
+}) {
+  const { to, userName, listingTitle, invoiceId, packagingAmount, shippingAmount, rejectionReason, buyerName } = params;
+
+  const totalFees = packagingAmount + shippingAmount;
+  const feesText = [
+    packagingAmount > 0 ? `Packaging: $${packagingAmount.toLocaleString()}` : null,
+    shippingAmount > 0 ? `Shipping: $${shippingAmount.toLocaleString()}` : null,
+  ].filter(Boolean).join(' • ');
+
+  const content = `
+    <div style="text-align:center;margin-bottom:24px;">
+      <span style="font-size:48px;">❌</span>
+    </div>
+    <h2 style="margin:0 0 16px;font-size:24px;color:#18181b;text-align:center;">Fees Rejected</h2>
+    <p style="margin:0 0 24px;font-size:16px;color:#3f3f46;line-height:1.6;">
+      Hi ${userName || 'there'},
+    </p>
+    <p style="margin:0 0 24px;font-size:16px;color:#3f3f46;line-height:1.6;">
+      ${buyerName} has rejected the additional fees for <strong>${listingTitle}</strong>.
+    </p>
+    <table style="width:100%;margin:0 0 24px;border-collapse:collapse;background-color:#fef2f2;border-radius:8px;">
+      <tr>
+        <td style="padding:16px;">
+          <p style="margin:0 0 8px;font-size:14px;color:#71717a;">Rejected Fees</p>
+          <p style="margin:0;font-size:18px;font-weight:bold;color:#dc2626;">$${totalFees.toLocaleString()}</p>
+          <p style="margin:8px 0 0;font-size:14px;color:#71717a;">${feesText}</p>
+        </td>
+      </tr>
+    </table>
+    <table style="width:100%;margin:0 0 24px;border-collapse:collapse;background-color:#fafafa;border-radius:8px;">
+      <tr>
+        <td style="padding:16px;">
+          <p style="margin:0 0 8px;font-size:14px;font-weight:bold;color:#71717a;">Reason Given:</p>
+          <p style="margin:0;font-size:14px;color:#3f3f46;line-height:1.6;">${rejectionReason}</p>
+        </td>
+      </tr>
+    </table>
+    <p style="margin:0 0 24px;font-size:14px;color:#71717a;">
+      Please review the buyer's feedback and adjust the fees if needed, then resubmit for approval.
+    </p>
+    <div style="text-align:center;">
+      ${emailButton('Update Fees', `${SITE_URL}/dashboard/invoices/${invoiceId}`)}
+    </div>
+  `;
+
+  return sendEmail({
+    to,
+    subject: `Fees rejected for "${listingTitle}" - Action needed`,
+    html: emailTemplate(content, `${buyerName} rejected fees: ${rejectionReason.slice(0, 50)}...`),
+  });
+}
+
 // New message notification
 export async function sendNewMessageEmail(params: {
   to: string;
