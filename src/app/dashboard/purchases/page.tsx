@@ -87,7 +87,6 @@ export default function PurchasesPage() {
       }
 
       // Get invoices with joined listing and seller data
-      // Using Supabase's foreign key relationships to bypass RLS on listings
       const { data: invoicesData, error: invoicesError } = await supabase
         .from('invoices')
         .select(`
@@ -108,13 +107,13 @@ export default function PurchasesPage() {
           tracking_number,
           delivered_at,
           created_at,
-          listings:listing_id (
+          listing:listings!listing_id (
             id,
             title,
             city,
             state
           ),
-          seller:seller_id (
+          seller:profiles!seller_id (
             id,
             full_name,
             company_name
@@ -135,15 +134,15 @@ export default function PurchasesPage() {
         return;
       }
 
-      // Transform the nested data structure to match our Purchase interface
+      // The data comes back with listing and seller already nested correctly
       const purchasesWithDetails = invoicesData.map((invoice: {
         listing_id: string;
         seller_id: string;
-        listings: { id: string; title: string; city: string | null; state: string | null } | null;
+        listing: { id: string; title: string; city: string | null; state: string | null } | null;
         seller: { id: string; full_name: string | null; company_name: string | null } | null;
       }) => ({
         ...invoice,
-        listing: invoice.listings,
+        listing: invoice.listing,
         seller: invoice.seller
       }));
 
