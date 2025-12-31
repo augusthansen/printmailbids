@@ -180,7 +180,23 @@ export default function PurchasesPage() {
   }, [user?.id, authLoading, supabase]);
 
   const filteredPurchases = purchases.filter((purchase) => {
-    const matchesStatus = statusFilter === 'all' || purchase.status === statusFilter || purchase.fulfillment_status === statusFilter;
+    let matchesStatus = false;
+    if (statusFilter === 'all') {
+      matchesStatus = true;
+    } else if (statusFilter === 'pending') {
+      // Awaiting payment
+      matchesStatus = purchase.status === 'pending';
+    } else if (statusFilter === 'paid') {
+      // Processing (paid but not yet shipped)
+      matchesStatus = purchase.status === 'paid' &&
+        (purchase.fulfillment_status === 'processing' || purchase.fulfillment_status === 'awaiting_payment');
+    } else if (statusFilter === 'shipped') {
+      // In transit
+      matchesStatus = purchase.fulfillment_status === 'shipped';
+    } else if (statusFilter === 'delivered') {
+      // Delivered
+      matchesStatus = purchase.fulfillment_status === 'delivered';
+    }
     const matchesSearch =
       (purchase.listing?.title || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
       (purchase.seller?.company_name || '').toLowerCase().includes(searchQuery.toLowerCase());

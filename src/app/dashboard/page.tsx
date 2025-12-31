@@ -38,6 +38,11 @@ interface BuyerStats {
   pendingPayments: number;
   pendingPaymentAmount: number;
   pendingOffers: number;
+  // Pipeline counts for buyer
+  awaitingPaymentCount: number;
+  processingCount: number;
+  inTransitCount: number;
+  deliveredCount: number;
 }
 
 interface SellerStats {
@@ -112,6 +117,10 @@ export default function DashboardPage() {
     pendingPayments: 0,
     pendingPaymentAmount: 0,
     pendingOffers: 0,
+    awaitingPaymentCount: 0,
+    processingCount: 0,
+    inTransitCount: 0,
+    deliveredCount: 0,
   });
   const [sellerStats, setSellerStats] = useState<SellerStats>({
     activeListings: 0,
@@ -142,7 +151,7 @@ export default function DashboardPage() {
 
       try {
         // Load buyer stats for all users
-        const [bidsResult, watchlistResult, invoicesResult, buyerOffersResult] = await Promise.all([
+        const [bidsResult, watchlistResult, allInvoicesResult, buyerOffersResult] = await Promise.all([
           // Get user's bids with listing details
           supabase
             .from('bids')
@@ -154,12 +163,11 @@ export default function DashboardPage() {
             .from('watchlist')
             .select('id', { count: 'exact', head: true })
             .eq('user_id', user.id),
-          // Get pending invoices (as buyer)
+          // Get all invoices (as buyer) for pipeline counts
           supabase
             .from('invoices')
-            .select('id, total_amount, status')
-            .eq('buyer_id', user.id)
-            .eq('status', 'pending'),
+            .select('id, total_amount, status, fulfillment_status')
+            .eq('buyer_id', user.id),
           // Get pending offers made by buyer (awaiting seller response)
           supabase
             .from('offers')
@@ -180,8 +188,17 @@ export default function DashboardPage() {
         });
         const outbidCount = activeBids.length - winningBids.length;
 
-        const pendingInvoices = invoicesResult.data || [];
+        const allInvoices = allInvoicesResult.data || [];
+        const pendingInvoices = allInvoices.filter((inv: { status: string }) => inv.status === 'pending');
         const pendingPaymentAmount = pendingInvoices.reduce((sum: number, inv: { total_amount: number }) => sum + (inv.total_amount || 0), 0);
+
+        // Calculate buyer pipeline counts
+        const buyerAwaitingPayment = allInvoices.filter((inv: { status: string }) => inv.status === 'pending').length;
+        const buyerProcessing = allInvoices.filter((inv: { status: string; fulfillment_status: string }) =>
+          inv.status === 'paid' && (inv.fulfillment_status === 'processing' || inv.fulfillment_status === 'awaiting_payment')
+        ).length;
+        const buyerInTransit = allInvoices.filter((inv: { fulfillment_status: string }) => inv.fulfillment_status === 'shipped').length;
+        const buyerDelivered = allInvoices.filter((inv: { fulfillment_status: string }) => inv.fulfillment_status === 'delivered').length;
 
         setBuyerStats({
           activeBids: activeBids.length,
@@ -191,6 +208,10 @@ export default function DashboardPage() {
           pendingPayments: pendingInvoices.length,
           pendingPaymentAmount,
           pendingOffers: buyerOffersResult.count || 0,
+          awaitingPaymentCount: buyerAwaitingPayment,
+          processingCount: buyerProcessing,
+          inTransitCount: buyerInTransit,
+          deliveredCount: buyerDelivered,
         });
 
         // Build pending actions for buyer
@@ -834,6 +855,77 @@ export default function DashboardPage() {
             <p className="text-sm text-slate-600 font-medium mt-1">Pending Offers</p>
             <p className="text-xs text-green-600 mt-0.5">View offers →</p>
           </Link>
+        </div>
+
+        {/* Buyer Purchase Pipeline */}
+        <div className="bg-white rounded-2xl shadow-sm border border-stone-200/50 p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="font-semibold text-slate-900">Purchase Pipeline</h2>
+            <Link href="/dashboard/purchases" className="text-sm text-blue-600 hover:text-blue-700 font-medium">
+              View all →
+            </Link>
+          </div>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <Link
+              href="/dashboard/purchases?status=pending"
+              className="text-left rounded-xl border-2 border-yellow-200 bg-yellow-50 p-4 hover:border-yellow-400 hover:shadow-md transition-all"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg flex items-center justify-center bg-yellow-100">
+                  <CreditCard className="h-5 w-5 text-yellow-600" />
+                </div>
+                <div>
+                  <p className="text-sm text-slate-600">To Pay</p>
+                  <p className="text-2xl font-bold text-slate-900">{buyerStats.awaitingPaymentCount}</p>
+                </div>
+              </div>
+            </Link>
+
+            <Link
+              href="/dashboard/purchases?status=paid"
+              className="text-left rounded-xl border-2 border-blue-200 bg-blue-50 p-4 hover:border-blue-400 hover:shadow-md transition-all"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg flex items-center justify-center bg-blue-100">
+                  <Package className="h-5 w-5 text-blue-600" />
+                </div>
+                <div>
+                  <p className="text-sm text-slate-600">Processing</p>
+                  <p className="text-2xl font-bold text-slate-900">{buyerStats.processingCount}</p>
+                </div>
+              </div>
+            </Link>
+
+            <Link
+              href="/dashboard/purchases?status=shipped"
+              className="text-left rounded-xl border-2 border-purple-200 bg-purple-50 p-4 hover:border-purple-400 hover:shadow-md transition-all"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg flex items-center justify-center bg-purple-100">
+                  <Truck className="h-5 w-5 text-purple-600" />
+                </div>
+                <div>
+                  <p className="text-sm text-slate-600">In Transit</p>
+                  <p className="text-2xl font-bold text-slate-900">{buyerStats.inTransitCount}</p>
+                </div>
+              </div>
+            </Link>
+
+            <Link
+              href="/dashboard/purchases?status=delivered"
+              className="text-left rounded-xl border-2 border-green-200 bg-green-50 p-4 hover:border-green-400 hover:shadow-md transition-all"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg flex items-center justify-center bg-green-100">
+                  <CheckCircle className="h-5 w-5 text-green-600" />
+                </div>
+                <div>
+                  <p className="text-sm text-slate-600">Delivered</p>
+                  <p className="text-2xl font-bold text-slate-900">{buyerStats.deliveredCount}</p>
+                </div>
+              </div>
+            </Link>
+          </div>
         </div>
       )}
 
