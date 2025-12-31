@@ -469,6 +469,7 @@ export default function CreateListingPage() {
     onsiteAssistance: 'no_assistance',
     weight: '',
     dimensions: { length: '', width: '', height: '' },
+    floorDimensions: { length: '', width: '' },
     electricalRequirements: '',
     airRequirements: '',
     location: '',
@@ -650,6 +651,8 @@ export default function CreateListingPage() {
           equipment_status: formData.equipmentStatus || null,
           onsite_assistance: formData.onsiteAssistance,
           weight_lbs: formData.weight ? parseInt(formData.weight) : null,
+          floor_length_ft: formData.floorDimensions.length ? parseFloat(formData.floorDimensions.length) : null,
+          floor_width_ft: formData.floorDimensions.width ? parseFloat(formData.floorDimensions.width) : null,
           removal_deadline: formData.removalDeadline || null,
           pickup_notes: formData.pickupNotes || null,
           payment_due_days: parseInt(formData.paymentDueDays),
@@ -823,6 +826,8 @@ export default function CreateListingPage() {
           equipment_status: formData.equipmentStatus || null,
           onsite_assistance: formData.onsiteAssistance,
           weight_lbs: formData.weight ? parseInt(formData.weight) : null,
+          floor_length_ft: formData.floorDimensions.length ? parseFloat(formData.floorDimensions.length) : null,
+          floor_width_ft: formData.floorDimensions.width ? parseFloat(formData.floorDimensions.width) : null,
           removal_deadline: formData.removalDeadline || null,
           pickup_notes: formData.pickupNotes,
           payment_due_days: parseInt(formData.paymentDueDays),
@@ -1718,6 +1723,34 @@ export default function CreateListingPage() {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Installed Floor Dimensions (ft)
+                </label>
+                <p className="text-xs text-gray-500 mb-2">
+                  The floor space required when the equipment is installed and operational
+                </p>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    value={formData.floorDimensions.length}
+                    onChange={(e) => updateFormData('floorDimensions', { ...formData.floorDimensions, length: e.target.value })}
+                    placeholder="Length"
+                    className="w-24 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-center"
+                  />
+                  <span className="text-gray-500 font-medium">ft</span>
+                  <span className="text-gray-400 text-xl font-bold mx-1">×</span>
+                  <input
+                    type="number"
+                    value={formData.floorDimensions.width}
+                    onChange={(e) => updateFormData('floorDimensions', { ...formData.floorDimensions, width: e.target.value })}
+                    placeholder="Width"
+                    className="w-24 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-center"
+                  />
+                  <span className="text-gray-500 font-medium">ft</span>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
                   Pickup Notes
                 </label>
                 <textarea
@@ -2355,6 +2388,14 @@ export default function CreateListingPage() {
                     <p className="text-gray-500">Weight</p>
                     <p className="font-medium">{formData.weight ? `${formData.weight} lbs` : '—'}</p>
                   </div>
+                  {(formData.floorDimensions.length || formData.floorDimensions.width) && (
+                    <div>
+                      <p className="text-gray-500">Floor Space</p>
+                      <p className="font-medium">
+                        {formData.floorDimensions.length || '—'} ft × {formData.floorDimensions.width || '—'} ft
+                      </p>
+                    </div>
+                  )}
                 </div>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
                   <div>

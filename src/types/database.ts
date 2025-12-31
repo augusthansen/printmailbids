@@ -212,6 +212,8 @@ export interface Listing {
   length_inches: number | null;
   width_inches: number | null;
   height_inches: number | null;
+  floor_length_ft: number | null;
+  floor_width_ft: number | null;
   electrical_requirements: string | null;
   air_requirements_psi: number | null;
   location_id: string | null;

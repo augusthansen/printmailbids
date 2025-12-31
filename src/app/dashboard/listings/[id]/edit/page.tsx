@@ -183,6 +183,8 @@ export default function EditListingPage() {
     length_inches: '',
     width_inches: '',
     height_inches: '',
+    floor_length_ft: '',
+    floor_width_ft: '',
     electrical_requirements: '',
     air_requirements_psi: '',
     // Deinstall
@@ -273,6 +275,8 @@ export default function EditListingPage() {
         length_inches: data.length_inches?.toString() || '',
         width_inches: data.width_inches?.toString() || '',
         height_inches: data.height_inches?.toString() || '',
+        floor_length_ft: data.floor_length_ft?.toString() || '',
+        floor_width_ft: data.floor_width_ft?.toString() || '',
         electrical_requirements: data.electrical_requirements || '',
         air_requirements_psi: data.air_requirements_psi?.toString() || '',
         // Deinstall
@@ -383,6 +387,8 @@ export default function EditListingPage() {
           length_inches: formData.length_inches ? parseInt(formData.length_inches) : null,
           width_inches: formData.width_inches ? parseInt(formData.width_inches) : null,
           height_inches: formData.height_inches ? parseInt(formData.height_inches) : null,
+          floor_length_ft: formData.floor_length_ft ? parseFloat(formData.floor_length_ft) : null,
+          floor_width_ft: formData.floor_width_ft ? parseFloat(formData.floor_width_ft) : null,
           electrical_requirements: formData.electrical_requirements || null,
           air_requirements_psi: formData.air_requirements_psi ? parseInt(formData.air_requirements_psi) : null,
           // Deinstall
@@ -1573,6 +1579,33 @@ export default function EditListingPage() {
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   />
                   <p className="text-xs text-gray-500 mt-1">Latest date for pickup</p>
+                </div>
+              </div>
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Installed Floor Dimensions (ft)
+                </label>
+                <p className="text-xs text-gray-500 mb-2">
+                  The floor space required when the equipment is installed and operational
+                </p>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    value={formData.floor_length_ft}
+                    onChange={(e) => updateFormData('floor_length_ft', e.target.value)}
+                    placeholder="Length"
+                    className="w-24 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-center"
+                  />
+                  <span className="text-gray-500 font-medium">ft</span>
+                  <span className="text-gray-400 text-xl font-bold mx-1">×</span>
+                  <input
+                    type="number"
+                    value={formData.floor_width_ft}
+                    onChange={(e) => updateFormData('floor_width_ft', e.target.value)}
+                    placeholder="Width"
+                    className="w-24 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-center"
+                  />
+                  <span className="text-gray-500 font-medium">ft</span>
                 </div>
               </div>
               <div className="grid grid-cols-3 gap-4 mb-4">
