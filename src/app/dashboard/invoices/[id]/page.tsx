@@ -1440,7 +1440,7 @@ export default function InvoicePage() {
 
       {/* Seller Shipping Controls - Show when invoice is paid */}
       {isSeller && invoice.status === 'paid' && invoice.fulfillment_status !== 'delivered' && (
-        <div className="bg-blue-50 border border-blue-200 rounded-xl p-6 mb-6">
+        <div id="shipping-controls" className="bg-blue-50 border border-blue-200 rounded-xl p-6 mb-6 scroll-mt-24">
           <div className="flex items-start gap-4">
             <div className="p-2 bg-blue-100 rounded-lg">
               <Truck className="h-6 w-6 text-blue-600" />
@@ -1496,7 +1496,7 @@ export default function InvoicePage() {
 
       {/* Buyer Confirm Delivery - Show when item is shipped but not yet confirmed by buyer */}
       {isBuyer && invoice.fulfillment_status === 'shipped' && !invoice.delivery_confirmed_at && (
-        <div className="bg-green-50 border border-green-200 rounded-xl p-6 mb-6">
+        <div id="delivery-confirmation" className="bg-green-50 border border-green-200 rounded-xl p-6 mb-6 scroll-mt-24">
           <div className="flex items-start gap-4">
             <div className="p-2 bg-green-100 rounded-lg">
               <Package className="h-6 w-6 text-green-600" />
@@ -2291,7 +2291,7 @@ export default function InvoicePage() {
 
           {/* Freight Shipping Details (if shipped) */}
           {(invoice.shipped_at || invoice.shipping_carrier || invoice.freight_bol_number) && (
-            <div className="bg-white rounded-xl shadow-sm border p-6">
+            <div id="shipping-details" className="bg-white rounded-xl shadow-sm border p-6 scroll-mt-24">
               <h2 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
                 <Truck className="h-5 w-5 text-blue-600" />
                 Freight Shipping Details

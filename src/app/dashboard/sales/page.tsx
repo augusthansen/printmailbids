@@ -18,7 +18,9 @@ import {
   XCircle,
   Loader2,
   AlertCircle,
-  Send
+  Send,
+  FileText,
+  Settings
 } from 'lucide-react';
 
 type InvoiceStatus = 'pending' | 'paid' | 'overdue' | 'cancelled' | 'refunded';
@@ -615,6 +617,16 @@ export default function SalesPage() {
                             Ship
                           </Link>
                         )}
+                        {/* Show Manage Shipping button for in-transit items */}
+                        {sale.fulfillment_status === 'shipped' && (
+                          <Link
+                            href={`/dashboard/invoices/${sale.id}#shipping-details`}
+                            className="inline-flex items-center gap-1 bg-purple-600 text-white px-3 py-1.5 rounded-lg font-medium text-sm hover:bg-purple-700"
+                          >
+                            <Settings className="h-4 w-4" />
+                            Manage
+                          </Link>
+                        )}
                         <Link
                           href={`/dashboard/invoices/${sale.id}`}
                           className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-700 font-medium text-sm"
@@ -682,6 +694,16 @@ export default function SalesPage() {
                       >
                         <Send className="h-4 w-4" />
                         Ship
+                      </Link>
+                    )}
+                    {/* Show Manage Shipping button for in-transit items */}
+                    {sale.fulfillment_status === 'shipped' && (
+                      <Link
+                        href={`/dashboard/invoices/${sale.id}#shipping-details`}
+                        className="inline-flex items-center gap-1 bg-purple-600 text-white px-3 py-1.5 rounded-lg font-medium text-sm hover:bg-purple-700"
+                      >
+                        <Settings className="h-4 w-4" />
+                        Manage
                       </Link>
                     )}
                     <Link
