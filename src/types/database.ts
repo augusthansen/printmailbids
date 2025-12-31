@@ -338,6 +338,13 @@ export interface Invoice {
     company?: string;
   } | null;
   freight_special_instructions: string | null;
+  // Delivery confirmation fields (buyer)
+  delivery_confirmed_at: string | null;
+  delivery_confirmed_by: string | null;
+  delivery_condition: 'good' | 'damaged' | 'partial' | null;
+  delivery_notes: string | null;
+  delivery_bol_url: string | null;
+  delivery_damage_photos: string[] | null;
   stripe_payment_intent_id: string | null;
   stripe_transfer_id: string | null;
   seller_notes: string | null;

@@ -30,7 +30,8 @@ import {
   XCircle,
   MessageSquare,
   Upload,
-  Trash2
+  Trash2,
+  Camera
 } from 'lucide-react';
 
 interface FreightContact {
@@ -91,6 +92,13 @@ interface Invoice {
   freight_pickup_contact: FreightContact | null;
   freight_delivery_contact: FreightContact | null;
   freight_special_instructions: string | null;
+  // Delivery confirmation fields (buyer)
+  delivery_confirmed_at: string | null;
+  delivery_confirmed_by: string | null;
+  delivery_condition: 'good' | 'damaged' | 'partial' | null;
+  delivery_notes: string | null;
+  delivery_bol_url: string | null;
+  delivery_damage_photos: string[] | null;
   listing?: {
     id: string;
     title: string;
@@ -165,7 +173,18 @@ export default function InvoicePage() {
   const [freightDeliveryContact, setFreightDeliveryContact] = useState<FreightContact>({ name: '', phone: '', email: '', company: '' });
   const [freightSpecialInstructions, setFreightSpecialInstructions] = useState('');
 
+  // Delivery confirmation state (buyer)
+  const [showDeliveryModal, setShowDeliveryModal] = useState(false);
+  const [confirmingDelivery, setConfirmingDelivery] = useState(false);
+  const [deliveryCondition, setDeliveryCondition] = useState<'good' | 'damaged' | 'partial'>('good');
+  const [deliveryNotes, setDeliveryNotes] = useState('');
+  const [deliveryBolFile, setDeliveryBolFile] = useState<File | null>(null);
+  const [deliveryBolPreview, setDeliveryBolPreview] = useState<string | null>(null);
+  const [deliveryDamageFiles, setDeliveryDamageFiles] = useState<File[]>([]);
+  const [deliveryDamagePreviews, setDeliveryDamagePreviews] = useState<string[]>([]);
+
   const isSeller = user?.id === invoice?.seller_id;
+  const isBuyer = user?.id === invoice?.buyer_id;
 
   // Initialize fee form values when invoice loads
   useEffect(() => {
@@ -615,6 +634,152 @@ export default function InvoicePage() {
     }
   };
 
+  // Handle BOL file selection
+  const handleBolFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setDeliveryBolFile(file);
+      // Create preview for images, show filename for PDFs
+      if (file.type.startsWith('image/')) {
+        const url = URL.createObjectURL(file);
+        setDeliveryBolPreview(url);
+      } else {
+        setDeliveryBolPreview(null);
+      }
+    }
+  };
+
+  // Handle damage photo selection
+  const handleDamagePhotosChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length > 0) {
+      setDeliveryDamageFiles(prev => [...prev, ...files]);
+      const previews = files.map(file => URL.createObjectURL(file));
+      setDeliveryDamagePreviews(prev => [...prev, ...previews]);
+    }
+  };
+
+  // Remove damage photo
+  const removeDamagePhoto = (index: number) => {
+    URL.revokeObjectURL(deliveryDamagePreviews[index]);
+    setDeliveryDamageFiles(prev => prev.filter((_, i) => i !== index));
+    setDeliveryDamagePreviews(prev => prev.filter((_, i) => i !== index));
+  };
+
+  // Handle buyer confirming delivery
+  const handleConfirmDelivery = async () => {
+    if (!invoice || !user?.id) return;
+
+    setConfirmingDelivery(true);
+    setError(null);
+
+    try {
+      let bolUrl: string | null = null;
+      const damagePhotoUrls: string[] = [];
+
+      // Upload BOL if provided
+      if (deliveryBolFile) {
+        const fileExt = deliveryBolFile.name.split('.').pop();
+        const fileName = `${invoice.id}/bol-${Date.now()}.${fileExt}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from('documents')
+          .upload(fileName, deliveryBolFile);
+
+        if (uploadError) {
+          console.error('BOL upload error:', uploadError);
+        } else {
+          const { data: urlData } = supabase.storage
+            .from('documents')
+            .getPublicUrl(fileName);
+          bolUrl = urlData.publicUrl;
+        }
+      }
+
+      // Upload damage photos if any
+      for (let i = 0; i < deliveryDamageFiles.length; i++) {
+        const file = deliveryDamageFiles[i];
+        const fileExt = file.name.split('.').pop();
+        const fileName = `${invoice.id}/damage-${Date.now()}-${i}.${fileExt}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from('documents')
+          .upload(fileName, file);
+
+        if (!uploadError) {
+          const { data: urlData } = supabase.storage
+            .from('documents')
+            .getPublicUrl(fileName);
+          damagePhotoUrls.push(urlData.publicUrl);
+        }
+      }
+
+      // Update invoice
+      const updateData: Record<string, unknown> = {
+        fulfillment_status: 'delivered',
+        delivered_at: new Date().toISOString(),
+        delivery_confirmed_at: new Date().toISOString(),
+        delivery_confirmed_by: user.id,
+        delivery_condition: deliveryCondition,
+        delivery_notes: deliveryNotes.trim() || null,
+        delivery_bol_url: bolUrl,
+        delivery_damage_photos: damagePhotoUrls.length > 0 ? damagePhotoUrls : null,
+      };
+
+      const { error: updateError } = await supabase
+        .from('invoices')
+        .update(updateData)
+        .eq('id', invoice.id);
+
+      if (updateError) throw updateError;
+
+      // Notify seller
+      const conditionText = deliveryCondition === 'good'
+        ? 'in good condition'
+        : deliveryCondition === 'damaged'
+          ? 'with damage reported'
+          : 'partially received';
+
+      await supabase.from('notifications').insert({
+        user_id: invoice.seller_id,
+        type: 'item_delivered',
+        title: 'Delivery Confirmed by Buyer',
+        message: `The buyer has confirmed delivery of "${invoice.listing?.title || 'your item'}" ${conditionText}.${deliveryNotes.trim() ? ` Notes: ${deliveryNotes.trim()}` : ''}`,
+        related_type: 'invoice',
+        related_id: invoice.id,
+      });
+
+      // Update local state
+      setInvoice(prev => prev ? {
+        ...prev,
+        fulfillment_status: 'delivered',
+        delivered_at: new Date().toISOString(),
+        delivery_confirmed_at: new Date().toISOString(),
+        delivery_confirmed_by: user.id,
+        delivery_condition: deliveryCondition,
+        delivery_notes: deliveryNotes.trim() || null,
+        delivery_bol_url: bolUrl,
+        delivery_damage_photos: damagePhotoUrls.length > 0 ? damagePhotoUrls : null,
+      } : null);
+
+      // Clean up
+      setShowDeliveryModal(false);
+      setDeliveryCondition('good');
+      setDeliveryNotes('');
+      setDeliveryBolFile(null);
+      setDeliveryBolPreview(null);
+      deliveryDamagePreviews.forEach(url => URL.revokeObjectURL(url));
+      setDeliveryDamageFiles([]);
+      setDeliveryDamagePreviews([]);
+
+      setSuccess('Delivery confirmed! The seller has been notified.');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to confirm delivery');
+    } finally {
+      setConfirmingDelivery(false);
+    }
+  };
+
   // Check for payment success/cancel from Stripe redirect
   useEffect(() => {
     const paymentStatus = searchParams.get('payment');
@@ -889,7 +1054,6 @@ export default function InvoicePage() {
   };
 
   const isPastDue = invoice && new Date(invoice.payment_due_date) < new Date() && invoice.status === 'pending';
-  const isBuyer = invoice && user?.id === invoice.buyer_id;
   const timeline = getTimeline();
 
   const handleDownloadPDF = () => {
@@ -1313,6 +1477,33 @@ export default function InvoicePage() {
         </div>
       )}
 
+      {/* Buyer Confirm Delivery - Show when item is shipped but not yet confirmed by buyer */}
+      {isBuyer && invoice.fulfillment_status === 'shipped' && !invoice.delivery_confirmed_at && (
+        <div className="bg-green-50 border border-green-200 rounded-xl p-6 mb-6">
+          <div className="flex items-start gap-4">
+            <div className="p-2 bg-green-100 rounded-lg">
+              <Package className="h-6 w-6 text-green-600" />
+            </div>
+            <div className="flex-1">
+              <h3 className="font-semibold text-green-800 mb-1">
+                Item Shipped - Confirm Delivery
+              </h3>
+              <p className="text-green-700 text-sm mb-4">
+                Your item has been shipped! Once you receive it, please confirm delivery and upload the signed Bill of Lading.
+              </p>
+
+              <button
+                onClick={() => setShowDeliveryModal(true)}
+                className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition"
+              >
+                <CheckCircle className="h-4 w-4" />
+                Confirm Delivery
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Freight Shipping Modal */}
       {showShippingModal && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 overflow-y-auto">
@@ -1612,6 +1803,208 @@ export default function InvoicePage() {
               >
                 {approvingFees ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
                 Reject Fees
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delivery Confirmation Modal (Buyer) */}
+      {showDeliveryModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-xl shadow-xl max-w-lg w-full p-6 my-8">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">Confirm Delivery</h3>
+              <button
+                onClick={() => {
+                  setShowDeliveryModal(false);
+                  setDeliveryCondition('good');
+                  setDeliveryNotes('');
+                  setDeliveryBolFile(null);
+                  setDeliveryBolPreview(null);
+                  deliveryDamagePreviews.forEach(url => URL.revokeObjectURL(url));
+                  setDeliveryDamageFiles([]);
+                  setDeliveryDamagePreviews([]);
+                }}
+                className="p-1 hover:bg-gray-100 rounded"
+              >
+                <X className="h-5 w-5 text-gray-500" />
+              </button>
+            </div>
+            <p className="text-gray-600 text-sm mb-6">
+              Confirm that you have received the item. You can upload the signed Bill of Lading and report any damage.
+            </p>
+
+            <div className="space-y-6">
+              {/* Condition Selection */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Item Condition <span className="text-red-500">*</span>
+                </label>
+                <div className="grid grid-cols-3 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setDeliveryCondition('good')}
+                    className={`p-3 rounded-lg border-2 text-center transition ${
+                      deliveryCondition === 'good'
+                        ? 'border-green-500 bg-green-50 text-green-700'
+                        : 'border-gray-200 hover:border-gray-300'
+                    }`}
+                  >
+                    <CheckCircle className={`h-6 w-6 mx-auto mb-1 ${deliveryCondition === 'good' ? 'text-green-600' : 'text-gray-400'}`} />
+                    <span className="text-sm font-medium">Good</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDeliveryCondition('partial')}
+                    className={`p-3 rounded-lg border-2 text-center transition ${
+                      deliveryCondition === 'partial'
+                        ? 'border-yellow-500 bg-yellow-50 text-yellow-700'
+                        : 'border-gray-200 hover:border-gray-300'
+                    }`}
+                  >
+                    <AlertCircle className={`h-6 w-6 mx-auto mb-1 ${deliveryCondition === 'partial' ? 'text-yellow-600' : 'text-gray-400'}`} />
+                    <span className="text-sm font-medium">Partial</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDeliveryCondition('damaged')}
+                    className={`p-3 rounded-lg border-2 text-center transition ${
+                      deliveryCondition === 'damaged'
+                        ? 'border-red-500 bg-red-50 text-red-700'
+                        : 'border-gray-200 hover:border-gray-300'
+                    }`}
+                  >
+                    <XCircle className={`h-6 w-6 mx-auto mb-1 ${deliveryCondition === 'damaged' ? 'text-red-600' : 'text-gray-400'}`} />
+                    <span className="text-sm font-medium">Damaged</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Signed BOL Upload */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Signed Bill of Lading (optional)
+                </label>
+                <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center hover:border-gray-400 transition">
+                  {deliveryBolFile ? (
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        {deliveryBolPreview ? (
+                          <img src={deliveryBolPreview} alt="BOL Preview" className="w-16 h-16 object-cover rounded" />
+                        ) : (
+                          <div className="w-16 h-16 bg-gray-100 rounded flex items-center justify-center">
+                            <FileText className="h-8 w-8 text-gray-400" />
+                          </div>
+                        )}
+                        <span className="text-sm text-gray-700">{deliveryBolFile.name}</span>
+                      </div>
+                      <button
+                        onClick={() => {
+                          setDeliveryBolFile(null);
+                          if (deliveryBolPreview) URL.revokeObjectURL(deliveryBolPreview);
+                          setDeliveryBolPreview(null);
+                        }}
+                        className="p-1 hover:bg-gray-100 rounded"
+                      >
+                        <X className="h-5 w-5 text-gray-500" />
+                      </button>
+                    </div>
+                  ) : (
+                    <label className="cursor-pointer">
+                      <Upload className="h-8 w-8 text-gray-400 mx-auto mb-2" />
+                      <p className="text-sm text-gray-600">Click to upload or take a photo</p>
+                      <p className="text-xs text-gray-500 mt-1">PDF, JPG, PNG up to 10MB</p>
+                      <input
+                        type="file"
+                        accept="image/*,.pdf"
+                        onChange={handleBolFileChange}
+                        className="hidden"
+                      />
+                    </label>
+                  )}
+                </div>
+              </div>
+
+              {/* Damage Photos (show if damaged or partial) */}
+              {(deliveryCondition === 'damaged' || deliveryCondition === 'partial') && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Damage Photos (optional but recommended)
+                  </label>
+                  <div className="space-y-3">
+                    {deliveryDamagePreviews.length > 0 && (
+                      <div className="grid grid-cols-4 gap-2">
+                        {deliveryDamagePreviews.map((preview, index) => (
+                          <div key={index} className="relative">
+                            <img src={preview} alt={`Damage ${index + 1}`} className="w-full h-20 object-cover rounded" />
+                            <button
+                              onClick={() => removeDamagePhoto(index)}
+                              className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-0.5"
+                            >
+                              <X className="h-4 w-4" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    <label className="block border-2 border-dashed border-gray-300 rounded-lg p-4 text-center hover:border-gray-400 transition cursor-pointer">
+                      <Camera className="h-6 w-6 text-gray-400 mx-auto mb-1" />
+                      <p className="text-sm text-gray-600">Add damage photos</p>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        multiple
+                        onChange={handleDamagePhotosChange}
+                        className="hidden"
+                      />
+                    </label>
+                  </div>
+                </div>
+              )}
+
+              {/* Notes */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Notes {(deliveryCondition === 'damaged' || deliveryCondition === 'partial') && <span className="text-red-500">*</span>}
+                </label>
+                <textarea
+                  value={deliveryNotes}
+                  onChange={(e) => setDeliveryNotes(e.target.value)}
+                  placeholder={
+                    deliveryCondition === 'good'
+                      ? 'Any comments about the delivery (optional)'
+                      : 'Please describe the damage or what was missing...'
+                  }
+                  rows={3}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-3 mt-6 pt-4 border-t">
+              <button
+                onClick={() => {
+                  setShowDeliveryModal(false);
+                  setDeliveryCondition('good');
+                  setDeliveryNotes('');
+                  setDeliveryBolFile(null);
+                  setDeliveryBolPreview(null);
+                  deliveryDamagePreviews.forEach(url => URL.revokeObjectURL(url));
+                  setDeliveryDamageFiles([]);
+                  setDeliveryDamagePreviews([]);
+                }}
+                className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmDelivery}
+                disabled={confirmingDelivery || ((deliveryCondition === 'damaged' || deliveryCondition === 'partial') && !deliveryNotes.trim())}
+                className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {confirmingDelivery ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle className="h-4 w-4" />}
+                Confirm Delivery
               </button>
             </div>
           </div>
@@ -2044,6 +2437,84 @@ export default function InvoicePage() {
                           </p>
                         )}
                         {invoice.shipping_address.country && <p>{invoice.shipping_address.country}</p>}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Delivery Confirmation (if buyer confirmed) */}
+                {invoice.delivery_confirmed_at && (
+                  <div className="pt-4 border-t">
+                    <p className="text-sm font-medium text-gray-700 mb-3">Buyer Delivery Confirmation</p>
+                    <div className={`rounded-lg p-4 ${
+                      invoice.delivery_condition === 'good'
+                        ? 'bg-green-50 border border-green-200'
+                        : invoice.delivery_condition === 'damaged'
+                          ? 'bg-red-50 border border-red-200'
+                          : 'bg-yellow-50 border border-yellow-200'
+                    }`}>
+                      <div className="flex items-center gap-2 mb-2">
+                        {invoice.delivery_condition === 'good' && (
+                          <>
+                            <CheckCircle className="h-5 w-5 text-green-600" />
+                            <span className="font-medium text-green-800">Received in Good Condition</span>
+                          </>
+                        )}
+                        {invoice.delivery_condition === 'partial' && (
+                          <>
+                            <AlertCircle className="h-5 w-5 text-yellow-600" />
+                            <span className="font-medium text-yellow-800">Partial Delivery</span>
+                          </>
+                        )}
+                        {invoice.delivery_condition === 'damaged' && (
+                          <>
+                            <XCircle className="h-5 w-5 text-red-600" />
+                            <span className="font-medium text-red-800">Damage Reported</span>
+                          </>
+                        )}
+                      </div>
+                      <p className="text-sm text-gray-600 mb-2">
+                        Confirmed on {formatDate(invoice.delivery_confirmed_at)}
+                      </p>
+                      {invoice.delivery_notes && (
+                        <p className="text-sm text-gray-700 bg-white/50 rounded p-2 mb-3">
+                          {invoice.delivery_notes}
+                        </p>
+                      )}
+                      <div className="flex flex-wrap gap-3">
+                        {invoice.delivery_bol_url && (
+                          <a
+                            href={invoice.delivery_bol_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 text-sm text-blue-600 hover:text-blue-800"
+                          >
+                            <FileText className="h-4 w-4" />
+                            View Signed BOL
+                          </a>
+                        )}
+                        {invoice.delivery_damage_photos && invoice.delivery_damage_photos.length > 0 && (
+                          <div className="w-full">
+                            <p className="text-sm font-medium text-gray-700 mb-2">Damage Photos:</p>
+                            <div className="grid grid-cols-4 gap-2">
+                              {invoice.delivery_damage_photos.map((url, index) => (
+                                <a
+                                  key={index}
+                                  href={url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="block"
+                                >
+                                  <img
+                                    src={url}
+                                    alt={`Damage ${index + 1}`}
+                                    className="w-full h-20 object-cover rounded border hover:opacity-80 transition"
+                                  />
+                                </a>
+                              ))}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
