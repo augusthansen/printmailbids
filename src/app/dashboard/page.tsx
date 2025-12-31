@@ -321,7 +321,7 @@ export default function DashboardPage() {
               type: 'shipping',
               title: 'Items to Ship',
               description: `${pendingShipments} item(s) ready for shipping`,
-              href: '/dashboard/sales',
+              href: '/dashboard/sales?filter=needs_shipping',
               priority: 'high',
             });
           }

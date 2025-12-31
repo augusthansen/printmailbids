@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useState, useEffect, useMemo } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { createClient } from '@/lib/supabase/client';
 import {
@@ -16,7 +17,8 @@ import {
   Clock,
   XCircle,
   Loader2,
-  AlertCircle
+  AlertCircle,
+  Send
 } from 'lucide-react';
 
 type InvoiceStatus = 'pending' | 'paid' | 'overdue' | 'cancelled' | 'refunded';
@@ -67,12 +69,22 @@ const fulfillmentConfig: Record<FulfillmentStatus, { label: string; color: strin
 
 export default function SalesPage() {
   const { user, loading: authLoading } = useAuth();
+  const searchParams = useSearchParams();
   const supabase = useMemo(() => createClient(), []);
   const [sales, setSales] = useState<Sale[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<InvoiceStatus | 'all'>('all');
+  const [fulfillmentFilter, setFulfillmentFilter] = useState<FulfillmentStatus | 'needs_shipping' | 'all'>('all');
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Check for filter param on mount
+  useEffect(() => {
+    const filter = searchParams.get('filter');
+    if (filter === 'needs_shipping') {
+      setFulfillmentFilter('needs_shipping');
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     async function loadSales() {
@@ -159,13 +171,24 @@ export default function SalesPage() {
 
   const filteredSales = sales.filter((sale) => {
     const matchesStatus = statusFilter === 'all' || sale.status === statusFilter;
+
+    // Fulfillment filter logic
+    let matchesFulfillment = true;
+    if (fulfillmentFilter === 'needs_shipping') {
+      // Needs shipping = paid but not yet shipped
+      matchesFulfillment = sale.status === 'paid' &&
+        (sale.fulfillment_status === 'processing' || sale.fulfillment_status === 'awaiting_payment');
+    } else if (fulfillmentFilter !== 'all') {
+      matchesFulfillment = sale.fulfillment_status === fulfillmentFilter;
+    }
+
     const searchLower = searchQuery.toLowerCase();
     const matchesSearch =
       (sale.listing?.title || '').toLowerCase().includes(searchLower) ||
       sale.id.toLowerCase().includes(searchLower) ||
       (sale.buyer?.full_name || '').toLowerCase().includes(searchLower) ||
       (sale.buyer?.company_name || '').toLowerCase().includes(searchLower);
-    return matchesStatus && matchesSearch;
+    return matchesStatus && matchesFulfillment && matchesSearch;
   });
 
   const totalRevenue = sales
@@ -296,14 +319,25 @@ export default function SalesPage() {
               className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <Filter className="h-5 w-5 text-gray-400" />
+            <select
+              value={fulfillmentFilter}
+              onChange={(e) => setFulfillmentFilter(e.target.value as FulfillmentStatus | 'needs_shipping' | 'all')}
+              className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            >
+              <option value="all">All Fulfillment</option>
+              <option value="needs_shipping">Needs Shipping</option>
+              <option value="processing">Processing</option>
+              <option value="shipped">Shipped</option>
+              <option value="delivered">Delivered</option>
+            </select>
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value as InvoiceStatus | 'all')}
               className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             >
-              <option value="all">All Status</option>
+              <option value="all">All Payment Status</option>
               <option value="pending">Payment Pending</option>
               <option value="paid">Paid</option>
               <option value="overdue">Overdue</option>
@@ -413,13 +447,26 @@ export default function SalesPage() {
                       </span>
                     </td>
                     <td className="px-6 py-4 text-right">
-                      <Link
-                        href={`/dashboard/invoices/${sale.id}`}
-                        className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-700 font-medium text-sm"
-                      >
-                        <Eye className="h-4 w-4" />
-                        View
-                      </Link>
+                      <div className="flex items-center justify-end gap-2">
+                        {/* Show Ship button for items that need shipping */}
+                        {sale.status === 'paid' &&
+                         (sale.fulfillment_status === 'processing' || sale.fulfillment_status === 'awaiting_payment') && (
+                          <Link
+                            href={`/dashboard/invoices/${sale.id}?action=ship`}
+                            className="inline-flex items-center gap-1 bg-blue-600 text-white px-3 py-1.5 rounded-lg font-medium text-sm hover:bg-blue-700"
+                          >
+                            <Send className="h-4 w-4" />
+                            Ship
+                          </Link>
+                        )}
+                        <Link
+                          href={`/dashboard/invoices/${sale.id}`}
+                          className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-700 font-medium text-sm"
+                        >
+                          <Eye className="h-4 w-4" />
+                          View
+                        </Link>
+                      </div>
                     </td>
                   </tr>
                 );
@@ -469,12 +516,25 @@ export default function SalesPage() {
                     <p className="text-sm text-gray-500">Your Payout</p>
                     <p className="font-bold text-green-600">{formatCurrency(sale.seller_payout_amount)}</p>
                   </div>
-                  <Link
-                    href={`/dashboard/invoices/${sale.id}`}
-                    className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-700 font-medium text-sm"
-                  >
-                    View Details
-                  </Link>
+                  <div className="flex items-center gap-2">
+                    {/* Show Ship button for items that need shipping */}
+                    {sale.status === 'paid' &&
+                     (sale.fulfillment_status === 'processing' || sale.fulfillment_status === 'awaiting_payment') && (
+                      <Link
+                        href={`/dashboard/invoices/${sale.id}?action=ship`}
+                        className="inline-flex items-center gap-1 bg-blue-600 text-white px-3 py-1.5 rounded-lg font-medium text-sm hover:bg-blue-700"
+                      >
+                        <Send className="h-4 w-4" />
+                        Ship
+                      </Link>
+                    )}
+                    <Link
+                      href={`/dashboard/invoices/${sale.id}`}
+                      className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-700 font-medium text-sm"
+                    >
+                      View
+                    </Link>
+                  </div>
                 </div>
               </div>
             );

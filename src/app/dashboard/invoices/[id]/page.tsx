@@ -538,6 +538,14 @@ export default function InvoicePage() {
     }
   }, [searchParams]);
 
+  // Auto-open shipping modal when action=ship
+  useEffect(() => {
+    const action = searchParams.get('action');
+    if (action === 'ship' && invoice && isSeller && invoice.status === 'paid' && invoice.fulfillment_status !== 'shipped' && invoice.fulfillment_status !== 'delivered') {
+      setShowShippingModal(true);
+    }
+  }, [searchParams, invoice, isSeller]);
+
   useEffect(() => {
     async function loadInvoice() {
       // Wait for auth to finish loading
