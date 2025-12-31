@@ -498,35 +498,35 @@ export default function DashboardPage() {
         <div>
           <h1 className="text-2xl font-bold text-slate-900 font-display">Dashboard</h1>
           <p className="text-stone-600 mt-1">
-            {isSeller
-              ? "Welcome back! Here's your selling activity."
-              : "Welcome back! Here's your buying activity."}
+            Welcome back! Here&apos;s your activity overview.
           </p>
         </div>
-        {isSeller ? (
-          <Link
-            href="/sell"
-            className="inline-flex items-center justify-center gap-2 bg-gradient-to-r from-blue-500 to-blue-600 text-white px-5 py-2.5 rounded-xl font-medium hover:from-blue-600 hover:to-blue-700 shadow-lg shadow-blue-500/25 transition-all"
-          >
-            <Plus className="h-5 w-5" />
-            New Listing
-          </Link>
-        ) : (
+        <div className="flex gap-3">
+          {isSeller && (
+            <Link
+              href="/sell"
+              className="inline-flex items-center justify-center gap-2 bg-gradient-to-r from-blue-500 to-blue-600 text-white px-5 py-2.5 rounded-xl font-medium hover:from-blue-600 hover:to-blue-700 shadow-lg shadow-blue-500/25 transition-all"
+            >
+              <Plus className="h-5 w-5" />
+              New Listing
+            </Link>
+          )}
           <Link
             href="/marketplace"
-            className="inline-flex items-center justify-center gap-2 bg-gradient-to-r from-blue-500 to-blue-600 text-white px-5 py-2.5 rounded-xl font-medium hover:from-blue-600 hover:to-blue-700 shadow-lg shadow-blue-500/25 transition-all"
+            className="inline-flex items-center justify-center gap-2 bg-white border border-stone-200 text-slate-700 px-5 py-2.5 rounded-xl font-medium hover:bg-stone-50 transition-all"
           >
             <ShoppingCart className="h-5 w-5" />
-            Browse Equipment
+            Browse
           </Link>
-        )}
+        </div>
       </div>
 
       {/* Quick Links - Mobile only (shown at top) */}
       <div className="bg-white rounded-2xl shadow-sm border border-stone-200/50 p-6 lg:hidden">
         <h2 className="font-semibold text-slate-900 mb-4">Quick Links</h2>
         <div className="grid grid-cols-2 gap-3">
-          {isSeller ? (
+          {/* Seller links */}
+          {isSeller && (
             <>
               <Link
                 href="/dashboard/listings"
@@ -536,64 +536,48 @@ export default function DashboardPage() {
                 <span className="font-medium text-slate-900">My Listings</span>
               </Link>
               <Link
-                href="/dashboard/offers"
-                className="flex items-center gap-3 p-4 bg-purple-50 rounded-xl hover:bg-purple-100 transition-colors"
-              >
-                <HandCoins className="h-5 w-5 text-purple-600" />
-                <span className="font-medium text-slate-900">Offers</span>
-              </Link>
-              <Link
                 href="/dashboard/sales"
                 className="flex items-center gap-3 p-4 bg-green-50 rounded-xl hover:bg-green-100 transition-colors"
               >
                 <DollarSign className="h-5 w-5 text-green-600" />
                 <span className="font-medium text-slate-900">Sales</span>
               </Link>
-              <Link
-                href="/dashboard/messages"
-                className="flex items-center gap-3 p-4 bg-slate-100 rounded-xl hover:bg-slate-200 transition-colors"
-              >
-                <MessageSquare className="h-5 w-5 text-slate-600" />
-                <span className="font-medium text-slate-900">Messages</span>
-              </Link>
-            </>
-          ) : (
-            <>
-              <Link
-                href="/dashboard/bids"
-                className="flex items-center gap-3 p-4 bg-blue-50 rounded-xl hover:bg-blue-100 transition-colors"
-              >
-                <Gavel className="h-5 w-5 text-blue-600" />
-                <span className="font-medium text-slate-900">My Bids</span>
-              </Link>
-              <Link
-                href="/dashboard/purchases"
-                className="flex items-center gap-3 p-4 bg-green-50 rounded-xl hover:bg-green-100 transition-colors"
-              >
-                <ShoppingCart className="h-5 w-5 text-green-600" />
-                <span className="font-medium text-slate-900">Purchases</span>
-              </Link>
-              <Link
-                href="/dashboard/watchlist"
-                className="flex items-center gap-3 p-4 bg-red-50 rounded-xl hover:bg-red-100 transition-colors"
-              >
-                <Heart className="h-5 w-5 text-red-600" />
-                <span className="font-medium text-slate-900">Watchlist</span>
-              </Link>
-              <Link
-                href="/marketplace"
-                className="flex items-center gap-3 p-4 bg-slate-100 rounded-xl hover:bg-slate-200 transition-colors"
-              >
-                <Package className="h-5 w-5 text-slate-600" />
-                <span className="font-medium text-slate-900">Browse</span>
-              </Link>
             </>
           )}
+          {/* Buyer links - shown for everyone */}
+          <Link
+            href="/dashboard/bids"
+            className="flex items-center gap-3 p-4 bg-blue-50 rounded-xl hover:bg-blue-100 transition-colors"
+          >
+            <Gavel className="h-5 w-5 text-blue-600" />
+            <span className="font-medium text-slate-900">My Bids</span>
+          </Link>
+          <Link
+            href="/dashboard/purchases"
+            className="flex items-center gap-3 p-4 bg-green-50 rounded-xl hover:bg-green-100 transition-colors"
+          >
+            <ShoppingCart className="h-5 w-5 text-green-600" />
+            <span className="font-medium text-slate-900">Purchases</span>
+          </Link>
+          <Link
+            href="/dashboard/watchlist"
+            className="flex items-center gap-3 p-4 bg-red-50 rounded-xl hover:bg-red-100 transition-colors"
+          >
+            <Heart className="h-5 w-5 text-red-600" />
+            <span className="font-medium text-slate-900">Watchlist</span>
+          </Link>
+          <Link
+            href="/marketplace"
+            className="flex items-center gap-3 p-4 bg-slate-100 rounded-xl hover:bg-slate-200 transition-colors"
+          >
+            <Package className="h-5 w-5 text-slate-600" />
+            <span className="font-medium text-slate-900">Browse</span>
+          </Link>
         </div>
       </div>
 
-      {/* Stats cards - Different for Buyer vs Seller */}
-      {isSeller ? (
+      {/* Seller Stats & Sales Pipeline - shown for sellers */}
+      {isSeller && (
         <>
           {/* Seller Quick Stats */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -778,156 +762,156 @@ export default function DashboardPage() {
             </div>
           )}
         </>
-      ) : (
-        // Buyer Stats
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <Link
-            href="/dashboard/bids"
-            className="bg-white rounded-2xl p-6 shadow-sm border border-stone-200/50 hover:shadow-md hover:border-blue-300 transition-all"
-          >
-            <div className="flex items-center justify-between mb-4">
-              <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-blue-100">
-                <Gavel className="h-6 w-6 text-blue-600" />
-              </div>
-              {buyerStats.winningBids > 0 && (
-                <span className="bg-green-100 text-green-700 text-xs font-bold px-2 py-1 rounded-full">
-                  {buyerStats.winningBids} winning
-                </span>
-              )}
+      )}
+
+      {/* Buyer Stats - shown for all users (everyone can buy) */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <Link
+          href="/dashboard/bids"
+          className="bg-white rounded-2xl p-6 shadow-sm border border-stone-200/50 hover:shadow-md hover:border-blue-300 transition-all"
+        >
+          <div className="flex items-center justify-between mb-4">
+            <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-blue-100">
+              <Gavel className="h-6 w-6 text-blue-600" />
             </div>
-            <p className="text-3xl font-bold text-slate-900">{buyerStats.activeBids}</p>
-            <p className="text-sm text-slate-600 font-medium mt-1">Active Bids</p>
-            {buyerStats.outbidCount > 0 && (
-              <p className="text-xs text-red-500 mt-0.5">{buyerStats.outbidCount} outbid</p>
+            {buyerStats.winningBids > 0 && (
+              <span className="bg-green-100 text-green-700 text-xs font-bold px-2 py-1 rounded-full">
+                {buyerStats.winningBids} winning
+              </span>
             )}
-          </Link>
+          </div>
+          <p className="text-3xl font-bold text-slate-900">{buyerStats.activeBids}</p>
+          <p className="text-sm text-slate-600 font-medium mt-1">Active Bids</p>
+          {buyerStats.outbidCount > 0 && (
+            <p className="text-xs text-red-500 mt-0.5">{buyerStats.outbidCount} outbid</p>
+          )}
+        </Link>
 
-          <Link
-            href="/dashboard/watchlist"
-            className="bg-white rounded-2xl p-6 shadow-sm border border-stone-200/50 hover:shadow-md hover:border-red-300 transition-all"
-          >
-            <div className="flex items-center justify-between mb-4">
-              <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-red-100">
-                <Heart className="h-6 w-6 text-red-600" />
-              </div>
+        <Link
+          href="/dashboard/watchlist"
+          className="bg-white rounded-2xl p-6 shadow-sm border border-stone-200/50 hover:shadow-md hover:border-red-300 transition-all"
+        >
+          <div className="flex items-center justify-between mb-4">
+            <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-red-100">
+              <Heart className="h-6 w-6 text-red-600" />
             </div>
-            <p className="text-3xl font-bold text-slate-900">{buyerStats.watchlistCount}</p>
-            <p className="text-sm text-slate-600 font-medium mt-1">Watchlist</p>
-            <p className="text-xs text-stone-500 mt-0.5">items saved</p>
-          </Link>
+          </div>
+          <p className="text-3xl font-bold text-slate-900">{buyerStats.watchlistCount}</p>
+          <p className="text-sm text-slate-600 font-medium mt-1">Watchlist</p>
+          <p className="text-xs text-stone-500 mt-0.5">items saved</p>
+        </Link>
 
+        <Link
+          href="/dashboard/purchases?status=pending"
+          className="bg-white rounded-2xl p-6 shadow-sm border border-stone-200/50 hover:shadow-md hover:border-yellow-300 transition-all"
+        >
+          <div className="flex items-center justify-between mb-4">
+            <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-yellow-100">
+              <CreditCard className="h-6 w-6 text-yellow-600" />
+            </div>
+            {buyerStats.pendingPayments > 0 && (
+              <span className="bg-yellow-500 text-white text-xs font-bold px-2 py-1 rounded-full">
+                {buyerStats.pendingPayments}
+              </span>
+            )}
+          </div>
+          <p className="text-3xl font-bold text-slate-900">{buyerStats.pendingPayments}</p>
+          <p className="text-sm text-slate-600 font-medium mt-1">Pending Payments</p>
+          <p className="text-xs text-stone-500 mt-0.5">
+            {buyerStats.pendingPaymentAmount > 0 ? `$${buyerStats.pendingPaymentAmount.toLocaleString()} due` : 'All paid'}
+          </p>
+        </Link>
+
+        <Link
+          href="/dashboard/my-offers"
+          className="bg-white rounded-2xl p-6 shadow-sm border border-stone-200/50 hover:shadow-md hover:border-green-300 transition-all"
+        >
+          <div className="flex items-center justify-between mb-4">
+            <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-green-100">
+              <Send className="h-6 w-6 text-green-600" />
+            </div>
+            {buyerStats.pendingOffers > 0 && (
+              <span className="bg-green-500 text-white text-xs font-bold px-2 py-1 rounded-full">
+                {buyerStats.pendingOffers}
+              </span>
+            )}
+          </div>
+          <p className="text-3xl font-bold text-slate-900">{buyerStats.pendingOffers}</p>
+          <p className="text-sm text-slate-600 font-medium mt-1">Pending Offers</p>
+          <p className="text-xs text-green-600 mt-0.5">View offers →</p>
+        </Link>
+      </div>
+
+      {/* Purchase Pipeline - shown for all users (everyone can buy) */}
+      <div className="bg-white rounded-2xl shadow-sm border border-stone-200/50 p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="font-semibold text-slate-900">Purchase Pipeline</h2>
+          <Link href="/dashboard/purchases" className="text-sm text-blue-600 hover:text-blue-700 font-medium">
+            View all →
+          </Link>
+        </div>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <Link
             href="/dashboard/purchases?status=pending"
-            className="bg-white rounded-2xl p-6 shadow-sm border border-stone-200/50 hover:shadow-md hover:border-yellow-300 transition-all"
+            className="text-left rounded-xl border-2 border-yellow-200 bg-yellow-50 p-4 hover:border-yellow-400 hover:shadow-md transition-all"
           >
-            <div className="flex items-center justify-between mb-4">
-              <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-yellow-100">
-                <CreditCard className="h-6 w-6 text-yellow-600" />
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg flex items-center justify-center bg-yellow-100">
+                <CreditCard className="h-5 w-5 text-yellow-600" />
               </div>
-              {buyerStats.pendingPayments > 0 && (
-                <span className="bg-yellow-500 text-white text-xs font-bold px-2 py-1 rounded-full">
-                  {buyerStats.pendingPayments}
-                </span>
-              )}
+              <div>
+                <p className="text-sm text-slate-600">To Pay</p>
+                <p className="text-2xl font-bold text-slate-900">{buyerStats.awaitingPaymentCount}</p>
+              </div>
             </div>
-            <p className="text-3xl font-bold text-slate-900">{buyerStats.pendingPayments}</p>
-            <p className="text-sm text-slate-600 font-medium mt-1">Pending Payments</p>
-            <p className="text-xs text-stone-500 mt-0.5">
-              {buyerStats.pendingPaymentAmount > 0 ? `$${buyerStats.pendingPaymentAmount.toLocaleString()} due` : 'All paid'}
-            </p>
           </Link>
 
           <Link
-            href="/dashboard/my-offers"
-            className="bg-white rounded-2xl p-6 shadow-sm border border-stone-200/50 hover:shadow-md hover:border-green-300 transition-all"
+            href="/dashboard/purchases?status=paid"
+            className="text-left rounded-xl border-2 border-blue-200 bg-blue-50 p-4 hover:border-blue-400 hover:shadow-md transition-all"
           >
-            <div className="flex items-center justify-between mb-4">
-              <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-green-100">
-                <Send className="h-6 w-6 text-green-600" />
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg flex items-center justify-center bg-blue-100">
+                <Package className="h-5 w-5 text-blue-600" />
               </div>
-              {buyerStats.pendingOffers > 0 && (
-                <span className="bg-green-500 text-white text-xs font-bold px-2 py-1 rounded-full">
-                  {buyerStats.pendingOffers}
-                </span>
-              )}
+              <div>
+                <p className="text-sm text-slate-600">Processing</p>
+                <p className="text-2xl font-bold text-slate-900">{buyerStats.processingCount}</p>
+              </div>
             </div>
-            <p className="text-3xl font-bold text-slate-900">{buyerStats.pendingOffers}</p>
-            <p className="text-sm text-slate-600 font-medium mt-1">Pending Offers</p>
-            <p className="text-xs text-green-600 mt-0.5">View offers →</p>
+          </Link>
+
+          <Link
+            href="/dashboard/purchases?status=shipped"
+            className="text-left rounded-xl border-2 border-purple-200 bg-purple-50 p-4 hover:border-purple-400 hover:shadow-md transition-all"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg flex items-center justify-center bg-purple-100">
+                <Truck className="h-5 w-5 text-purple-600" />
+              </div>
+              <div>
+                <p className="text-sm text-slate-600">In Transit</p>
+                <p className="text-2xl font-bold text-slate-900">{buyerStats.inTransitCount}</p>
+              </div>
+            </div>
+          </Link>
+
+          <Link
+            href="/dashboard/purchases?status=delivered"
+            className="text-left rounded-xl border-2 border-green-200 bg-green-50 p-4 hover:border-green-400 hover:shadow-md transition-all"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg flex items-center justify-center bg-green-100">
+                <CheckCircle className="h-5 w-5 text-green-600" />
+              </div>
+              <div>
+                <p className="text-sm text-slate-600">Delivered</p>
+                <p className="text-2xl font-bold text-slate-900">{buyerStats.deliveredCount}</p>
+              </div>
+            </div>
           </Link>
         </div>
-
-        {/* Buyer Purchase Pipeline */}
-        <div className="bg-white rounded-2xl shadow-sm border border-stone-200/50 p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="font-semibold text-slate-900">Purchase Pipeline</h2>
-            <Link href="/dashboard/purchases" className="text-sm text-blue-600 hover:text-blue-700 font-medium">
-              View all →
-            </Link>
-          </div>
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            <Link
-              href="/dashboard/purchases?status=pending"
-              className="text-left rounded-xl border-2 border-yellow-200 bg-yellow-50 p-4 hover:border-yellow-400 hover:shadow-md transition-all"
-            >
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg flex items-center justify-center bg-yellow-100">
-                  <CreditCard className="h-5 w-5 text-yellow-600" />
-                </div>
-                <div>
-                  <p className="text-sm text-slate-600">To Pay</p>
-                  <p className="text-2xl font-bold text-slate-900">{buyerStats.awaitingPaymentCount}</p>
-                </div>
-              </div>
-            </Link>
-
-            <Link
-              href="/dashboard/purchases?status=paid"
-              className="text-left rounded-xl border-2 border-blue-200 bg-blue-50 p-4 hover:border-blue-400 hover:shadow-md transition-all"
-            >
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg flex items-center justify-center bg-blue-100">
-                  <Package className="h-5 w-5 text-blue-600" />
-                </div>
-                <div>
-                  <p className="text-sm text-slate-600">Processing</p>
-                  <p className="text-2xl font-bold text-slate-900">{buyerStats.processingCount}</p>
-                </div>
-              </div>
-            </Link>
-
-            <Link
-              href="/dashboard/purchases?status=shipped"
-              className="text-left rounded-xl border-2 border-purple-200 bg-purple-50 p-4 hover:border-purple-400 hover:shadow-md transition-all"
-            >
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg flex items-center justify-center bg-purple-100">
-                  <Truck className="h-5 w-5 text-purple-600" />
-                </div>
-                <div>
-                  <p className="text-sm text-slate-600">In Transit</p>
-                  <p className="text-2xl font-bold text-slate-900">{buyerStats.inTransitCount}</p>
-                </div>
-              </div>
-            </Link>
-
-            <Link
-              href="/dashboard/purchases?status=delivered"
-              className="text-left rounded-xl border-2 border-green-200 bg-green-50 p-4 hover:border-green-400 hover:shadow-md transition-all"
-            >
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg flex items-center justify-center bg-green-100">
-                  <CheckCircle className="h-5 w-5 text-green-600" />
-                </div>
-                <div>
-                  <p className="text-sm text-slate-600">Delivered</p>
-                  <p className="text-2xl font-bold text-slate-900">{buyerStats.deliveredCount}</p>
-                </div>
-              </div>
-            </Link>
-          </div>
-        </div>
-      )}
+      </div>
 
       {/* Main content grid */}
       <div className="grid lg:grid-cols-3 gap-6">
@@ -1154,22 +1138,16 @@ export default function DashboardPage() {
       {/* Quick Links - Desktop only (shown at bottom) */}
       <div className="hidden lg:block bg-white rounded-2xl shadow-sm border border-stone-200/50 p-6">
         <h2 className="font-semibold text-slate-900 mb-4">Quick Links</h2>
-        <div className="grid grid-cols-4 gap-4">
-          {isSeller ? (
+        <div className={`grid gap-4 ${isSeller ? 'grid-cols-6' : 'grid-cols-4'}`}>
+          {/* Seller links */}
+          {isSeller && (
             <>
               <Link
                 href="/dashboard/listings"
                 className="flex items-center gap-3 p-4 bg-blue-50 rounded-xl hover:bg-blue-100 transition-colors"
               >
                 <Package className="h-5 w-5 text-blue-600" />
-                <span className="font-medium text-slate-900">My Listings</span>
-              </Link>
-              <Link
-                href="/dashboard/offers"
-                className="flex items-center gap-3 p-4 bg-purple-50 rounded-xl hover:bg-purple-100 transition-colors"
-              >
-                <HandCoins className="h-5 w-5 text-purple-600" />
-                <span className="font-medium text-slate-900">Offers</span>
+                <span className="font-medium text-slate-900">Listings</span>
               </Link>
               <Link
                 href="/dashboard/sales"
@@ -1178,46 +1156,37 @@ export default function DashboardPage() {
                 <DollarSign className="h-5 w-5 text-green-600" />
                 <span className="font-medium text-slate-900">Sales</span>
               </Link>
-              <Link
-                href="/dashboard/messages"
-                className="flex items-center gap-3 p-4 bg-slate-100 rounded-xl hover:bg-slate-200 transition-colors"
-              >
-                <MessageSquare className="h-5 w-5 text-slate-600" />
-                <span className="font-medium text-slate-900">Messages</span>
-              </Link>
-            </>
-          ) : (
-            <>
-              <Link
-                href="/dashboard/bids"
-                className="flex items-center gap-3 p-4 bg-blue-50 rounded-xl hover:bg-blue-100 transition-colors"
-              >
-                <Gavel className="h-5 w-5 text-blue-600" />
-                <span className="font-medium text-slate-900">My Bids</span>
-              </Link>
-              <Link
-                href="/dashboard/purchases"
-                className="flex items-center gap-3 p-4 bg-green-50 rounded-xl hover:bg-green-100 transition-colors"
-              >
-                <ShoppingCart className="h-5 w-5 text-green-600" />
-                <span className="font-medium text-slate-900">Purchases</span>
-              </Link>
-              <Link
-                href="/dashboard/watchlist"
-                className="flex items-center gap-3 p-4 bg-red-50 rounded-xl hover:bg-red-100 transition-colors"
-              >
-                <Heart className="h-5 w-5 text-red-600" />
-                <span className="font-medium text-slate-900">Watchlist</span>
-              </Link>
-              <Link
-                href="/marketplace"
-                className="flex items-center gap-3 p-4 bg-slate-100 rounded-xl hover:bg-slate-200 transition-colors"
-              >
-                <Package className="h-5 w-5 text-slate-600" />
-                <span className="font-medium text-slate-900">Browse</span>
-              </Link>
             </>
           )}
+          {/* Buyer links - shown for everyone */}
+          <Link
+            href="/dashboard/bids"
+            className="flex items-center gap-3 p-4 bg-blue-50 rounded-xl hover:bg-blue-100 transition-colors"
+          >
+            <Gavel className="h-5 w-5 text-blue-600" />
+            <span className="font-medium text-slate-900">Bids</span>
+          </Link>
+          <Link
+            href="/dashboard/purchases"
+            className="flex items-center gap-3 p-4 bg-green-50 rounded-xl hover:bg-green-100 transition-colors"
+          >
+            <ShoppingCart className="h-5 w-5 text-green-600" />
+            <span className="font-medium text-slate-900">Purchases</span>
+          </Link>
+          <Link
+            href="/dashboard/watchlist"
+            className="flex items-center gap-3 p-4 bg-red-50 rounded-xl hover:bg-red-100 transition-colors"
+          >
+            <Heart className="h-5 w-5 text-red-600" />
+            <span className="font-medium text-slate-900">Watchlist</span>
+          </Link>
+          <Link
+            href="/marketplace"
+            className="flex items-center gap-3 p-4 bg-slate-100 rounded-xl hover:bg-slate-200 transition-colors"
+          >
+            <Package className="h-5 w-5 text-slate-600" />
+            <span className="font-medium text-slate-900">Browse</span>
+          </Link>
         </div>
       </div>
     </div>
