@@ -576,9 +576,21 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Seller Stats & Sales Pipeline - shown for sellers */}
+      {/* ==================== SELLER SECTION ==================== */}
       {isSeller && (
         <>
+          {/* Seller Section Header */}
+          <div className="flex items-center gap-3 pt-2">
+            <div className="w-10 h-10 bg-gradient-to-br from-green-500 to-emerald-600 rounded-xl flex items-center justify-center shadow-lg shadow-green-500/25">
+              <DollarSign className="h-5 w-5 text-white" />
+            </div>
+            <div>
+              <h2 className="text-lg font-bold text-slate-900">Selling</h2>
+              <p className="text-sm text-stone-500">Manage your listings and sales</p>
+            </div>
+            <div className="flex-1 h-px bg-gradient-to-r from-green-200 to-transparent ml-4" />
+          </div>
+
           {/* Seller Quick Stats */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="bg-white rounded-2xl p-6 shadow-sm border border-stone-200/50 hover:shadow-md transition-shadow">
@@ -764,6 +776,19 @@ export default function DashboardPage() {
         </>
       )}
 
+      {/* ==================== BUYER SECTION ==================== */}
+      {/* Buyer Section Header */}
+      <div className="flex items-center gap-3 pt-2">
+        <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/25">
+          <ShoppingCart className="h-5 w-5 text-white" />
+        </div>
+        <div>
+          <h2 className="text-lg font-bold text-slate-900">Buying</h2>
+          <p className="text-sm text-stone-500">Track your bids and purchases</p>
+        </div>
+        <div className="flex-1 h-px bg-gradient-to-r from-blue-200 to-transparent ml-4" />
+      </div>
+
       {/* Buyer Stats - shown for all users (everyone can buy) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <Link
@@ -911,6 +936,19 @@ export default function DashboardPage() {
             </div>
           </Link>
         </div>
+      </div>
+
+      {/* ==================== ACTIVITY & OVERVIEW SECTION ==================== */}
+      {/* Activity Section Header */}
+      <div className="flex items-center gap-3 pt-2">
+        <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-violet-600 rounded-xl flex items-center justify-center shadow-lg shadow-purple-500/25">
+          <Activity className="h-5 w-5 text-white" />
+        </div>
+        <div>
+          <h2 className="text-lg font-bold text-slate-900">Activity & Overview</h2>
+          <p className="text-sm text-stone-500">Actions, notifications, and recent items</p>
+        </div>
+        <div className="flex-1 h-px bg-gradient-to-r from-purple-200 to-transparent ml-4" />
       </div>
 
       {/* Main content grid */}
