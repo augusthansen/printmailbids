@@ -86,7 +86,8 @@ export default function PurchasesPage() {
         return;
       }
 
-      // First get invoices
+      // Get invoices with joined listing and seller data
+      // Using Supabase's foreign key relationships to bypass RLS on listings
       const { data: invoicesData, error: invoicesError } = await supabase
         .from('invoices')
         .select(`
@@ -106,7 +107,18 @@ export default function PurchasesPage() {
           shipped_at,
           tracking_number,
           delivered_at,
-          created_at
+          created_at,
+          listings:listing_id (
+            id,
+            title,
+            city,
+            state
+          ),
+          seller:seller_id (
+            id,
+            full_name,
+            company_name
+          )
         `)
         .eq('buyer_id', user.id)
         .order('created_at', { ascending: false });
@@ -123,41 +135,16 @@ export default function PurchasesPage() {
         return;
       }
 
-      // Get unique listing and seller IDs
-      const listingIds = [...new Set(invoicesData.map((i: { listing_id: string }) => i.listing_id).filter(Boolean))];
-      const sellerIds = [...new Set(invoicesData.map((i: { seller_id: string }) => i.seller_id).filter(Boolean))];
-
-      // Fetch listings and sellers individually to avoid .in() query issues
-      let listingsData: { id: string; title: string; city: string | null; state: string | null }[] = [];
-      let sellersData: { id: string; full_name: string | null; company_name: string | null }[] = [];
-
-      if (listingIds.length > 0) {
-        const listingsPromises = listingIds.map(id =>
-          supabase.from('listings').select('id, title, city, state').eq('id', id).single()
-        );
-        const results = await Promise.all(listingsPromises);
-        listingsData = results
-          .filter(r => r.data && !r.error)
-          .map(r => r.data as { id: string; title: string; city: string | null; state: string | null });
-      }
-
-      if (sellerIds.length > 0) {
-        const sellersPromises = sellerIds.map(id =>
-          supabase.from('profiles').select('id, full_name, company_name').eq('id', id).single()
-        );
-        const results = await Promise.all(sellersPromises);
-        sellersData = results
-          .filter(r => r.data && !r.error)
-          .map(r => r.data as { id: string; full_name: string | null; company_name: string | null });
-      }
-
-      const listingsMap = new Map(listingsData.map(l => [l.id, l]));
-      const sellersMap = new Map(sellersData.map(s => [s.id, s]));
-
-      const purchasesWithDetails = invoicesData.map((invoice: { listing_id: string; seller_id: string }) => ({
+      // Transform the nested data structure to match our Purchase interface
+      const purchasesWithDetails = invoicesData.map((invoice: {
+        listing_id: string;
+        seller_id: string;
+        listings: { id: string; title: string; city: string | null; state: string | null } | null;
+        seller: { id: string; full_name: string | null; company_name: string | null } | null;
+      }) => ({
         ...invoice,
-        listing: listingsMap.get(invoice.listing_id) || null,
-        seller: sellersMap.get(invoice.seller_id) || null
+        listing: invoice.listings,
+        seller: invoice.seller
       }));
 
       setPurchases(purchasesWithDetails as Purchase[]);
