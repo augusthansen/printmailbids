@@ -348,6 +348,25 @@ export default function SalesPage() {
         </div>
       </div>
 
+      {/* Filter active banner */}
+      {fulfillmentFilter === 'needs_shipping' && (
+        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Truck className="h-5 w-5 text-blue-600" />
+            <div>
+              <p className="font-medium text-blue-900">Showing items that need shipping</p>
+              <p className="text-sm text-blue-700">These items are paid and awaiting shipment</p>
+            </div>
+          </div>
+          <button
+            onClick={() => setFulfillmentFilter('all')}
+            className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+          >
+            Clear filter
+          </button>
+        </div>
+      )}
+
       {/* Sales table */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
         {/* Desktop table */}
