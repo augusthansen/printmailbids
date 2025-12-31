@@ -127,17 +127,31 @@ export default function PurchasesPage() {
       const listingIds = [...new Set(invoicesData.map((i: { listing_id: string }) => i.listing_id).filter(Boolean))];
       const sellerIds = [...new Set(invoicesData.map((i: { seller_id: string }) => i.seller_id).filter(Boolean))];
 
-      // Fetch listings - use individual queries since RLS now allows buyer access
-      let listingsData: { id: string; title: string; city: string | null; state: string | null }[] = [];
+      // Fetch listings (just id and title - location is fetched separately if needed)
+      let listingsData: { id: string; title: string; location_id: string | null }[] = [];
       if (listingIds.length > 0) {
         const listingsPromises = listingIds.map(id =>
-          supabase.from('listings').select('id, title, city, state').eq('id', id).single()
+          supabase.from('listings').select('id, title, location_id').eq('id', id).single()
         );
         const results = await Promise.all(listingsPromises);
         listingsData = results
           .filter(r => r.data && !r.error)
-          .map(r => r.data as { id: string; title: string; city: string | null; state: string | null });
+          .map(r => r.data as { id: string; title: string; location_id: string | null });
       }
+
+      // Fetch location data for listings
+      const locationIds = [...new Set(listingsData.map(l => l.location_id).filter(Boolean))] as string[];
+      let locationsData: { id: string; city: string | null; state: string | null }[] = [];
+      if (locationIds.length > 0) {
+        const locationsPromises = locationIds.map(id =>
+          supabase.from('user_addresses').select('id, city, state').eq('id', id).single()
+        );
+        const locResults = await Promise.all(locationsPromises);
+        locationsData = locResults
+          .filter(r => r.data && !r.error)
+          .map(r => r.data as { id: string; city: string | null; state: string | null });
+      }
+      const locationsMap = new Map(locationsData.map(l => [l.id, l]));
 
       // Fetch sellers
       let sellersData: { id: string; full_name: string | null; company_name: string | null }[] = [];
@@ -151,8 +165,17 @@ export default function PurchasesPage() {
           .map(r => r.data as { id: string; full_name: string | null; company_name: string | null });
       }
 
-      // Create lookup maps
-      const listingsMap = new Map(listingsData.map(l => [l.id, l]));
+      // Create lookup maps - enrich listings with location data
+      const listingsWithLocation = listingsData.map(l => {
+        const location = l.location_id ? locationsMap.get(l.location_id) : null;
+        return {
+          id: l.id,
+          title: l.title,
+          city: location?.city || null,
+          state: location?.state || null
+        };
+      });
+      const listingsMap = new Map(listingsWithLocation.map(l => [l.id, l]));
       const sellersMap = new Map(sellersData.map(s => [s.id, s]));
 
       // Merge data
