@@ -293,10 +293,6 @@ export default function SettingsPage() {
     setSaving(true);
     setMessage(null);
 
-    // Log what we're about to save
-    console.log('Saving profile with seller_terms:', profile.seller_terms);
-    console.log('Saving profile with default_shipping_info:', profile.default_shipping_info);
-
     // Update profile fields (excluding address fields which are in user_addresses table)
     const { data: updateData, error } = await supabase
       .from('profiles')
@@ -324,8 +320,6 @@ export default function SettingsPage() {
       })
       .eq('id', user.id)
       .select();
-
-    console.log('Profile update result:', { updateData, error });
 
     if (error) {
       console.error('Save error:', JSON.stringify(error, null, 2));

@@ -263,7 +263,6 @@ export default function ListingDetailPage() {
 
   useEffect(() => {
     async function loadListing() {
-      console.log('Loading listing with ID:', listingId);
       const { data, error } = await supabase
         .from('listings')
         .select(`
@@ -274,11 +273,6 @@ export default function ListingDetailPage() {
         `)
         .eq('id', listingId)
         .single();
-
-      console.log('Listing query result:', { data, error });
-      console.log('Seller data from query:', data?.seller);
-      console.log('Listing seller_terms:', data?.seller_terms);
-      console.log('Seller profile seller_terms:', data?.seller?.seller_terms);
 
       if (data && !error) {
         setListing(data as unknown as Listing);

@@ -9,6 +9,30 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
+// Check if event has already been processed (idempotency)
+async function hasEventBeenProcessed(eventId: string): Promise<boolean> {
+  const { data } = await supabaseAdmin
+    .from('stripe_webhook_events')
+    .select('id')
+    .eq('event_id', eventId)
+    .single();
+  return !!data;
+}
+
+// Mark event as processed
+async function markEventProcessed(eventId: string, eventType: string): Promise<void> {
+  await supabaseAdmin
+    .from('stripe_webhook_events')
+    .upsert({
+      event_id: eventId,
+      event_type: eventType,
+      processed_at: new Date().toISOString(),
+    }, {
+      onConflict: 'event_id',
+      ignoreDuplicates: true,
+    });
+}
+
 export async function POST(request: NextRequest) {
   console.log('Stripe webhook received');
 
@@ -45,22 +69,33 @@ export async function POST(request: NextRequest) {
   }
 
   try {
+    // Check idempotency - skip if already processed
+    const alreadyProcessed = await hasEventBeenProcessed(event.id);
+    if (alreadyProcessed) {
+      console.log(`Event ${event.id} already processed, skipping`);
+      return NextResponse.json({ received: true, skipped: true });
+    }
+
     switch (event.type) {
       case 'checkout.session.completed': {
         const session = event.data.object as Stripe.Checkout.Session;
         await handleCheckoutComplete(session);
+        // Mark as processed after successful handling
+        await markEventProcessed(event.id, event.type);
         break;
       }
 
       case 'payment_intent.succeeded': {
         const paymentIntent = event.data.object as Stripe.PaymentIntent;
         await handlePaymentSucceeded(paymentIntent);
+        await markEventProcessed(event.id, event.type);
         break;
       }
 
       case 'payment_intent.payment_failed': {
         const paymentIntent = event.data.object as Stripe.PaymentIntent;
         await handlePaymentFailed(paymentIntent);
+        await markEventProcessed(event.id, event.type);
         break;
       }
 

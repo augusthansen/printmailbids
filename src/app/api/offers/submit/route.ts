@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { sendOfferReceivedEmail, sendOfferAcceptedEmail } from '@/lib/email';
 import { getCommissionRates, calculateFees } from '@/lib/commissions';
+import crypto from 'crypto';
 
 // Configuration
 const MAX_OFFERS_PER_BUYER_PER_LISTING = 3;
@@ -141,10 +142,10 @@ export async function POST(request: NextRequest) {
       const paymentDueDate = new Date();
       paymentDueDate.setDate(paymentDueDate.getDate() + (listing.payment_due_days || 7));
 
-      // Generate invoice number
+      // Generate invoice number (cryptographically secure)
       const date = new Date();
       const dateStr = date.toISOString().slice(0, 10).replace(/-/g, '');
-      const random = Math.random().toString(36).substring(2, 6).toUpperCase();
+      const random = crypto.randomBytes(3).toString('hex').toUpperCase().slice(0, 4);
       const invoiceNumber = `INV-${dateStr}-${random}`;
 
       // Create invoice

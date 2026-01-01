@@ -10,7 +10,10 @@ const supabase = createClient(
 
 // Generate a simple hash for email verification
 function generateUnsubscribeToken(email: string): string {
-  const secret = process.env.UNSUBSCRIBE_SECRET || 'printmailbids-unsubscribe-2024';
+  const secret = process.env.UNSUBSCRIBE_SECRET;
+  if (!secret) {
+    throw new Error('UNSUBSCRIBE_SECRET environment variable is required');
+  }
   return crypto.createHmac('sha256', secret).update(email.toLowerCase()).digest('hex').slice(0, 32);
 }
 

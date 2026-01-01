@@ -10,12 +10,20 @@ const supabase = createClient(
 
 // Verify cron secret to prevent unauthorized access
 function verifyCronSecret(request: NextRequest): boolean {
+  // Check for Vercel Cron header (automatically set by Vercel for cron jobs)
+  const vercelCronHeader = request.headers.get('x-vercel-cron');
+  if (vercelCronHeader) {
+    return true;
+  }
+
+  // Fallback to CRON_SECRET for manual/external calls
   const authHeader = request.headers.get('authorization');
   const cronSecret = process.env.CRON_SECRET;
 
   if (!cronSecret) {
-    console.warn('[Daily Digest] CRON_SECRET not set, skipping auth check');
-    return true;
+    // In production, require CRON_SECRET if not called from Vercel Cron
+    console.error('[Daily Digest] CRON_SECRET not set and not called from Vercel Cron');
+    return false;
   }
 
   return authHeader === `Bearer ${cronSecret}`;

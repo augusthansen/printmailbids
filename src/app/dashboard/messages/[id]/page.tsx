@@ -55,31 +55,20 @@ export default function ConversationPage() {
   useEffect(() => {
     async function loadConversation() {
       if (authLoading) {
-        console.log('[Messages] Auth still loading...');
         return;
       }
       if (!user?.id) {
-        console.log('[Messages] No user, waiting for auth...');
         return;
       }
       if (!conversationId) {
-        console.log('[Messages] No conversation ID');
         return;
       }
-
-      console.log('[Messages] Loading conversation:', conversationId, 'for user:', user.id);
 
       try {
         // Verify the user's session is valid using getUser() (validates JWT with server)
         const { data: { user: authUser }, error: authError } = await supabase.auth.getUser();
-        console.log('[Messages] Auth check:', {
-          hasUser: !!authUser,
-          authUserId: authUser?.id,
-          error: authError
-        });
 
         if (!authUser || authError) {
-          console.error('[Messages] No authenticated user');
           setError('Your session has expired. Please log in again.');
           setLoading(false);
           return;
@@ -98,21 +87,11 @@ export default function ConversationPage() {
           .eq('id', conversationId)
           .single();
 
-        console.log('[Messages] Conversation query result:', {
-          convo,
-          convoError,
-          code: convoError?.code,
-          details: convoError?.details,
-          hint: convoError?.hint
-        });
-
         if (convoError) {
           // PGRST116 = no rows returned (could be RLS blocking)
           if (convoError.code === 'PGRST116') {
-            console.error('[Messages] Conversation not found or access denied (RLS)');
             setError('Conversation not found or you do not have access to view it.');
           } else {
-            console.error('[Messages] Error loading conversation:', convoError);
             setError(`Failed to load conversation: ${convoError.message}`);
           }
           setLoading(false);
@@ -120,26 +99,13 @@ export default function ConversationPage() {
         }
 
         if (!convo) {
-          console.error('[Messages] Conversation not found');
           setError('Conversation not found.');
           setLoading(false);
           return;
         }
 
-        console.log('[Messages] Conversation loaded:', {
-          id: convo.id,
-          participant_1_id: convo.participant_1_id,
-          participant_2_id: convo.participant_2_id,
-          currentUserId: user.id
-        });
-
         // Make sure user is a participant
         if (convo.participant_1_id !== user.id && convo.participant_2_id !== user.id) {
-          console.error('[Messages] User is not a participant', {
-            userId: user.id,
-            p1: convo.participant_1_id,
-            p2: convo.participant_2_id
-          });
           setError('You are not a participant in this conversation.');
           setLoading(false);
           return;
@@ -150,7 +116,6 @@ export default function ConversationPage() {
           ? convo.participant_2_id
           : convo.participant_1_id;
 
-        console.log('[Messages] Fetching other user profile:', otherId);
         const { data: otherUser, error: profileError } = await supabase
           .from('profiles')
           .select('id, full_name, company_name, avatar_url')

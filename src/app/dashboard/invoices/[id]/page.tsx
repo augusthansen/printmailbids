@@ -208,14 +208,10 @@ export default function InvoicePage() {
 
   // Handle saving packaging/shipping fees (seller)
   const handleSaveFees = async (submitForApproval: boolean = false) => {
-    console.log('=== handleSaveFees START ===');
-
     if (!invoice || !user?.id) {
-      console.log('handleSaveFees: Missing invoice or user', { invoice: !!invoice, userId: user?.id });
       return;
     }
 
-    console.log('handleSaveFees called', { submitForApproval, invoiceId: invoice.id, sellerId: invoice.seller_id, userId: user.id });
     setSavingFees(true);
     setError(null);
     setSuccess(null);
@@ -238,8 +234,6 @@ export default function InvoicePage() {
         total_amount: newTotal,
       };
 
-      console.log('Updating invoice with data:', updateData);
-
       // If submitting for approval
       if (submitForApproval && (packagingNum > 0 || shippingNum > 0)) {
         updateData.fees_status = 'pending_approval';
@@ -251,8 +245,6 @@ export default function InvoicePage() {
         .update(updateData)
         .eq('id', invoice.id)
         .select();
-
-      console.log('Update result:', { error: updateError, data: updateResult });
 
       if (updateError) throw updateError;
 
@@ -294,26 +286,20 @@ export default function InvoicePage() {
       console.error('=== handleSaveFees ERROR ===', err);
       setError(err instanceof Error ? err.message : 'Failed to save fees');
       setSavingFees(false);
-    } finally {
-      console.log('=== handleSaveFees COMPLETE ===');
     }
   };
 
   // Handle shipping quote PDF upload
   const handleQuoteUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    console.log('=== handleQuoteUpload START ===');
     const file = e.target.files?.[0];
-    console.log('File selected:', file ? { name: file.name, type: file.type, size: file.size } : 'none');
 
     if (!file || !invoice) {
-      console.log('No file or invoice');
       return;
     }
 
     // Validate file type - check both MIME type and extension
     const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
     if (!isPdf) {
-      console.log('Not a PDF file');
       setUploadError('Please upload a PDF file');
       return;
     }
@@ -331,20 +317,15 @@ export default function InvoicePage() {
       const fileName = `${invoice.id}-shipping-quote-${Date.now()}.pdf`;
       const filePath = `shipping-quotes/${fileName}`;
 
-      console.log('Uploading to path:', filePath);
-
       // Upload to Supabase Storage
-      const { error: storageError, data: uploadData } = await supabase.storage
+      const { error: storageError } = await supabase.storage
         .from('documents')
         .upload(filePath, file, {
           upsert: true,
           contentType: 'application/pdf'
         });
 
-      console.log('Upload response:', { error: storageError, data: uploadData });
-
       if (storageError) {
-        console.error('Upload error details:', storageError);
         throw new Error(storageError.message || 'Storage upload failed');
       }
 
@@ -354,11 +335,9 @@ export default function InvoicePage() {
         .getPublicUrl(filePath);
 
       const publicUrl = urlData.publicUrl;
-      console.log('Upload successful, URL:', publicUrl);
 
       // Set state immediately
       setShippingQuoteUrl(publicUrl);
-      console.log('State updated with URL:', publicUrl);
     } catch (err) {
       console.error('Upload error:', err);
       const errorMessage = err instanceof Error ? err.message : 'Failed to upload quote';
@@ -2350,10 +2329,7 @@ export default function InvoicePage() {
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-lg font-semibold text-gray-900">Add Packaging & Shipping Fees</h3>
               <button
-                onClick={() => {
-                  console.log('Closing fee modal via X button');
-                  setShowFeeModal(false);
-                }}
+                onClick={() => setShowFeeModal(false)}
                 className="p-1 hover:bg-gray-100 rounded"
               >
                 <X className="h-5 w-5 text-gray-500" />
@@ -2494,10 +2470,7 @@ export default function InvoicePage() {
               <div className="flex gap-3">
                 <button
                   type="button"
-                  onClick={() => {
-                    console.log('Save Draft button clicked');
-                    handleSaveFees(false);
-                  }}
+                  onClick={() => handleSaveFees(false)}
                   disabled={savingFees}
                   className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 disabled:opacity-50"
                 >
@@ -2505,10 +2478,7 @@ export default function InvoicePage() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => {
-                    console.log('Submit for Approval button clicked');
-                    handleSaveFees(true);
-                  }}
+                  onClick={() => handleSaveFees(true)}
                   disabled={savingFees || ((parseFloat(packagingAmount) || 0) === 0 && (parseFloat(shippingAmount) || 0) === 0)}
                   className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 flex items-center justify-center gap-2"
                 >

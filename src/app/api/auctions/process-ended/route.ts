@@ -1,5 +1,6 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
+import crypto from 'crypto';
 import {
   sendAuctionWonEmail,
   sendAuctionEndedSellerEmail,
@@ -23,11 +24,11 @@ function getSupabaseAdmin(): SupabaseClient {
   return supabase;
 }
 
-// Generate invoice number: INV-YYYYMMDD-XXXX
+// Generate invoice number: INV-YYYYMMDD-XXXX (cryptographically secure)
 function generateInvoiceNumber(): string {
   const date = new Date();
   const dateStr = date.toISOString().slice(0, 10).replace(/-/g, '');
-  const random = Math.random().toString(36).substring(2, 6).toUpperCase();
+  const random = crypto.randomBytes(3).toString('hex').toUpperCase().slice(0, 4);
   return `INV-${dateStr}-${random}`;
 }
 

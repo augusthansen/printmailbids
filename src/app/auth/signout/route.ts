@@ -35,5 +35,5 @@ export async function GET() {
   }
 
   // Redirect to login page with signedout flag to prevent auto-redirect
-  return NextResponse.redirect(new URL('/login?signedout=true', process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'));
+  return NextResponse.redirect(new URL('/login?signedout=true', process.env.NEXT_PUBLIC_SITE_URL || 'https://printmailbids.com'));
 }

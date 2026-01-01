@@ -14,7 +14,7 @@ function getResend(): Resend | null {
 }
 
 const FROM_EMAIL = process.env.FROM_EMAIL || 'PrintMailBids <noreply@printmailbids.com>';
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://printmailbids.com';
 
 export interface EmailParams {
   to: string;

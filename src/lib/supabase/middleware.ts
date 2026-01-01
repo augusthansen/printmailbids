@@ -20,10 +20,17 @@ export async function updateSession(request: NextRequest) {
             request,
           })
           cookiesToSet.forEach(({ name, value, options }) =>
-            // Ensure cookies are readable by browser JavaScript (not httpOnly)
+            // Note: httpOnly: false is required by Supabase's SSR architecture.
+            // The createBrowserClient needs to read auth cookies from JavaScript.
+            // This is a known Supabase limitation. To mitigate XSS risks:
+            // 1. Always validate sessions server-side with supabase.auth.getUser()
+            // 2. Implement strict Content Security Policy
+            // 3. Sanitize all user-generated content
             supabaseResponse.cookies.set(name, value, {
               ...options,
               httpOnly: false,
+              secure: process.env.NODE_ENV === 'production',
+              sameSite: 'lax',
             })
           )
         },

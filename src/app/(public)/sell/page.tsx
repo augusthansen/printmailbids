@@ -737,7 +737,6 @@ export default function CreateListingPage() {
   };
 
   const handleSubmit = async () => {
-    console.log('handleSubmit called, user:', user);
     if (!user?.id) {
       setError('You must be logged in to create a listing');
       return;
@@ -747,8 +746,6 @@ export default function CreateListingPage() {
     setError(null);
 
     try {
-      console.log('Starting listing creation for user:', user.id);
-
       // Determine start and end times based on schedule type
       let startTime: Date;
       let endTime: Date;
@@ -790,12 +787,6 @@ export default function CreateListingPage() {
       const categoryId = isValidUUID ? selectedCategory.id : null;
 
       // Create the listing
-      console.log('Inserting listing with data:', {
-        seller_id: user.id,
-        title: formData.title,
-        listing_type: formData.listingType,
-        primary_category_id: categoryId,
-      });
       const { data: listing, error: listingError } = await supabase
         .from('listings')
         .insert({
@@ -862,7 +853,6 @@ export default function CreateListingPage() {
         .select()
         .single();
 
-      console.log('Supabase response - listing:', listing, 'error:', listingError);
       if (listingError) {
         throw listingError;
       }
@@ -888,8 +878,6 @@ export default function CreateListingPage() {
           const { data: urlData } = supabase.storage
             .from('listing-images')
             .getPublicUrl(fileName);
-
-          console.log('Image uploaded, public URL:', urlData.publicUrl);
 
           // Save image record
           const { error: insertError } = await supabase.from('listing_images').insert({

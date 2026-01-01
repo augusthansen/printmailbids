@@ -28,8 +28,11 @@ interface TestListing {
 }
 
 export default function TestAuctionPage() {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const supabase = useMemo(() => createClient(), []);
+
+  // Only allow admins to access this page
+  const isAdmin = profile?.is_admin === true;
 
   const [testListings, setTestListings] = useState<TestListing[]>([]);
   const [loading, setLoading] = useState(true);
@@ -280,6 +283,20 @@ export default function TestAuctionPage() {
         <p className="text-gray-600 mb-4">You must be logged in to use the test auction page.</p>
         <Link href="/login" className="text-blue-600 hover:underline">
           Go to Login
+        </Link>
+      </div>
+    );
+  }
+
+  // Admin-only access
+  if (!isAdmin) {
+    return (
+      <div className="p-8 text-center">
+        <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
+        <h1 className="text-xl font-bold mb-2">Access Denied</h1>
+        <p className="text-gray-600 mb-4">This page is only available to administrators.</p>
+        <Link href="/dashboard" className="text-blue-600 hover:underline">
+          Return to Dashboard
         </Link>
       </div>
     );
