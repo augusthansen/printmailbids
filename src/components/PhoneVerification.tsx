@@ -254,9 +254,26 @@ export default function PhoneVerification({
               disabled={loading}
             />
             <p className="mt-1 text-xs text-gray-500">
-              US phone numbers only. By clicking &quot;Send Verification Code,&quot; you agree to receive SMS messages from PrintMailBids.com. Message and data rates may apply. See our{' '}
-              <a href="/sms-terms" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
-                SMS Terms
+              US phone numbers only
+            </p>
+          </div>
+
+          {/* SMS Opt-In Consent Box */}
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <p className="text-sm text-blue-900 font-medium mb-2">
+              SMS Messaging Consent
+            </p>
+            <p className="text-xs text-blue-800 leading-relaxed">
+              By clicking &quot;Send Verification Code&quot; below, I consent to receive SMS text messages from PrintMailBids.com at the phone number provided, including verification codes, transaction alerts, bid notifications, and account updates. Message frequency varies. Message and data rates may apply. Reply STOP to opt out at any time. Reply HELP for help.
+            </p>
+            <p className="text-xs text-blue-700 mt-2">
+              Consent is not a condition of purchase. View our{' '}
+              <a href="/sms-terms" target="_blank" rel="noopener noreferrer" className="underline font-medium">
+                SMS Terms &amp; Conditions
+              </a>{' '}
+              and{' '}
+              <a href="/privacy" target="_blank" rel="noopener noreferrer" className="underline font-medium">
+                Privacy Policy
               </a>.
             </p>
           </div>

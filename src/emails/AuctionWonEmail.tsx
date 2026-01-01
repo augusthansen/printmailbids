@@ -21,7 +21,7 @@ export function AuctionWonEmail({
   winningBid,
   totalAmount,
 }: AuctionWonEmailProps) {
-  const buyerPremium = winningBid * 0.05;
+  const buyerPremium = winningBid * 0.08;
 
   return (
     <EmailLayout preview={`You won with a bid of $${winningBid.toLocaleString()}`}>
@@ -43,7 +43,7 @@ export function AuctionWonEmail({
         backgroundColor="#f0fdf4"
         rows={[
           { label: 'Winning Bid', value: `$${winningBid.toLocaleString()}` },
-          { label: 'Buyer Premium (5%)', value: `$${buyerPremium.toLocaleString()}` },
+          { label: 'Buyer Premium (8%)', value: `$${buyerPremium.toLocaleString()}` },
           { label: '─────────────', value: '─────────' },
           { label: 'Total Due', value: `$${totalAmount.toLocaleString()}`, bold: true, color: '#16a34a' },
         ]}
@@ -84,7 +84,7 @@ AuctionWonEmail.PreviewProps = {
   listingId: 'abc123',
   invoiceId: 'inv_abc123',
   winningBid: 47500,
-  totalAmount: 49875, // 47500 + 5% buyer premium
+  totalAmount: 51300, // 47500 + 8% buyer premium
 } as AuctionWonEmailProps;
 
 export default AuctionWonEmail;

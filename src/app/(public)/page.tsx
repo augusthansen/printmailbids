@@ -76,7 +76,7 @@ const features = [
   {
     icon: DollarSign,
     title: 'Lower Fees',
-    description: '5% buyer premium — half what other platforms charge. More value for everyone.'
+    description: '8% buyer premium — lower than other platforms charge. More value for everyone.'
   },
   {
     icon: Shield,
@@ -132,7 +132,7 @@ export default function HomePage() {
                   <p>Active Listings</p>
                 </div>
                 <div>
-                  <span className="text-2xl font-bold text-white">5%</span>
+                  <span className="text-2xl font-bold text-white">8%</span>
                   <p>Buyer Premium</p>
                 </div>
                 <div>

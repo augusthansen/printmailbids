@@ -179,7 +179,7 @@ export default function SignupPage() {
               <div className="w-10 h-10 bg-blue-500/20 rounded-lg flex items-center justify-center">
                 <Check className="h-5 w-5 text-blue-400" />
               </div>
-              <span className="text-white">Low 5% buyer premium</span>
+              <span className="text-white">Low 8% buyer premium</span>
             </div>
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 bg-blue-500/20 rounded-lg flex items-center justify-center">

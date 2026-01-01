@@ -434,7 +434,7 @@ export default function ListingDetailPage() {
 
 1. PAYMENT: Payment is due within 7 days of winning bid or accepted offer.
 
-2. BUYER PREMIUM: A 5% buyer premium will be added to the final sale price.
+2. BUYER PREMIUM: An 8% buyer premium will be added to the final sale price.
 
 3. PICKUP/SHIPPING: Buyer is responsible for arranging and paying for pickup or shipping unless otherwise specified by the seller.
 
@@ -643,13 +643,13 @@ By placing a bid, you acknowledge that you have read, understood, and agree to t
     if (!price) return;
 
     // Calculate buyer premium
-    const buyerPremium = price * 0.05;
+    const buyerPremium = price * 0.08;
     const total = price + buyerPremium;
 
     const confirmed = confirm(
       `Buy Now for $${price.toLocaleString()}?\n\n` +
       `Item Price: $${price.toLocaleString()}\n` +
-      `Buyer Premium (5%): $${buyerPremium.toLocaleString()}\n` +
+      `Buyer Premium (8%): $${buyerPremium.toLocaleString()}\n` +
       `Total: $${total.toLocaleString()}\n\n` +
       `You will be redirected to complete payment.`
     );
@@ -1728,7 +1728,7 @@ By placing a bid, you acknowledge that you have read, understood, and agree to t
                   </div>
                   <div className="flex items-center gap-2 text-gray-600">
                     <DollarSign className="h-4 w-4" />
-                    <span>5% buyer premium</span>
+                    <span>8% buyer premium</span>
                   </div>
                 </div>
               )}

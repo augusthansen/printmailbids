@@ -2530,7 +2530,7 @@ export default function CreateListingPage() {
                 <div>
                   <p className="font-medium text-blue-900">Fee Summary</p>
                   <ul className="text-sm text-blue-700 mt-2 space-y-1">
-                    <li>• Buyer Premium: 5% (paid by buyer)</li>
+                    <li>• Buyer Premium: 8% (paid by buyer)</li>
                     <li>• Seller Commission: 8-12% of sale price</li>
                     <li>• Payment processing fees passed to buyer</li>
                   </ul>

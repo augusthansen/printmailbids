@@ -45,7 +45,7 @@ export function WelcomeEmail({ userName = 'there' }: WelcomeEmailProps) {
       <Section style={featureCard('#d1fae5')}>
         <Text style={featureTitle('#059669')}>💰 Sell Your Equipment</Text>
         <Text style={featureDesc}>
-          List instantly, 24/7. Only 5% buyer premium – half what competitors charge.
+          List instantly, 24/7. Only 8% buyer premium – lower than competitors charge.
         </Text>
       </Section>
 

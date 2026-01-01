@@ -21,7 +21,7 @@ export function OfferAcceptedEmail({
   offerAmount,
   totalAmount,
 }: OfferAcceptedEmailProps) {
-  const buyerPremium = offerAmount * 0.05;
+  const buyerPremium = offerAmount * 0.08;
 
   return (
     <EmailLayout preview={`Seller accepted your $${offerAmount.toLocaleString()} offer`}>
@@ -43,7 +43,7 @@ export function OfferAcceptedEmail({
         backgroundColor="#f0fdf4"
         rows={[
           { label: 'Accepted Offer', value: `$${offerAmount.toLocaleString()}` },
-          { label: 'Buyer Premium (5%)', value: `$${buyerPremium.toLocaleString()}` },
+          { label: 'Buyer Premium (8%)', value: `$${buyerPremium.toLocaleString()}` },
           { label: '─────────────', value: '─────────' },
           { label: 'Total Due', value: `$${totalAmount.toLocaleString()}`, bold: true, color: '#16a34a' },
         ]}
@@ -84,7 +84,7 @@ OfferAcceptedEmail.PreviewProps = {
   listingId: 'abc123',
   invoiceId: 'inv_abc123',
   offerAmount: 42000,
-  totalAmount: 44100, // 42000 + 5% buyer premium
+  totalAmount: 45360, // 42000 + 8% buyer premium
 } as OfferAcceptedEmailProps;
 
 export default OfferAcceptedEmail;

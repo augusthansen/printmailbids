@@ -192,8 +192,8 @@ export async function sendAuctionWonEmail(params: {
               <td style="padding:8px 0;font-size:14px;text-align:right;color:#18181b;">$${winningBid.toLocaleString()}</td>
             </tr>
             <tr>
-              <td style="padding:8px 0;font-size:14px;color:#71717a;">Buyer Premium (5%)</td>
-              <td style="padding:8px 0;font-size:14px;text-align:right;color:#18181b;">$${(winningBid * 0.05).toLocaleString()}</td>
+              <td style="padding:8px 0;font-size:14px;color:#71717a;">Buyer Premium (8%)</td>
+              <td style="padding:8px 0;font-size:14px;text-align:right;color:#18181b;">$${(winningBid * 0.08).toLocaleString()}</td>
             </tr>
             <tr>
               <td colspan="2" style="border-top:1px solid #d1fae5;"></td>
@@ -357,8 +357,8 @@ export async function sendOfferAcceptedEmail(params: {
               <td style="padding:8px 0;font-size:14px;text-align:right;color:#18181b;">$${offerAmount.toLocaleString()}</td>
             </tr>
             <tr>
-              <td style="padding:8px 0;font-size:14px;color:#71717a;">Buyer Premium (5%)</td>
-              <td style="padding:8px 0;font-size:14px;text-align:right;color:#18181b;">$${(offerAmount * 0.05).toLocaleString()}</td>
+              <td style="padding:8px 0;font-size:14px;color:#71717a;">Buyer Premium (8%)</td>
+              <td style="padding:8px 0;font-size:14px;text-align:right;color:#18181b;">$${(offerAmount * 0.08).toLocaleString()}</td>
             </tr>
             <tr>
               <td colspan="2" style="border-top:1px solid #d1fae5;"></td>
@@ -1004,7 +1004,7 @@ export async function sendDailyDigestEmail(params: {
                       Have Equipment to Sell?
                     </h3>
                     <p style="margin:0 0 16px;font-size:14px;color:#bfdbfe;">
-                      List your printing, mailing, or industrial equipment today. Only 5% buyer premium!
+                      List your printing, mailing, or industrial equipment today. Only 8% buyer premium!
                     </p>
                     <a href="${SITE_URL}/sell" style="display:inline-block;padding:12px 32px;background-color:#ffffff;color:#2563eb;text-decoration:none;border-radius:8px;font-weight:600;font-size:16px;">
                       Start Selling →
@@ -1382,7 +1382,7 @@ export async function sendWelcomeEmail(params: {
       <tr>
         <td style="padding:16px;background-color:#d1fae5;border-radius:8px;margin-bottom:12px;">
           <p style="margin:0 0 4px;font-size:16px;font-weight:600;color:#059669;">💰 Sell Your Equipment</p>
-          <p style="margin:0;font-size:14px;color:#3f3f46;">List instantly, 24/7. Only 5% buyer premium – half what competitors charge.</p>
+          <p style="margin:0;font-size:14px;color:#3f3f46;">List instantly, 24/7. Only 8% buyer premium – lower than competitors charge.</p>
         </td>
       </tr>
     </table>

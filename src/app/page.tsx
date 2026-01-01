@@ -6,7 +6,6 @@ import {
   DollarSign,
   Truck,
   Zap,
-  Users,
   Mail,
   Printer,
   BookOpen,
@@ -14,12 +13,21 @@ import {
   Forklift,
   Wrench,
   ChevronRight,
-  LucideIcon
+  LucideIcon,
+  MessageSquare
 } from 'lucide-react';
 import { Header } from '@/components/layout/Header';
 import { Footer } from '@/components/layout/Footer';
 import { FeaturedCarousel } from '@/components/FeaturedCarousel';
 import { createClient } from '@/lib/supabase/server';
+import {
+  ManufacturerBanner,
+  TrustBar,
+  ComparisonTable,
+  HowItWorks,
+  EarlyAdopterCTA,
+  FAQAccordion
+} from '@/components/landing';
 
 interface FeaturedListing {
   id: string;
@@ -36,24 +44,23 @@ interface FeaturedListing {
 interface Category {
   name: string;
   slug: string;
-  count: number;
   icon: LucideIcon;
 }
 
 const categories: Category[] = [
-  { name: 'Mailing & Fulfillment', slug: 'mailing-fulfillment', count: 124, icon: Mail },
-  { name: 'Printing', slug: 'printing', count: 89, icon: Printer },
-  { name: 'Bindery & Finishing', slug: 'bindery-finishing', count: 67, icon: BookOpen },
-  { name: 'Packaging', slug: 'packaging', count: 45, icon: Package },
-  { name: 'Material Handling', slug: 'material-handling', count: 38, icon: Forklift },
-  { name: 'Parts & Supplies', slug: 'parts-supplies', count: 156, icon: Wrench },
+  { name: 'Mailing & Fulfillment', slug: 'mailing-fulfillment', icon: Mail },
+  { name: 'Printing', slug: 'printing', icon: Printer },
+  { name: 'Bindery & Finishing', slug: 'bindery-finishing', icon: BookOpen },
+  { name: 'Packaging', slug: 'packaging', icon: Package },
+  { name: 'Material Handling', slug: 'material-handling', icon: Forklift },
+  { name: 'Parts & Supplies', slug: 'parts-supplies', icon: Wrench },
 ];
 
 const features = [
   {
-    icon: Zap,
-    title: 'List Instantly',
-    description: 'No waiting. List your equipment 24/7 and start receiving bids immediately.'
+    icon: DollarSign,
+    title: 'Lower Fees',
+    description: '8% buyer premium — lower than competitors charge. More value for everyone.'
   },
   {
     icon: Clock,
@@ -61,37 +68,38 @@ const features = [
     description: '2-minute soft close prevents sniping. Everyone gets a fair shot.'
   },
   {
-    icon: DollarSign,
-    title: 'Lower Fees',
-    description: '5% buyer premium — half what competitors charge. More value for all.'
+    icon: MessageSquare,
+    title: 'Built-in Messaging',
+    description: 'Communicate directly with buyers and sellers through our platform.'
+  },
+  {
+    icon: Truck,
+    title: 'Shipping & Tracking',
+    description: 'Integrated shipping quotes, BOL uploads, and delivery tracking.'
   },
   {
     icon: Shield,
     title: 'Secure Payments',
-    description: 'Credit card, ACH, wire transfer, and escrow for large purchases.'
+    description: 'Credit card, ACH, wire transfer with Stripe escrow protection.'
   },
   {
-    icon: Truck,
-    title: 'Logistics Support',
-    description: 'Built-in shipping quotes and rigging partners for heavy equipment.'
-  },
-  {
-    icon: Users,
-    title: 'Industry Focused',
-    description: 'Built by and for printing, mailing, and industrial professionals.'
+    icon: Zap,
+    title: 'List Instantly',
+    description: 'No waiting. List your equipment 24/7 and start receiving bids immediately.'
   },
 ];
 
 const stats = [
-  { value: '500+', label: 'Active Listings' },
-  { value: '5%', label: 'Buyer Premium' },
-  { value: '$2M+', label: 'Equipment Sold' },
+  { value: '8%', label: 'Buyer Premium' },
   { value: '24/7', label: 'Instant Listing' },
+  { value: '2min', label: 'Soft Close' },
+  { value: '$0', label: 'Listing Fees' },
 ];
 
 export default async function HomePage() {
-  // Fetch all featured listings (active ones, ordered by most recently featured)
   const supabase = await createClient();
+
+  // Fetch featured listings (if any exist)
   const { data: featuredListings } = await supabase
     .from('listings')
     .select(`
@@ -116,13 +124,13 @@ export default async function HomePage() {
     <>
       <Header />
       <main className="overflow-hidden">
-        {/* Hero Section - Industrial Aesthetic */}
+        {/* Hero Section */}
         <section className="relative bg-slate-900 text-white overflow-hidden">
           {/* Background elements */}
           <div className="absolute inset-0 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900" />
           <div className="absolute inset-0 opacity-20">
-            <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(ellipse_at_top_left,_rgba(194,65,12,0.3)_0%,_transparent_50%)]" />
-            <div className="absolute bottom-0 right-0 w-full h-full bg-[radial-gradient(ellipse_at_bottom_right,_rgba(234,88,12,0.2)_0%,_transparent_50%)]" />
+            <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(ellipse_at_top_left,_rgba(37,99,235,0.3)_0%,_transparent_50%)]" />
+            <div className="absolute bottom-0 right-0 w-full h-full bg-[radial-gradient(ellipse_at_bottom_right,_rgba(59,130,246,0.2)_0%,_transparent_50%)]" />
           </div>
           {/* Grid pattern overlay */}
           <div
@@ -133,14 +141,14 @@ export default async function HomePage() {
             }}
           />
 
-          <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16 lg:py-32">
+          <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16 lg:py-28">
             <div className="grid lg:grid-cols-2 gap-8 lg:gap-16 items-center">
               {/* Left content */}
               <div className="animate-fade-up text-center lg:text-left">
                 {/* Badge */}
-                <div className="inline-flex items-center gap-2 px-3 sm:px-4 py-1.5 sm:py-2 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 text-xs sm:text-sm font-medium mb-6 sm:mb-8">
-                  <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
-                  The Industrial Equipment Marketplace
+                <div className="inline-flex items-center gap-2 px-3 sm:px-4 py-1.5 sm:py-2 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs sm:text-sm font-medium mb-6 sm:mb-8">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                  Now Open — Start Listing Today
                 </div>
 
                 <h1 className="text-4xl sm:text-5xl lg:text-6xl xl:text-7xl font-bold leading-[1.1] mb-4 sm:mb-6 tracking-tight">
@@ -153,27 +161,27 @@ export default async function HomePage() {
 
                 <p className="text-base sm:text-xl text-slate-300 mb-6 sm:mb-10 max-w-lg mx-auto lg:mx-0 leading-relaxed">
                   The modern marketplace for printing, mailing, and fulfillment equipment.
-                  List today. Sell tomorrow. No middlemen.
+                  <span className="text-blue-400 font-semibold"> 8% buyer premium</span> — lower than others charge.
                 </p>
 
                 {/* CTA Buttons */}
                 <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 mb-8 sm:mb-12 justify-center lg:justify-start">
                   <Link
-                    href="/marketplace"
+                    href="/sell"
                     className="group inline-flex items-center justify-center gap-2 sm:gap-3 bg-blue-600 text-white px-6 sm:px-8 py-3 sm:py-4 rounded-xl font-semibold text-base sm:text-lg hover:bg-blue-500 transition-all duration-300 shadow-lg shadow-blue-600/25 hover:shadow-blue-500/40 hover:-translate-y-0.5"
                   >
-                    Browse Equipment
+                    List Your Equipment
                     <ArrowRight className="h-4 w-4 sm:h-5 sm:w-5 group-hover:translate-x-1 transition-transform" />
                   </Link>
                   <Link
-                    href="/sell"
+                    href="/signup"
                     className="inline-flex items-center justify-center gap-2 sm:gap-3 bg-white/10 backdrop-blur text-white px-6 sm:px-8 py-3 sm:py-4 rounded-xl font-semibold text-base sm:text-lg hover:bg-white/20 transition-all duration-300 border border-white/10"
                   >
-                    Start Selling
+                    Create Free Account
                   </Link>
                 </div>
 
-                {/* Stats row - 2x2 on mobile, 4 columns on larger */}
+                {/* Stats row */}
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 sm:gap-6 pt-6 sm:pt-8 border-t border-white/10">
                   {stats.map((stat, i) => (
                     <div key={i} className="animate-fade-up" style={{ animationDelay: `${200 + i * 100}ms` }}>
@@ -184,7 +192,7 @@ export default async function HomePage() {
                 </div>
               </div>
 
-              {/* Right side - Featured Equipment Carousel (visible on all screens) */}
+              {/* Right side - Featured Equipment Carousel or placeholder */}
               <div className="animate-slide-in-right order-first lg:order-last">
                 <FeaturedCarousel listings={featured} />
               </div>
@@ -192,18 +200,24 @@ export default async function HomePage() {
           </div>
 
           {/* Bottom wave/divider */}
-          <div className="absolute bottom-0 left-0 right-0 h-24 bg-gradient-to-t from-stone-50 to-transparent" />
+          <div className="absolute bottom-0 left-0 right-0 h-24 bg-gradient-to-t from-white to-transparent" />
         </section>
 
+        {/* Trust Bar */}
+        <TrustBar />
+
+        {/* Manufacturer Logo Banner */}
+        <ManufacturerBanner />
+
         {/* Categories Section */}
-        <section className="py-20 bg-stone-50 relative">
+        <section className="py-16 bg-stone-50 relative">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="text-center mb-16">
-              <h2 className="text-4xl lg:text-5xl font-bold text-slate-900 mb-4">
-                Browse by Category
+            <div className="text-center mb-12">
+              <h2 className="text-3xl lg:text-4xl font-bold text-slate-900 mb-4">
+                Equipment Categories
               </h2>
               <p className="text-lg text-slate-600 max-w-2xl mx-auto">
-                Find exactly what you need from our curated categories of industrial machinery.
+                List or find equipment across all major categories of print and mail machinery.
               </p>
             </div>
 
@@ -223,7 +237,9 @@ export default async function HomePage() {
                   <h3 className="font-semibold text-slate-900 group-hover:text-blue-600 transition-colors mb-1 text-sm lg:text-base">
                     {category.name}
                   </h3>
-                  <p className="text-sm text-slate-500">{category.count} listings</p>
+                  <p className="text-sm text-slate-500">
+                    View all
+                  </p>
 
                   {/* Hover arrow */}
                   <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -235,8 +251,14 @@ export default async function HomePage() {
           </div>
         </section>
 
+        {/* How It Works */}
+        <HowItWorks />
+
+        {/* Comparison Table */}
+        <ComparisonTable />
+
         {/* Features Section */}
-        <section className="py-24 bg-white relative overflow-hidden">
+        <section className="py-20 bg-white relative overflow-hidden">
           {/* Background decoration */}
           <div className="absolute top-0 right-0 w-1/2 h-full bg-gradient-to-l from-stone-50 to-transparent" />
 
@@ -254,8 +276,8 @@ export default async function HomePage() {
                 </h2>
                 <p className="text-lg text-slate-600 mb-8 leading-relaxed">
                   We built the platform that equipment buyers and sellers actually need.
-                  No complicated auction schedules. No excessive fees. Just a straightforward
-                  way to buy and sell industrial equipment.
+                  Built-in messaging, shipping tracking, and secure payments —
+                  all in one place.
                 </p>
                 <Link
                   href="/signup"
@@ -286,7 +308,13 @@ export default async function HomePage() {
           </div>
         </section>
 
-        {/* CTA Section */}
+        {/* Early Adopter CTA */}
+        <EarlyAdopterCTA />
+
+        {/* FAQ */}
+        <FAQAccordion />
+
+        {/* Final CTA Section */}
         <section className="relative py-24 overflow-hidden">
           {/* Background */}
           <div className="absolute inset-0 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900" />
@@ -298,92 +326,25 @@ export default async function HomePage() {
 
           <div className="relative max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
             <h2 className="text-4xl lg:text-5xl font-bold text-white mb-6">
-              Ready to buy or sell equipment?
+              Ready to list your equipment?
             </h2>
             <p className="text-xl text-slate-300 mb-10 max-w-2xl mx-auto">
-              Join thousands of industry professionals already using PrintMailBids
-              to find the best deals on printing and mailing equipment.
+              Join the modern marketplace for printing and mailing equipment.
+              Lower fees, better tools, faster results.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <Link
-                href="/signup"
+                href="/sell"
                 className="group inline-flex items-center justify-center gap-3 bg-blue-600 text-white px-8 py-4 rounded-xl font-semibold text-lg hover:bg-blue-500 transition-all duration-300 shadow-lg shadow-blue-600/25 hover:shadow-blue-500/40"
               >
-                Create Free Account
+                Start Selling Free
                 <ArrowRight className="h-5 w-5 group-hover:translate-x-1 transition-transform" />
               </Link>
               <Link
-                href="/marketplace"
+                href="/signup"
                 className="inline-flex items-center justify-center gap-3 bg-white/10 backdrop-blur text-white px-8 py-4 rounded-xl font-semibold text-lg hover:bg-white/20 transition-all duration-300 border border-white/20"
               >
-                Browse Listings
-              </Link>
-            </div>
-          </div>
-        </section>
-
-        {/* Recent Listings Preview */}
-        <section className="py-20 bg-stone-50">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="flex justify-between items-end mb-12">
-              <div>
-                <h2 className="text-3xl lg:text-4xl font-bold text-slate-900 mb-2">Recently Listed</h2>
-                <p className="text-slate-600">Fresh equipment added to the marketplace</p>
-              </div>
-              <Link
-                href="/marketplace?sort=newest"
-                className="hidden sm:inline-flex items-center gap-2 text-blue-600 font-semibold hover:text-blue-700 transition-colors group"
-              >
-                View All
-                <ArrowRight className="h-5 w-5 group-hover:translate-x-1 transition-transform" />
-              </Link>
-            </div>
-
-            <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
-              {[
-                { category: 'Mailing Equipment', name: 'Pitney Bowes DI950', price: 12500, ends: '2d 5h' },
-                { category: 'Printing', name: 'Heidelberg SM52', price: 45000, ends: '1d 8h' },
-                { category: 'Bindery', name: 'MBO K760 Folder', price: 8750, ends: '3d 2h' },
-                { category: 'Packaging', name: 'Bosch Sigpack HRM', price: 22000, ends: '5h 30m' },
-              ].map((item, i) => (
-                <div
-                  key={i}
-                  className="group bg-white rounded-2xl overflow-hidden border border-stone-200 hover:border-blue-300 hover:shadow-xl hover:shadow-blue-500/5 transition-all duration-300 card-lift"
-                >
-                  {/* Image area */}
-                  <div className="aspect-[4/3] bg-gradient-to-br from-slate-100 to-stone-100 flex items-center justify-center relative">
-                    <Printer className="h-12 w-12 text-slate-300 group-hover:text-slate-400 transition-colors" />
-                    {/* Time badge */}
-                    <div className="absolute top-3 right-3 bg-slate-900/80 backdrop-blur px-2.5 py-1 rounded-lg text-white text-xs font-medium">
-                      {item.ends}
-                    </div>
-                  </div>
-
-                  {/* Content */}
-                  <div className="p-5">
-                    <p className="text-blue-600 text-sm font-medium mb-1">{item.category}</p>
-                    <h3 className="font-semibold text-slate-900 mb-4 group-hover:text-blue-600 transition-colors">
-                      {item.name}
-                    </h3>
-                    <div className="flex justify-between items-end pt-4 border-t border-stone-100">
-                      <div>
-                        <p className="text-xs text-slate-500 uppercase tracking-wider mb-0.5">Current Bid</p>
-                        <p className="text-xl font-bold text-slate-900">${item.price.toLocaleString()}</p>
-                      </div>
-                      <ChevronRight className="h-5 w-5 text-slate-400 group-hover:text-blue-500 group-hover:translate-x-1 transition-all" />
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            <div className="mt-8 text-center sm:hidden">
-              <Link
-                href="/marketplace?sort=newest"
-                className="inline-flex items-center gap-2 text-blue-600 font-semibold"
-              >
-                View All Listings
-                <ArrowRight className="h-5 w-5" />
+                Create Free Account
               </Link>
             </div>
           </div>
