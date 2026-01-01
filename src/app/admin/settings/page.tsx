@@ -20,7 +20,7 @@ export default function AdminSettingsPage() {
   const [settings, setSettings] = useState<PlatformSettings | null>(null);
 
   // Form state
-  const [buyerPremium, setBuyerPremium] = useState('5.0');
+  const [buyerPremium, setBuyerPremium] = useState('8.0');
   const [sellerCommission, setSellerCommission] = useState('8.0');
   const [auctionExtension, setAuctionExtension] = useState('2');
   const [offerExpiry, setOfferExpiry] = useState('48');

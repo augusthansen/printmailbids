@@ -2,7 +2,7 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { CommissionRates, PlatformSettings } from '@/types/database';
 
 // Default fallback values if database is unavailable
-const FALLBACK_BUYER_PREMIUM = 5.0;
+const FALLBACK_BUYER_PREMIUM = 8.0;
 const FALLBACK_SELLER_COMMISSION = 8.0;
 
 /**

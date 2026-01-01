@@ -181,7 +181,7 @@ async function processPayment(invoice: any, amountInCents: number) {
         invoiceNumber: invoice.invoice_number || '',
         listingTitle,
         saleAmount: invoice.sale_amount || 0,
-        buyerPremiumPercent: invoice.buyer_premium_percent || 5,
+        buyerPremiumPercent: invoice.buyer_premium_percent || 8,
         buyerPremiumAmount: invoice.buyer_premium_amount || 0,
         packagingAmount: invoice.packaging_amount || 0,
         shippingAmount: invoice.shipping_amount || 0,

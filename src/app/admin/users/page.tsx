@@ -41,7 +41,7 @@ function CommissionModal({ user, onClose, onSave }: CommissionModalProps) {
   const [useCustomBuyer, setUseCustomBuyer] = useState(user.custom_buyer_premium_percent !== null);
   const [useCustomSeller, setUseCustomSeller] = useState(user.custom_seller_commission_percent !== null);
   const [buyerPremium, setBuyerPremium] = useState(
-    user.custom_buyer_premium_percent?.toString() || '5.0'
+    user.custom_buyer_premium_percent?.toString() || '8.0'
   );
   const [sellerCommission, setSellerCommission] = useState(
     user.custom_seller_commission_percent?.toString() || '8.0'

@@ -354,6 +354,7 @@ export async function POST(request: NextRequest) {
           .from('profiles')
           .update({
             is_verified: value,
+            phone_verified: value, // Also set phone_verified so user can bid/make offers
             verified_at: value ? new Date().toISOString() : null
           })
           .eq('id', userId);

@@ -9,7 +9,7 @@ export async function GET() {
     if (!settings) {
       // Return fallback defaults if settings can't be fetched
       return NextResponse.json({
-        buyer_premium_percent: 5.0,
+        buyer_premium_percent: 8.0,
         seller_commission_percent: 8.0,
       });
     }
@@ -22,7 +22,7 @@ export async function GET() {
     console.error('Failed to fetch platform fees:', error);
     // Return fallback defaults on error
     return NextResponse.json({
-      buyer_premium_percent: 5.0,
+      buyer_premium_percent: 8.0,
       seller_commission_percent: 8.0,
     });
   }

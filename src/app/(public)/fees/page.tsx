@@ -14,11 +14,11 @@ async function getFees() {
   try {
     const settings = await getPlatformSettings();
     return {
-      buyerPremium: settings?.default_buyer_premium_percent ?? 5.0,
+      buyerPremium: settings?.default_buyer_premium_percent ?? 8.0,
       sellerCommission: settings?.default_seller_commission_percent ?? 8.0,
     };
   } catch {
-    return { buyerPremium: 5.0, sellerCommission: 8.0 };
+    return { buyerPremium: 8.0, sellerCommission: 8.0 };
   }
 }
 

@@ -1310,7 +1310,7 @@ export default function InvoicePage() {
             </tr>
             <tr>
               <td>
-                <div class="item-title">Buyer Premium (${invoice.buyer_premium_percent || 5}%)</div>
+                <div class="item-title">Buyer Premium (${invoice.buyer_premium_percent || 8}%)</div>
               </td>
               <td>Fee</td>
               <td style="text-align: right;">$${invoice.buyer_premium_amount?.toLocaleString() || '0'}</td>
@@ -2941,7 +2941,7 @@ export default function InvoicePage() {
                 <span className="font-medium">${invoice.sale_amount?.toLocaleString() || '0'}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-600">Buyer Premium ({invoice.buyer_premium_percent || 5}%)</span>
+                <span className="text-gray-600">Buyer Premium ({invoice.buyer_premium_percent || 8}%)</span>
                 <span className="font-medium">${invoice.buyer_premium_amount?.toLocaleString() || '0'}</span>
               </div>
 
