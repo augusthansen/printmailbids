@@ -38,9 +38,9 @@ function ManufacturerLogo({ name, slug, domain }: { name: string; slug: string; 
         <Image
           src={`/logos/${slug}.png`}
           alt={name}
-          width={48}
-          height={48}
-          className="h-10 w-10 sm:h-12 sm:w-12 object-contain rounded grayscale"
+          width={80}
+          height={80}
+          className="h-16 w-16 sm:h-20 sm:w-20 object-contain rounded grayscale"
           onError={() => setImageError(true)}
         />
       )}
