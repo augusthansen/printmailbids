@@ -33,18 +33,18 @@ function ManufacturerLogo({ name, slug, domain }: { name: string; slug: string; 
   const [imageError, setImageError] = useState(false);
 
   return (
-    <div className="flex items-center gap-2 group">
+    <div className="flex items-center gap-3 group">
       {!imageError && (
         <Image
           src={`/logos/${slug}.png`}
           alt={name}
-          width={32}
-          height={32}
-          className="h-6 w-6 sm:h-8 sm:w-8 object-contain rounded"
+          width={48}
+          height={48}
+          className="h-10 w-10 sm:h-12 sm:w-12 object-contain rounded grayscale"
           onError={() => setImageError(true)}
         />
       )}
-      <span className="text-sm sm:text-base font-semibold text-slate-500 group-hover:text-slate-700 transition-colors whitespace-nowrap">
+      <span className="text-lg sm:text-xl font-bold text-slate-400 whitespace-nowrap">
         {name}
       </span>
     </div>
