@@ -30,25 +30,24 @@ const manufacturers = [
 ];
 
 function ManufacturerLogo({ name, slug, domain }: { name: string; slug: string; domain: string }) {
-  const [useTextFallback, setUseTextFallback] = useState(false);
-
-  if (useTextFallback) {
-    return (
-      <span className="text-xl sm:text-2xl font-bold text-slate-400 hover:text-slate-600 transition-colors whitespace-nowrap">
-        {name}
-      </span>
-    );
-  }
+  const [imageError, setImageError] = useState(false);
 
   return (
-    <Image
-      src={`/logos/${slug}.png`}
-      alt={name}
-      width={120}
-      height={40}
-      className="h-8 sm:h-10 w-auto object-contain grayscale hover:grayscale-0 opacity-60 hover:opacity-100 transition-all"
-      onError={() => setUseTextFallback(true)}
-    />
+    <div className="flex items-center gap-2 group">
+      {!imageError && (
+        <Image
+          src={`/logos/${slug}.png`}
+          alt={name}
+          width={32}
+          height={32}
+          className="h-6 w-6 sm:h-8 sm:w-8 object-contain rounded"
+          onError={() => setImageError(true)}
+        />
+      )}
+      <span className="text-sm sm:text-base font-semibold text-slate-500 group-hover:text-slate-700 transition-colors whitespace-nowrap">
+        {name}
+      </span>
+    </div>
   );
 }
 
