@@ -1,30 +1,56 @@
 'use client';
 
+import Image from 'next/image';
+import { useState } from 'react';
+
 // Scrolling banner of top print & mail equipment manufacturers
-// Using text-based logos for now - can be replaced with actual logo images
+// Uses logo images from public/logos folder with text fallback
 
 const manufacturers = [
-  { name: 'BlueCrest', slug: 'bluecrest' },
-  { name: 'Bell + Howell', slug: 'bell-howell' },
-  { name: 'Kirk-Rudy', slug: 'kirk-rudy' },
-  { name: 'Pitney Bowes', slug: 'pitney-bowes' },
-  { name: 'Heidelberg', slug: 'heidelberg' },
-  { name: 'Kodak', slug: 'kodak' },
-  { name: 'MBO', slug: 'mbo' },
-  { name: 'Mailcrafters', slug: 'mailcrafters' },
-  { name: 'Buskro', slug: 'buskro' },
-  { name: 'Neopost', slug: 'neopost' },
-  { name: 'Quadient', slug: 'quadient' },
-  { name: 'Ricoh', slug: 'ricoh' },
-  { name: 'Canon', slug: 'canon' },
-  { name: 'Xerox', slug: 'xerox' },
-  { name: 'Konica Minolta', slug: 'konica-minolta' },
-  { name: 'HP Indigo', slug: 'hp-indigo' },
-  { name: 'Horizon', slug: 'horizon' },
-  { name: 'Duplo', slug: 'duplo' },
-  { name: 'Standard Horizon', slug: 'standard-horizon' },
-  { name: 'Muller Martini', slug: 'muller-martini' },
+  { name: 'BlueCrest', slug: 'bluecrest', domain: 'bluecrestinc.com' },
+  { name: 'Bell + Howell', slug: 'bell-howell', domain: 'bellhowell.net' },
+  { name: 'Kirk-Rudy', slug: 'kirk-rudy', domain: 'kirkrudy.com' },
+  { name: 'Pitney Bowes', slug: 'pitney-bowes', domain: 'pitneybowes.com' },
+  { name: 'Heidelberg', slug: 'heidelberg', domain: 'heidelberg.com' },
+  { name: 'Kodak', slug: 'kodak', domain: 'kodak.com' },
+  { name: 'MBO', slug: 'mbo', domain: 'mbo-folder.com' },
+  { name: 'Mailcrafters', slug: 'mailcrafters', domain: 'mailcrafters.com' },
+  { name: 'Buskro', slug: 'buskro', domain: 'buskro.com' },
+  { name: 'Neopost', slug: 'neopost', domain: 'neopost.com' },
+  { name: 'Quadient', slug: 'quadient', domain: 'quadient.com' },
+  { name: 'Ricoh', slug: 'ricoh', domain: 'ricoh.com' },
+  { name: 'Canon', slug: 'canon', domain: 'canon.com' },
+  { name: 'Xerox', slug: 'xerox', domain: 'xerox.com' },
+  { name: 'Konica Minolta', slug: 'konica-minolta', domain: 'konicaminolta.com' },
+  { name: 'HP Indigo', slug: 'hp-indigo', domain: 'hp.com' },
+  { name: 'Horizon', slug: 'horizon', domain: 'horizonintl.com' },
+  { name: 'Duplo', slug: 'duplo', domain: 'duplousa.com' },
+  { name: 'Standard Horizon', slug: 'standard-horizon', domain: 'standardhorizon.com' },
+  { name: 'Muller Martini', slug: 'muller-martini', domain: 'mullermartini.com' },
 ];
+
+function ManufacturerLogo({ name, slug, domain }: { name: string; slug: string; domain: string }) {
+  const [useTextFallback, setUseTextFallback] = useState(false);
+
+  if (useTextFallback) {
+    return (
+      <span className="text-xl sm:text-2xl font-bold text-slate-400 hover:text-slate-600 transition-colors whitespace-nowrap">
+        {name}
+      </span>
+    );
+  }
+
+  return (
+    <Image
+      src={`/logos/${slug}.png`}
+      alt={name}
+      width={120}
+      height={40}
+      className="h-8 sm:h-10 w-auto object-contain grayscale hover:grayscale-0 opacity-60 hover:opacity-100 transition-all"
+      onError={() => setUseTextFallback(true)}
+    />
+  );
+}
 
 export function ManufacturerBanner() {
   // Double the array for seamless infinite scroll
@@ -44,15 +70,17 @@ export function ManufacturerBanner() {
         <div className="absolute right-0 top-0 bottom-0 w-24 bg-gradient-to-l from-white to-transparent z-10" />
 
         {/* Scrolling container */}
-        <div className="flex animate-scroll">
+        <div className="flex items-center animate-scroll">
           {scrollingManufacturers.map((manufacturer, index) => (
             <div
               key={`${manufacturer.slug}-${index}`}
-              className="flex-shrink-0 px-8 sm:px-12"
+              className="flex-shrink-0 px-8 sm:px-12 flex items-center justify-center h-12"
             >
-              <span className="text-xl sm:text-2xl font-bold text-slate-400 hover:text-slate-600 transition-colors whitespace-nowrap">
-                {manufacturer.name}
-              </span>
+              <ManufacturerLogo
+                name={manufacturer.name}
+                slug={manufacturer.slug}
+                domain={manufacturer.domain}
+              />
             </div>
           ))}
         </div>
