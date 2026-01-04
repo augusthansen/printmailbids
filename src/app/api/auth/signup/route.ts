@@ -86,10 +86,28 @@ export async function POST(request: Request) {
     const verificationUrl = linkData.properties.action_link;
 
     // Send verification email via Resend
+    // Using multipart (html + text) and headers to improve deliverability
     const { error: emailError } = await resend.emails.send({
-      from: 'PrintMailBids <noreply@printmailbids.com>',
+      from: 'PrintMailBids Team <hello@printmailbids.com>',
       to: email,
-      subject: 'Verify your email address - PrintMailBids',
+      replyTo: 'support@printmailbids.com',
+      subject: `${fullName || 'Hi'}, please verify your email`,
+      headers: {
+        'X-Entity-Ref-ID': userData.user.id,
+      },
+      text: `Welcome to PrintMailBids!
+
+Thanks for signing up! Please verify your email address by clicking the link below:
+
+${verificationUrl}
+
+This link will expire in 24 hours.
+
+If you didn't create an account with PrintMailBids, you can safely ignore this email.
+
+---
+PrintMailBids - The trusted marketplace for printing & mailing equipment
+https://printmailbids.com`,
       html: `
         <!DOCTYPE html>
         <html>
@@ -106,11 +124,11 @@ export async function POST(request: Request) {
             </div>
 
             <h1 style="color: #0f172a; font-size: 24px; margin-bottom: 16px; text-align: center; font-weight: 700;">
-              Verify your email address
+              Welcome to PrintMailBids!
             </h1>
 
             <p style="color: #475569; margin-bottom: 24px; text-align: center;">
-              Thanks for signing up for PrintMailBids! Click the button below to verify your email address and activate your account.
+              Hi${fullName ? ` ${fullName.split(' ')[0]}` : ''}! Thanks for signing up. Click the button below to verify your email address and activate your account.
             </p>
 
             <div style="text-align: center; margin: 32px 0;">
@@ -128,9 +146,14 @@ export async function POST(request: Request) {
             </p>
           </div>
 
-          <p style="color: #94a3b8; font-size: 12px; text-align: center; margin-top: 24px;">
-            PrintMailBids - The trusted marketplace for printing &amp; mailing equipment
-          </p>
+          <div style="text-align: center; margin-top: 24px;">
+            <p style="color: #94a3b8; font-size: 12px;">
+              PrintMailBids - The trusted marketplace for printing &amp; mailing equipment
+            </p>
+            <p style="color: #94a3b8; font-size: 11px; margin-top: 8px;">
+              <a href="https://printmailbids.com" style="color: #94a3b8;">printmailbids.com</a>
+            </p>
+          </div>
         </body>
         </html>
       `,
