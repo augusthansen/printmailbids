@@ -49,51 +49,27 @@ export default function SignupPage() {
     setLoading(true);
 
     try {
-      const { data, error } = await supabase.auth.signUp({
-        email: formData.email,
-        password: formData.password,
-        options: {
-          data: {
-            full_name: formData.fullName,
-            company_name: formData.companyName,
-          },
-          emailRedirectTo: `${window.location.origin}/auth/callback`,
-        },
+      // Use our custom signup API that sends verification via Resend
+      const isSeller = formData.accountType === 'seller' || formData.accountType === 'both';
+
+      const response = await fetch('/api/auth/signup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: formData.email,
+          password: formData.password,
+          fullName: formData.fullName,
+          companyName: formData.companyName,
+          isSeller,
+        }),
       });
 
-      if (error) {
-        setError(error.message);
-      } else if (data.user) {
-        // Manually create profile if trigger doesn't work
-        const isSeller = formData.accountType === 'seller' || formData.accountType === 'both';
-        const { error: profileError } = await supabase
-          .from('profiles')
-          .upsert({
-            id: data.user.id,
-            email: formData.email,
-            full_name: formData.fullName,
-            company_name: formData.companyName,
-            is_seller: isSeller,
-          });
+      const data = await response.json();
 
-        if (profileError) {
-          console.error('Profile creation error:', profileError);
-          // Don't block signup if profile creation fails
-        }
-
-        // If session exists, user is already logged in (no email confirmation required)
-        if (data.session) {
-          // Send verification email via our custom endpoint (uses Resend)
-          try {
-            await fetch('/api/auth/send-verification', { method: 'POST' });
-          } catch (emailErr) {
-            console.error('Failed to send verification email:', emailErr);
-          }
-          // Show success page regardless - they need to verify email
-          setSuccess(true);
-        } else {
-          setSuccess(true);
-        }
+      if (!response.ok) {
+        setError(data.error || 'Failed to create account');
+      } else {
+        setSuccess(true);
       }
     } catch (err) {
       console.error('Signup error:', err);
