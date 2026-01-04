@@ -3,10 +3,8 @@
 import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import {
-  User,
   Phone,
   CreditCard,
-  MapPin,
   CheckCircle,
   ChevronRight,
   AlertCircle,
@@ -87,51 +85,33 @@ export function ProfileCompletionCard({ userId, isSeller, onDismiss }: ProfileCo
 
   const isSellerAccount = isSeller || status.isSeller;
 
-  // Calculate completion items based on user type
+  // Only show this card for sellers - buyers get prompted contextually
+  // (phone verification when bidding, address when paying)
+  if (!isSellerAccount) {
+    return null;
+  }
+
+  // Seller completion items
   const completionItems = [
-    {
-      id: 'profile',
-      label: 'Complete your profile',
-      description: 'Add your name and company info',
-      completed: status.hasName,
-      href: '/dashboard/settings',
-      icon: User,
-      priority: 2,
-    },
     {
       id: 'phone',
       label: 'Verify phone number',
-      description: isSellerAccount
-        ? 'Required to list equipment and communicate with buyers'
-        : 'Required to place bids and make offers',
+      description: 'Required to list equipment and communicate with buyers',
       completed: status.phoneVerified,
       href: '/dashboard/settings?tab=security',
       icon: Phone,
-      priority: 1, // High priority
+      priority: 1,
     },
     {
-      id: 'address',
-      label: 'Add shipping address',
-      description: 'For receiving purchased equipment',
-      completed: status.hasAddress,
-      href: '/dashboard/settings?tab=address',
-      icon: MapPin,
-      priority: 3,
-    },
-  ];
-
-  // Add seller-specific items
-  if (isSellerAccount) {
-    completionItems.push({
       id: 'stripe',
       label: 'Set up payouts',
       description: 'Connect Stripe to receive payments from sales',
       completed: status.hasStripeAccount,
       href: '/dashboard/settings?tab=billing',
       icon: CreditCard,
-      priority: 1, // High priority for sellers
-    });
-  }
+      priority: 1,
+    },
+  ];
 
   // Sort by priority (lower = higher priority), then by completion status
   completionItems.sort((a, b) => {
@@ -156,13 +136,9 @@ export function ProfileCompletionCard({ userId, isSeller, onDismiss }: ProfileCo
   // Find the first incomplete item
   const nextAction = completionItems.find(item => !item.completed);
 
-  // Determine header text based on account type and what's missing
-  const headerText = !status.phoneVerified
-    ? 'Verify your account to start bidding'
-    : 'Complete your profile';
-  const subText = isSellerAccount
-    ? 'Complete setup to start selling'
-    : 'Get ready to bid on equipment';
+  // Header text for sellers
+  const headerText = 'Complete seller setup';
+  const subText = 'Required to publish listings and receive payments';
 
   return (
     <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-2xl border border-blue-200 overflow-hidden">
