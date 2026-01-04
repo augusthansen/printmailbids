@@ -146,7 +146,7 @@ export default function SignupPage() {
         </div>
 
         {/* Content */}
-        <div className="relative z-10 flex flex-col justify-center px-12 lg:px-16">
+        <div className="relative z-10 flex flex-col justify-center items-center text-center px-12 lg:px-16 w-full">
           <Link href="/" className="flex items-center gap-3 mb-12">
             <div className="w-14 h-14 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center shadow-2xl shadow-blue-500/30">
               <span className="text-white font-bold text-lg tracking-tight">PMB</span>
@@ -163,12 +163,12 @@ export default function SignupPage() {
             Today.
           </h2>
 
-          <p className="text-lg text-stone-400 mb-10 max-w-md">
+          <p className="text-lg text-stone-400 mb-10 max-w-md mx-auto">
             Join the trusted marketplace for printing, mailing, and industrial equipment professionals.
           </p>
 
           {/* Benefits */}
-          <div className="space-y-4">
+          <div className="space-y-4 text-left">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 bg-blue-500/20 rounded-lg flex items-center justify-center">
                 <Check className="h-5 w-5 text-blue-400" />
