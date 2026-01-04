@@ -285,12 +285,12 @@ input:focus, textarea:focus, select:focus {
 }
 
 .animate-scroll {
-  animation: scroll 15s linear infinite;
+  animation: scroll 10s linear infinite;
 }
 
 @media (min-width: 640px) {
   .animate-scroll {
-    animation: scroll 30s linear infinite;
+    animation: scroll 20s linear infinite;
   }
 }
 
