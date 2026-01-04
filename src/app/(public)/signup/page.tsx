@@ -83,7 +83,14 @@ export default function SignupPage() {
 
         // If session exists, user is already logged in (no email confirmation required)
         if (data.session) {
-          router.push('/dashboard');
+          // Send verification email via our custom endpoint (uses Resend)
+          try {
+            await fetch('/api/auth/send-verification', { method: 'POST' });
+          } catch (emailErr) {
+            console.error('Failed to send verification email:', emailErr);
+          }
+          // Show success page regardless - they need to verify email
+          setSuccess(true);
         } else {
           setSuccess(true);
         }
@@ -113,10 +120,15 @@ export default function SignupPage() {
             <Check className="h-10 w-10 text-white" />
           </div>
           <h1 className="text-3xl font-bold text-slate-900 mb-4 font-display">Check your email</h1>
-          <p className="text-stone-600 mb-8 leading-relaxed">
+          <p className="text-stone-600 mb-6 leading-relaxed">
             We&apos;ve sent a confirmation link to <strong className="text-slate-900">{formData.email}</strong>.
             Click the link to activate your account.
           </p>
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-8">
+            <p className="text-amber-800 text-sm">
+              <strong>Don&apos;t see it?</strong> Check your spam or junk folder. The email is from <span className="font-medium">noreply@printmailbids.com</span>
+            </p>
+          </div>
           <Link
             href="/login"
             className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-700 font-semibold transition-colors"

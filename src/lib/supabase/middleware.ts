@@ -45,7 +45,7 @@ export async function updateSession(request: NextRequest) {
 
   // Protected routes
   const protectedPaths = ['/dashboard', '/sell', '/account', '/messages']
-  const isProtectedPath = protectedPaths.some(path => 
+  const isProtectedPath = protectedPaths.some(path =>
     request.nextUrl.pathname.startsWith(path)
   )
 
@@ -53,6 +53,14 @@ export async function updateSession(request: NextRequest) {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
     url.searchParams.set('redirect', request.nextUrl.pathname)
+    return NextResponse.redirect(url)
+  }
+
+  // Check if user's email is verified for protected routes
+  // Users who sign up but haven't verified their email should not access protected areas
+  if (isProtectedPath && user && !user.email_confirmed_at) {
+    const url = request.nextUrl.clone()
+    url.pathname = '/auth/verify-email'
     return NextResponse.redirect(url)
   }
 
