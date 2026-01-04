@@ -29,6 +29,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { createClient } from '@/lib/supabase/client';
+import { ProfileCompletionCard } from '@/components/dashboard/ProfileCompletionCard';
 
 interface BuyerStats {
   activeBids: number;
@@ -520,6 +521,11 @@ export default function DashboardPage() {
           </Link>
         </div>
       </div>
+
+      {/* Profile Completion Nudge */}
+      {user?.id && (
+        <ProfileCompletionCard userId={user.id} isSeller={isSeller} />
+      )}
 
       {/* Quick Links - Mobile only (shown at top) */}
       <div className="bg-white rounded-2xl shadow-sm border border-stone-200/50 p-6 lg:hidden">

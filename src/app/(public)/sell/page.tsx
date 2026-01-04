@@ -27,6 +27,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { createClient } from '@/lib/supabase/client';
 import MakeAutocomplete from '@/components/MakeAutocomplete';
 import ModelAutocomplete from '@/components/ModelAutocomplete';
+import { SellerOnboardingBanner } from '@/components/dashboard/SellerOnboardingBanner';
 
 type Step = 1 | 2 | 3 | 4 | 5 | 6;
 
@@ -368,6 +369,7 @@ export default function CreateListingPage() {
   const [error, setError] = useState<string | null>(null);
   const [savingDraft, setSavingDraft] = useState(false);
   const [categories, setCategoriesData] = useState<{id: string, name: string, slug: string}[]>([]);
+  const [sellerSetupComplete, setSellerSetupComplete] = useState(false);
 
   // Load categories from database with fallback
   useEffect(() => {
@@ -969,6 +971,16 @@ export default function CreateListingPage() {
           </div>
         </div>
       </div>
+
+      {/* Seller Onboarding Banner */}
+      {user?.id && !sellerSetupComplete && (
+        <div className="max-w-4xl mx-auto px-4 pt-8">
+          <SellerOnboardingBanner
+            userId={user.id}
+            onComplete={() => setSellerSetupComplete(true)}
+          />
+        </div>
+      )}
 
       {/* Form Content */}
       <div className="max-w-4xl mx-auto px-4 py-8">
