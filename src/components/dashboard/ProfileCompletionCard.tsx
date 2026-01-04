@@ -85,13 +85,15 @@ export function ProfileCompletionCard({ userId, isSeller, onDismiss }: ProfileCo
     return null;
   }
 
+  const isSellerAccount = isSeller || status.isSeller;
+
   // Calculate completion items based on user type
   const completionItems = [
     {
       id: 'profile',
       label: 'Complete your profile',
-      description: 'Add your name and company',
-      completed: status.hasName && status.hasCompany,
+      description: 'Add your name and company info',
+      completed: status.hasName,
       href: '/dashboard/settings',
       icon: User,
       priority: 2,
@@ -99,7 +101,9 @@ export function ProfileCompletionCard({ userId, isSeller, onDismiss }: ProfileCo
     {
       id: 'phone',
       label: 'Verify phone number',
-      description: 'Required for bidding and making offers',
+      description: isSellerAccount
+        ? 'Required to list equipment and communicate with buyers'
+        : 'Required to place bids and make offers',
       completed: status.phoneVerified,
       href: '/dashboard/settings?tab=security',
       icon: Phone,
@@ -117,11 +121,11 @@ export function ProfileCompletionCard({ userId, isSeller, onDismiss }: ProfileCo
   ];
 
   // Add seller-specific items
-  if (isSeller || status.isSeller) {
+  if (isSellerAccount) {
     completionItems.push({
       id: 'stripe',
       label: 'Set up payouts',
-      description: 'Connect Stripe to receive payments',
+      description: 'Connect Stripe to receive payments from sales',
       completed: status.hasStripeAccount,
       href: '/dashboard/settings?tab=billing',
       icon: CreditCard,
@@ -152,6 +156,14 @@ export function ProfileCompletionCard({ userId, isSeller, onDismiss }: ProfileCo
   // Find the first incomplete item
   const nextAction = completionItems.find(item => !item.completed);
 
+  // Determine header text based on account type and what's missing
+  const headerText = !status.phoneVerified
+    ? 'Verify your account to start bidding'
+    : 'Complete your profile';
+  const subText = isSellerAccount
+    ? 'Complete setup to start selling'
+    : 'Get ready to bid on equipment';
+
   return (
     <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-2xl border border-blue-200 overflow-hidden">
       <div className="p-5">
@@ -161,8 +173,8 @@ export function ProfileCompletionCard({ userId, isSeller, onDismiss }: ProfileCo
               <Sparkles className="h-5 w-5 text-blue-600" />
             </div>
             <div>
-              <h3 className="font-semibold text-slate-900">Complete your profile</h3>
-              <p className="text-sm text-slate-600">{progressPercent}% complete</p>
+              <h3 className="font-semibold text-slate-900">{headerText}</h3>
+              <p className="text-sm text-slate-600">{subText} - {progressPercent}% complete</p>
             </div>
           </div>
           <button

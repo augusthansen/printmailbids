@@ -3,15 +3,7 @@ import { stripe } from '@/lib/stripe/server';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { getCommissionRates, calculateFees } from '@/lib/commissions';
-import crypto from 'crypto';
-
-// Generate invoice number: INV-YYYYMMDD-XXXX (cryptographically secure)
-function generateInvoiceNumber(): string {
-  const date = new Date();
-  const dateStr = date.toISOString().slice(0, 10).replace(/-/g, '');
-  const random = crypto.randomBytes(3).toString('hex').toUpperCase().slice(0, 4);
-  return `INV-${dateStr}-${random}`;
-}
+import { generateInvoiceNumber } from '@/lib/invoice';
 
 export async function POST(request: NextRequest) {
   try {
