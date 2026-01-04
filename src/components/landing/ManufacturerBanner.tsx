@@ -40,11 +40,11 @@ function ManufacturerLogo({ name, slug, domain }: { name: string; slug: string; 
           alt={name}
           width={80}
           height={80}
-          className="h-8 w-8 sm:h-20 sm:w-20 object-contain rounded grayscale"
+          className="h-8 w-8 sm:h-10 sm:w-10 object-contain rounded grayscale"
           onError={() => setImageError(true)}
         />
       )}
-      <span className="text-sm sm:text-xl font-bold text-slate-400 whitespace-nowrap">
+      <span className="text-sm sm:text-base font-bold text-slate-400 whitespace-nowrap">
         {name}
       </span>
     </div>
