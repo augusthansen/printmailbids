@@ -252,6 +252,7 @@ export default function ListingDetailPage() {
   const [userPhoneVerified, setUserPhoneVerified] = useState(false);
   const [showShareMenu, setShowShareMenu] = useState(false);
   const [shareToast, setShareToast] = useState<string | null>(null);
+  const [showLightbox, setShowLightbox] = useState(false);
 
   // Auto-dismiss share toast
   useEffect(() => {
@@ -854,7 +855,8 @@ By placing a bid, you acknowledge that you have read, understood, and agree to t
                   <img
                     src={images[currentImageIndex].url}
                     alt={listing.title}
-                    className="max-w-full max-h-full object-contain"
+                    className="max-w-full max-h-full object-contain cursor-zoom-in"
+                    onClick={() => setShowLightbox(true)}
                   />
                 ) : (
                   <Package className="h-12 w-12 text-gray-300" />
@@ -1921,6 +1923,83 @@ By placing a bid, you acknowledge that you have read, understood, and agree to t
           }}
           onClose={() => setShowPhoneVerification(false)}
         />
+      )}
+
+      {/* Image Lightbox Modal */}
+      {showLightbox && images.length > 0 && (
+        <div
+          className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center"
+          onClick={() => setShowLightbox(false)}
+        >
+          {/* Close button */}
+          <button
+            onClick={() => setShowLightbox(false)}
+            className="absolute top-4 right-4 p-2 text-white/80 hover:text-white bg-black/50 hover:bg-black/70 rounded-full transition-colors z-10"
+          >
+            <X className="h-6 w-6" />
+          </button>
+
+          {/* Image counter */}
+          <div className="absolute top-4 left-4 text-white/80 bg-black/50 px-3 py-1 rounded-full text-sm">
+            {currentImageIndex + 1} / {images.length}
+          </div>
+
+          {/* Main image */}
+          <div
+            className="max-w-[90vw] max-h-[90vh] flex items-center justify-center"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <img
+              src={images[currentImageIndex].url}
+              alt={listing.title}
+              className="max-w-full max-h-[90vh] object-contain"
+            />
+          </div>
+
+          {/* Navigation arrows */}
+          {images.length > 1 && (
+            <>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setCurrentImageIndex(i => i === 0 ? images.length - 1 : i - 1);
+                }}
+                className="absolute left-4 top-1/2 -translate-y-1/2 p-3 text-white/80 hover:text-white bg-black/50 hover:bg-black/70 rounded-full transition-colors"
+              >
+                <ChevronLeft className="h-8 w-8" />
+              </button>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setCurrentImageIndex(i => i === images.length - 1 ? 0 : i + 1);
+                }}
+                className="absolute right-4 top-1/2 -translate-y-1/2 p-3 text-white/80 hover:text-white bg-black/50 hover:bg-black/70 rounded-full transition-colors"
+              >
+                <ChevronRight className="h-8 w-8" />
+              </button>
+            </>
+          )}
+
+          {/* Thumbnail strip */}
+          {images.length > 1 && (
+            <div
+              className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2 p-2 bg-black/50 rounded-lg max-w-[90vw] overflow-x-auto"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {images.map((img, index) => (
+                <button
+                  key={img.id}
+                  onClick={() => setCurrentImageIndex(index)}
+                  className={`w-16 h-16 flex-shrink-0 rounded overflow-hidden border-2 transition-all ${
+                    currentImageIndex === index ? 'border-white opacity-100' : 'border-transparent opacity-60 hover:opacity-100'
+                  }`}
+                >
+                  <img src={img.url} alt="" className="w-full h-full object-cover" />
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       )}
     </div>
   );
