@@ -3,6 +3,10 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { NextRequest, NextResponse } from 'next/server';
 import { sendOutbidEmail } from '@/lib/email';
 
+// Disable caching for this API route
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 // Soft-close window: 2 minutes (in milliseconds)
 const SOFT_CLOSE_WINDOW_MS = 2 * 60 * 1000;
 
@@ -46,12 +50,62 @@ interface Bid {
 
 export async function POST(request: NextRequest) {
   try {
-    // Get authenticated user
-    const supabase = await createClient();
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    // Get authenticated user - try Bearer token first (for mobile app), then cookies (for web)
+    let user = null;
 
-    if (authError || !user) {
-      return NextResponse.json({ error: 'You must be logged in to bid' }, { status: 401 });
+    const authHeader = request.headers.get('Authorization');
+    let tokenValidationError: string | null = null;
+
+    if (authHeader?.startsWith('Bearer ')) {
+      // Mobile app authentication via Bearer token
+      const token = authHeader.substring(7);
+      console.log('[Bid API] Bearer token received, length:', token.length, 'prefix:', token.substring(0, 20));
+
+      try {
+        const adminClient = createAdminClient();
+        console.log('[Bid API] Admin client created, calling getUser...');
+        const { data, error: tokenError } = await adminClient.auth.getUser(token);
+        const tokenUser = data?.user;
+        console.log('[Bid API] Token validation result:', {
+          hasUser: !!tokenUser,
+          userId: tokenUser?.id,
+          error: tokenError?.message,
+          errorStatus: tokenError?.status,
+        });
+        if (tokenError) {
+          tokenValidationError = tokenError.message;
+        }
+        if (!tokenError && tokenUser) {
+          user = tokenUser;
+        }
+      } catch (err) {
+        console.error('[Bid API] Exception during token validation:', err);
+        tokenValidationError = err instanceof Error ? err.message : 'Token validation failed';
+      }
+    }
+
+    // Fall back to cookie-based auth (web app)
+    if (!user) {
+      const supabase = await createClient();
+      const { data: { user: cookieUser }, error: authError } = await supabase.auth.getUser();
+      if (!authError && cookieUser) {
+        user = cookieUser;
+      }
+    }
+
+    if (!user) {
+      const tokenPrefix = authHeader?.startsWith('Bearer ')
+        ? authHeader.substring(7, 27) + '...'
+        : null;
+      return NextResponse.json({
+        error: tokenValidationError || 'You must be logged in to bid',
+        tokenError: tokenValidationError,
+        hasAuthHeader: !!authHeader,
+        tokenPrefix,
+        tokenLength: authHeader?.startsWith('Bearer ') ? authHeader.length - 7 : 0,
+        hasServiceKey: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
+        debug: 'v3', // Version marker to confirm deployment
+      }, { status: 401 });
     }
 
     // Parse request body
