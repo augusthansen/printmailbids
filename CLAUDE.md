@@ -71,7 +71,9 @@ PrintMailBids is a full-featured online marketplace for printing, mailing, and i
   - $1 for items up to $250
   - $10 for $250 - $1,000
   - $50 for $1,000 - $10,000
-  - $100 for $10,000+
+  - $100 for $10,000 - $100,000
+  - $500 for $100,000 - $500,000
+  - $1,000 for $500,000+
 - **Soft-Close Protection**: 2-minute extension when bids received near end time
 - **Bid Status**: `active`, `outbid`, `winning`, `won`, `lost`, `cancelled`
 

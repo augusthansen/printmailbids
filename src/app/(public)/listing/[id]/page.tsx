@@ -155,7 +155,9 @@ const bidIncrements = [
   { max: 250, increment: 1 },
   { max: 1000, increment: 10 },
   { max: 10000, increment: 50 },
-  { max: Infinity, increment: 100 },
+  { max: 100000, increment: 100 },
+  { max: 500000, increment: 500 },
+  { max: Infinity, increment: 1000 },
 ];
 
 // Soft-close window: 2 minutes (in milliseconds)

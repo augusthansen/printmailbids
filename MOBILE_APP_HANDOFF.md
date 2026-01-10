@@ -900,7 +900,9 @@ Process ended auctions (called by Vercel Cron every 5 minutes).
 | $0 - $250 | $1 |
 | $250 - $1,000 | $10 |
 | $1,000 - $10,000 | $50 |
-| $10,000+ | $100 |
+| $10,000 - $100,000 | $100 |
+| $100,000 - $500,000 | $500 |
+| $500,000+ | $1,000 |
 
 ### Proxy Bidding Algorithm
 
