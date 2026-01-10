@@ -256,7 +256,7 @@ interface UserAddress {
 
 #### `listings` - Equipment for sale
 ```typescript
-type ListingType = 'auction' | 'auction_offers';
+type ListingType = 'auction' | 'auction_with_offers';
 type ListingStatus = 'draft' | 'scheduled' | 'active' | 'ended' | 'sold' | 'cancelled' | 'expired';
 type EquipmentStatus = 'in_production' | 'installed_idle' | 'needs_deinstall' | 'deinstalled' | 'broken_down' | 'palletized' | 'crated';
 type DeinstallResponsibility = 'buyer' | 'seller_included' | 'seller_additional_fee';

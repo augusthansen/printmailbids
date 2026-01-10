@@ -60,8 +60,8 @@ PrintMailBids is a full-featured online marketplace for printing, mailing, and i
 ### Marketplace & Listings
 
 - **Auction Listings**: Time-based auctions with proxy bidding and 2-minute soft-close window
-- **Make Offer System**: Buyers submit offers with counter-offer support (auction_offers type)
-- **Listing Types**: `auction`, `auction_offers`
+- **Make Offer System**: Buyers submit offers with counter-offer support (auction_with_offers type)
+- **Listing Types**: `auction`, `auction_with_offers`
 - **Listing States**: `draft`, `scheduled`, `active`, `ended`, `sold`, `cancelled`, `expired`
 
 ### Bidding System
@@ -82,7 +82,7 @@ The Place Bid button is shown when ALL conditions are met:
 | Condition | Requirement |
 |-----------|-------------|
 | Listing Status | Must be `active` (not `sold` or `ended`) |
-| Listing Type | Must be `auction` or `auction_offers` |
+| Listing Type | Must be `auction` or `auction_with_offers` |
 | User Auth | User must be logged in |
 | Not Own Listing | User cannot bid on their own listing |
 
@@ -156,7 +156,7 @@ Additional validations on click:
 ### Key Enums
 
 - `equipment_status`: in_production, installed_idle, needs_deinstall, deinstalled, broken_down, palletized, crated
-- `listing_type`: auction, auction_offers
+- `listing_type`: auction, auction_with_offers
 - `listing_status`: draft, scheduled, active, ended, sold, cancelled, expired
 - `bid_status`: active, outbid, winning, won, lost, cancelled
 - `offer_status`: pending, accepted, declined, countered, expired, withdrawn
@@ -414,7 +414,7 @@ The platform supports 7 main equipment categories for printing, mailing, and ind
 
 Check these conditions:
 1. **Listing Status**: Must be `active` - check `listings.status` in database
-2. **Listing Type**: Must be `auction` or `auction_offers` - check `listings.listing_type`
+2. **Listing Type**: Must be `auction` or `auction_with_offers` - check `listings.listing_type`
 3. **End Time**: Listing must not have passed its `end_time`
 4. **User Not Seller**: User cannot bid on their own listing
 
@@ -422,11 +422,11 @@ Check these conditions:
 
 The sell page UI provides two options:
 - **Auction Only**: Stored as `listing_type: 'auction'`
-- **Auction + Offers**: Stored as `listing_type: 'auction_offers'` with `accept_offers: true`
+- **Auction + Offers**: Stored as `listing_type: 'auction_with_offers'` with `accept_offers: true`
 
 The database only supports these `listing_type` values:
 - `auction` - Standard auction with bidding
-- `auction_offers` - Auction that also accepts make-offer submissions
+- `auction_with_offers` - Auction that also accepts make-offer submissions
 
 ## Additional Documentation
 

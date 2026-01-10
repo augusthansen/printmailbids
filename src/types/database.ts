@@ -12,7 +12,7 @@ export type EquipmentStatus =
 
 export type ListingType =
   | 'auction'
-  | 'auction_offers';
+  | 'auction_with_offers';
 
 export type ListingStatus = 
   | 'draft'

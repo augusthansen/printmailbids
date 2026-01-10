@@ -174,7 +174,7 @@ function MarketplaceContent() {
 
         // Apply listing type filter (all listings are now auctions)
         if (listingTypeFilter === 'auction') {
-          query = query.in('listing_type', ['auction', 'auction_offers']);
+          query = query.in('listing_type', ['auction', 'auction_with_offers']);
         }
         // 'fixed_price' filter is no longer supported - all listings are auctions
 

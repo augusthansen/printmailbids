@@ -1303,7 +1303,7 @@ By placing a bid, you acknowledge that you have read, understood, and agree to t
               ) : (
                 <>
                   {/* Time remaining */}
-                  {listing.listing_type === 'auction' || listing.listing_type === 'auction_offers' ? (
+                  {listing.listing_type === 'auction' || listing.listing_type === 'auction_with_offers' ? (
                     <>
                       {/* Soft-close indicator */}
                       {listing.end_time && isInSoftCloseWindow(listing.end_time) && (

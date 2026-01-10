@@ -168,7 +168,7 @@ export default function AdminListingsPage() {
     switch (type) {
       case 'auction':
         return <span className="text-xs text-cyan-400">Auction</span>;
-      case 'auction_offers':
+      case 'auction_with_offers':
         return <span className="text-xs text-purple-400">Auction + Offers</span>;
       default:
         return <span className="text-xs text-slate-400">{type}</span>;
@@ -243,7 +243,7 @@ export default function AdminListingsPage() {
         >
           <option value="all">All Types</option>
           <option value="auction">Auction</option>
-          <option value="auction_offers">Auction + Offers</option>
+          <option value="auction_with_offers">Auction + Offers</option>
         </select>
 
         <button
