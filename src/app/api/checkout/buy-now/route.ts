@@ -5,7 +5,17 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { getCommissionRates, calculateFees } from '@/lib/commissions';
 import { generateInvoiceNumber } from '@/lib/invoice';
 
+// DEPRECATED: This endpoint is no longer in use. All listings are now auctions.
+// Kept for backwards compatibility - returns deprecation error.
 export async function POST(request: NextRequest) {
+  // Return deprecation notice
+  return NextResponse.json(
+    { error: 'Buy Now feature has been deprecated. All listings are now auctions.' },
+    { status: 410 } // 410 Gone
+  );
+
+  // Legacy code below - kept for reference
+  /*
   try {
     // Get authenticated user
     const supabase = await createClient();
@@ -188,4 +198,5 @@ export async function POST(request: NextRequest) {
     console.error('Buy Now checkout error:', error);
     return NextResponse.json({ error: 'Failed to process purchase' }, { status: 500 });
   }
+  */
 }

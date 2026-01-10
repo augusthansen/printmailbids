@@ -256,7 +256,7 @@ interface UserAddress {
 
 #### `listings` - Equipment for sale
 ```typescript
-type ListingType = 'auction' | 'fixed_price' | 'fixed_price_offers' | 'auction_buy_now';
+type ListingType = 'auction' | 'auction_offers';
 type ListingStatus = 'draft' | 'scheduled' | 'active' | 'ended' | 'sold' | 'cancelled' | 'expired';
 type EquipmentStatus = 'in_production' | 'installed_idle' | 'needs_deinstall' | 'deinstalled' | 'broken_down' | 'palletized' | 'crated';
 type DeinstallResponsibility = 'buyer' | 'seller_included' | 'seller_additional_fee';
@@ -275,11 +275,9 @@ interface Listing {
   listing_type: ListingType;
   status: ListingStatus;
 
-  // Pricing
+  // Pricing (all listings are auctions)
   starting_price: number | null;     // Auction starting bid
   reserve_price: number | null;      // Minimum to sell
-  buy_now_price: number | null;      // Optional instant purchase
-  fixed_price: number | null;        // For fixed_price listings
   current_bid: number | null;        // Current highest bid
   bid_count: number;
 

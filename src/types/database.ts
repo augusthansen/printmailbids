@@ -10,11 +10,9 @@ export type EquipmentStatus =
   | 'palletized'
   | 'crated';
 
-export type ListingType = 
+export type ListingType =
   | 'auction'
-  | 'fixed_price'
-  | 'fixed_price_offers'
-  | 'auction_buy_now';
+  | 'auction_offers';
 
 export type ListingStatus = 
   | 'draft'

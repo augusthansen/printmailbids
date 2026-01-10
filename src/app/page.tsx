@@ -32,7 +32,6 @@ import {
 interface FeaturedListing {
   id: string;
   title: string;
-  fixed_price: number | null;
   starting_price: number | null;
   current_price: number | null;
   listing_type: string;
@@ -105,7 +104,6 @@ export default async function HomePage() {
     .select(`
       id,
       title,
-      fixed_price,
       starting_price,
       current_price,
       listing_type,

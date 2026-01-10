@@ -60,10 +60,8 @@ PrintMailBids is a full-featured online marketplace for printing, mailing, and i
 ### Marketplace & Listings
 
 - **Auction Listings**: Time-based auctions with proxy bidding and 2-minute soft-close window
-- **Fixed Price Sales**: Direct purchase at set price
-- **Make Offer System**: Buyers submit offers with counter-offer support
-- **Buy Now Option**: Instant purchase during auctions
-- **Listing Types**: `auction`, `fixed_price`, `fixed_price_offers`, `auction_buy_now`
+- **Make Offer System**: Buyers submit offers with counter-offer support (auction_offers type)
+- **Listing Types**: `auction`, `auction_offers`
 - **Listing States**: `draft`, `scheduled`, `active`, `ended`, `sold`, `cancelled`, `expired`
 
 ### Bidding System
@@ -84,7 +82,7 @@ The Place Bid button is shown when ALL conditions are met:
 | Condition | Requirement |
 |-----------|-------------|
 | Listing Status | Must be `active` (not `sold` or `ended`) |
-| Listing Type | Must be `auction` or `auction_buy_now` |
+| Listing Type | Must be `auction` or `auction_offers` |
 | User Auth | User must be logged in |
 | Not Own Listing | User cannot bid on their own listing |
 
@@ -158,7 +156,7 @@ Additional validations on click:
 ### Key Enums
 
 - `equipment_status`: in_production, installed_idle, needs_deinstall, deinstalled, broken_down, palletized, crated
-- `listing_type`: auction, fixed_price, fixed_price_offers, auction_buy_now
+- `listing_type`: auction, auction_offers
 - `listing_status`: draft, scheduled, active, ended, sold, cancelled, expired
 - `bid_status`: active, outbid, winning, won, lost, cancelled
 - `offer_status`: pending, accepted, declined, countered, expired, withdrawn
@@ -416,21 +414,19 @@ The platform supports 7 main equipment categories for printing, mailing, and ind
 
 Check these conditions:
 1. **Listing Status**: Must be `active` - check `listings.status` in database
-2. **Listing Type**: Must be `auction` or `auction_buy_now` - check `listings.listing_type`
+2. **Listing Type**: Must be `auction` or `auction_offers` - check `listings.listing_type`
 3. **End Time**: Listing must not have passed its `end_time`
 4. **User Not Seller**: User cannot bid on their own listing
 
-### Listing Type UI vs Database
+### Listing Types
 
-The sell page UI shows "Auction + Offers" option which is stored as:
-- `listing_type: 'auction'` (database)
-- `accept_offers: true` (flag)
+The sell page UI provides two options:
+- **Auction Only**: Stored as `listing_type: 'auction'`
+- **Auction + Offers**: Stored as `listing_type: 'auction_offers'` with `accept_offers: true`
 
 The database only supports these `listing_type` values:
-- `auction`
-- `fixed_price`
-- `fixed_price_offers`
-- `auction_buy_now`
+- `auction` - Standard auction with bidding
+- `auction_offers` - Auction that also accepts make-offer submissions
 
 ## Additional Documentation
 

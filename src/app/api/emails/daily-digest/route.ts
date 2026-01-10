@@ -70,8 +70,6 @@ export async function GET(request: NextRequest) {
         listing_type,
         current_price,
         starting_price,
-        fixed_price,
-        buy_now_price,
         bid_count,
         end_time,
         category:categories(name),
@@ -119,8 +117,6 @@ export async function GET(request: NextRequest) {
         listing_type,
         current_price,
         starting_price,
-        fixed_price,
-        buy_now_price,
         bid_count,
         end_time,
         category:categories(name),
@@ -136,19 +132,16 @@ export async function GET(request: NextRequest) {
     const transformListing = (listing: any) => {
       const primaryImage = listing.images?.find((img: any) => img.is_primary);
       const imageUrl = primaryImage?.url || listing.images?.[0]?.url;
-      const isFixedPrice = listing.listing_type?.includes('fixed');
 
       return {
         id: listing.id,
         title: listing.title,
         category: listing.category?.name || 'Equipment',
         imageUrl,
-        currentPrice: isFixedPrice
-          ? (listing.fixed_price || listing.buy_now_price || 0)
-          : (listing.current_price || listing.starting_price || 0),
+        currentPrice: listing.current_price || listing.starting_price || 0,
         bidCount: listing.bid_count || 0,
         endTime: listing.end_time ? new Date(listing.end_time) : undefined,
-        listingType: isFixedPrice ? 'fixed_price' as const : 'auction' as const,
+        listingType: 'auction' as const,
         location: listing.address ? `${listing.address.city}, ${listing.address.state}` : undefined,
       };
     };

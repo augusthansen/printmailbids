@@ -31,8 +31,6 @@ interface Listing {
   listing_type: string;
   current_price: number | null;
   starting_price: number | null;
-  buy_now_price: number | null;
-  fixed_price: number | null;
   bid_count: number;
   view_count: number;
   watch_count: number;
@@ -78,8 +76,6 @@ export default function ListingsPage() {
         listing_type,
         current_price,
         starting_price,
-        buy_now_price,
-        fixed_price,
         bid_count,
         view_count,
         watch_count,
@@ -154,9 +150,6 @@ export default function ListingsPage() {
   };
 
   const getPrice = (listing: Listing) => {
-    if (listing.listing_type?.includes('fixed')) {
-      return listing.fixed_price || listing.buy_now_price || 0;
-    }
     return listing.current_price || listing.starting_price || 0;
   };
 
@@ -331,14 +324,7 @@ export default function ListingsPage() {
                         <p className="font-medium text-gray-900">
                           ${getPrice(listing).toLocaleString()}
                         </p>
-                        {listing.listing_type?.includes('auction') && (
-                          <p className="text-sm text-gray-500">{listing.bid_count || 0} bids</p>
-                        )}
-                        {listing.buy_now_price && listing.listing_type === 'auction_buy_now' && (
-                          <p className="text-xs text-green-600">
-                            Buy Now: ${listing.buy_now_price.toLocaleString()}
-                          </p>
-                        )}
+                        <p className="text-sm text-gray-500">{listing.bid_count || 0} bids</p>
                       </div>
                     </td>
                     <td className="px-6 py-4">

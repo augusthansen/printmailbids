@@ -749,7 +749,7 @@ interface DigestListing {
   currentPrice: number;
   bidCount?: number;
   endTime?: Date;
-  listingType: 'auction' | 'fixed_price';
+  listingType: 'auction';
   location?: string;
 }
 
@@ -770,7 +770,7 @@ function formatTimeRemaining(endTime: Date): string {
 
 // Listing card component for digest emails
 function listingCard(listing: DigestListing, featured: boolean = false): string {
-  const isAuction = listing.listingType === 'auction';
+  // All listings are now auctions
   const timeLeft = listing.endTime ? formatTimeRemaining(listing.endTime) : null;
   const isEndingSoon = listing.endTime && (listing.endTime.getTime() - Date.now()) < 24 * 60 * 60 * 1000;
 
@@ -793,11 +793,6 @@ function listingCard(listing: DigestListing, featured: boolean = false): string 
                     ENDING SOON
                   </div>
                 ` : ''}
-                ${!isAuction ? `
-                  <div style="position:absolute;top:8px;right:8px;background-color:#16a34a;color:#ffffff;font-size:11px;font-weight:600;padding:4px 8px;border-radius:4px;">
-                    BUY NOW
-                  </div>
-                ` : ''}
               </div>
             </td>
           </tr>
@@ -813,11 +808,11 @@ function listingCard(listing: DigestListing, featured: boolean = false): string 
               <table style="width:100%;border-collapse:collapse;">
                 <tr>
                   <td style="padding:0;">
-                    <p style="margin:0;font-size:11px;color:#71717a;text-transform:uppercase;">${isAuction ? 'Current Bid' : 'Price'}</p>
-                    <p style="margin:2px 0 0;font-size:${featured ? '24px' : '18px'};font-weight:700;color:${isAuction ? '#18181b' : '#16a34a'};">
+                    <p style="margin:0;font-size:11px;color:#71717a;text-transform:uppercase;">Current Bid</p>
+                    <p style="margin:2px 0 0;font-size:${featured ? '24px' : '18px'};font-weight:700;color:#18181b;">
                       $${listing.currentPrice.toLocaleString()}
                     </p>
-                    ${isAuction && listing.bidCount !== undefined ? `
+                    ${listing.bidCount !== undefined ? `
                       <p style="margin:2px 0 0;font-size:11px;color:#71717a;">${listing.bidCount} bid${listing.bidCount !== 1 ? 's' : ''}</p>
                     ` : ''}
                   </td>
@@ -1025,11 +1020,8 @@ export async function sendDailyDigestEmail(params: {
                     <a href="${SITE_URL}/marketplace" style="display:inline-block;margin:0 8px;padding:8px 16px;background-color:#f4f4f5;color:#3f3f46;text-decoration:none;border-radius:6px;font-size:13px;font-weight:500;">
                       Browse All
                     </a>
-                    <a href="${SITE_URL}/marketplace?type=auction" style="display:inline-block;margin:0 8px;padding:8px 16px;background-color:#f4f4f5;color:#3f3f46;text-decoration:none;border-radius:6px;font-size:13px;font-weight:500;">
-                      Auctions
-                    </a>
-                    <a href="${SITE_URL}/marketplace?type=fixed" style="display:inline-block;margin:0 8px;padding:8px 16px;background-color:#f4f4f5;color:#3f3f46;text-decoration:none;border-radius:6px;font-size:13px;font-weight:500;">
-                      Buy Now
+                    <a href="${SITE_URL}/marketplace?sort=ending-soon" style="display:inline-block;margin:0 8px;padding:8px 16px;background-color:#f4f4f5;color:#3f3f46;text-decoration:none;border-radius:6px;font-size:13px;font-weight:500;">
+                      Ending Soon
                     </a>
                     <a href="${SITE_URL}/dashboard/watchlist" style="display:inline-block;margin:0 8px;padding:8px 16px;background-color:#f4f4f5;color:#3f3f46;text-decoration:none;border-radius:6px;font-size:13px;font-weight:500;">
                       My Watchlist
