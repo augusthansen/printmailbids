@@ -80,7 +80,9 @@ const sampleNewListings = [
     category: 'Digital Presses',
     imageUrl: 'https://images.unsplash.com/photo-1612815154858-60aa4c59eaa6?w=600',
     currentPrice: 89500,
-    listingType: 'fixed_price' as const,
+    bidCount: 1,
+    endTime: new Date(Date.now() + 8 * 24 * 60 * 60 * 1000),
+    listingType: 'auction' as const,
     location: 'Los Angeles, CA',
   },
   {
@@ -100,7 +102,9 @@ const sampleNewListings = [
     category: 'Folding Equipment',
     imageUrl: 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=600',
     currentPrice: 18500,
-    listingType: 'fixed_price' as const,
+    bidCount: 3,
+    endTime: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000),
+    listingType: 'auction' as const,
     location: 'Boston, MA',
   },
   {
