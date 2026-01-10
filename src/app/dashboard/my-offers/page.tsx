@@ -35,7 +35,7 @@ interface Offer {
   listing?: {
     id: string;
     title: string;
-    fixed_price: number | null;
+    starting_price: number | null;
     images: { url: string; is_primary: boolean }[];
   };
   seller?: {
@@ -81,7 +81,7 @@ export default function MyOffersPage() {
           listing:listings(
             id,
             title,
-            fixed_price,
+            starting_price,
             images:listing_images(url, is_primary)
           ),
           seller:profiles!offers_seller_id_fkey(
@@ -549,9 +549,9 @@ export default function MyOffersPage() {
                             ${offer.amount.toLocaleString()}
                           </span>
                         </div>
-                        {listing?.fixed_price && (
+                        {listing?.starting_price && (
                           <div className="text-sm text-gray-500">
-                            List Price: ${listing.fixed_price.toLocaleString()}
+                            Starting Price: ${listing.starting_price.toLocaleString()}
                           </div>
                         )}
                         {isPending && (

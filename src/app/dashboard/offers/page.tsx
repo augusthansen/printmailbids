@@ -35,7 +35,7 @@ interface Offer {
   listing?: {
     id: string;
     title: string;
-    fixed_price: number | null;
+    starting_price: number | null;
     images: { url: string; is_primary: boolean }[];
   };
   buyer?: {
@@ -81,7 +81,7 @@ export default function OffersPage() {
           listing:listings(
             id,
             title,
-            fixed_price,
+            starting_price,
             images:listing_images(url, is_primary)
           ),
           buyer:profiles!offers_buyer_id_fkey(
@@ -554,9 +554,9 @@ export default function OffersPage() {
                             ${offer.amount.toLocaleString()}
                           </span>
                         </div>
-                        {listing?.fixed_price && (
+                        {listing?.starting_price && (
                           <div className="text-sm text-gray-500">
-                            List Price: ${listing.fixed_price.toLocaleString()}
+                            Starting Price: ${listing.starting_price.toLocaleString()}
                           </div>
                         )}
                         {isPending && (
@@ -685,9 +685,9 @@ export default function OffersPage() {
                 <p className="text-2xl font-bold text-green-600">
                   ${acceptModal.amount.toLocaleString()}
                 </p>
-                {acceptModal.listing?.fixed_price && (
+                {acceptModal.listing?.starting_price && (
                   <p className="text-sm text-gray-500 mt-1">
-                    List Price: ${acceptModal.listing.fixed_price.toLocaleString()}
+                    Starting Price: ${acceptModal.listing.starting_price.toLocaleString()}
                   </p>
                 )}
               </div>

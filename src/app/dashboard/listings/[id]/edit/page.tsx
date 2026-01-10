@@ -52,8 +52,6 @@ interface Listing {
   listing_type: string;
   starting_price: number | null;
   reserve_price: number | null;
-  buy_now_price: number | null;
-  fixed_price: number | null;
   accept_offers: boolean;
   auto_accept_price: number | null;
   auto_decline_price: number | null;
@@ -146,7 +144,6 @@ export default function EditListingPage() {
     pickup_hours: '',
     starting_price: '',
     reserve_price: '',
-    buy_now_price: '',
     accept_offers: false,
     auto_accept_price: '',
     auto_decline_price: '',
@@ -241,7 +238,6 @@ export default function EditListingPage() {
         pickup_hours: data.pickup_hours || '',
         starting_price: data.starting_price?.toString() || '',
         reserve_price: data.reserve_price?.toString() || '',
-        buy_now_price: data.buy_now_price?.toString() || data.fixed_price?.toString() || '',
         accept_offers: data.accept_offers || false,
         auto_accept_price: data.auto_accept_price?.toString() || '',
         auto_decline_price: data.auto_decline_price?.toString() || '',
@@ -351,9 +347,6 @@ export default function EditListingPage() {
           pickup_hours: formData.pickup_hours || null,
           starting_price: formData.starting_price ? parseFloat(formData.starting_price) : null,
           reserve_price: formData.reserve_price ? parseFloat(formData.reserve_price) : null,
-          buy_now_price: formData.buy_now_price ? parseFloat(formData.buy_now_price) : null,
-          fixed_price: listing.listing_type.includes('fixed') && formData.buy_now_price
-            ? parseFloat(formData.buy_now_price) : null,
           accept_offers: formData.accept_offers,
           auto_accept_price: formData.auto_accept_price ? parseFloat(formData.auto_accept_price) : null,
           auto_decline_price: formData.auto_decline_price ? parseFloat(formData.auto_decline_price) : null,
@@ -476,12 +469,8 @@ export default function EditListingPage() {
       setError('Description is required to publish');
       return;
     }
-    if ((listing.listing_type === 'auction' || listing.listing_type === 'auction_buy_now' || listing.listing_type === 'auction_offers') && !formData.starting_price) {
+    if (!formData.starting_price) {
       setError('Starting price is required for auctions');
-      return;
-    }
-    if ((listing.listing_type === 'fixed_price' || listing.listing_type === 'fixed_price_offers') && !formData.buy_now_price) {
-      setError('Price is required for fixed price listings');
       return;
     }
 
@@ -1294,55 +1283,36 @@ export default function EditListingPage() {
               </p>
             </div>
 
-            {(listing?.listing_type === 'auction' || listing?.listing_type === 'auction_buy_now' || listing?.listing_type === 'auction_offers') && (
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Starting Price
-                  </label>
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
-                    <input
-                      type="number"
-                      value={formData.starting_price}
-                      onChange={(e) => updateFormData('starting_price', e.target.value)}
-                      className="w-full pl-8 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    />
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Reserve Price
-                  </label>
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
-                    <input
-                      type="number"
-                      value={formData.reserve_price}
-                      onChange={(e) => updateFormData('reserve_price', e.target.value)}
-                      className="w-full pl-8 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    />
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {(listing?.listing_type === 'auction_buy_now' || listing?.listing_type === 'fixed_price' || listing?.listing_type === 'fixed_price_offers') && (
+            <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  {listing?.listing_type.includes('fixed') ? 'Price' : 'Buy Now Price'}
+                  Starting Price
                 </label>
-                <div className="relative w-1/2">
+                <div className="relative">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
                   <input
                     type="number"
-                    value={formData.buy_now_price}
-                    onChange={(e) => updateFormData('buy_now_price', e.target.value)}
+                    value={formData.starting_price}
+                    onChange={(e) => updateFormData('starting_price', e.target.value)}
                     className="w-full pl-8 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   />
                 </div>
               </div>
-            )}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Reserve Price
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
+                  <input
+                    type="number"
+                    value={formData.reserve_price}
+                    onChange={(e) => updateFormData('reserve_price', e.target.value)}
+                    className="w-full pl-8 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+              </div>
+            </div>
 
             {/* Offers */}
             <div className="border-t pt-6">

@@ -18,7 +18,6 @@ interface WatchlistItem {
     year: number;
     current_bid: number;
     starting_price: number;
-    fixed_price: number;
     listing_type: string;
     status: string;
     end_time: string;
@@ -54,7 +53,6 @@ export default function WatchlistPage() {
             year,
             current_bid,
             starting_price,
-            fixed_price,
             listing_type,
             status,
             end_time,
@@ -178,20 +176,12 @@ export default function WatchlistPage() {
 
                 <div className="flex items-center justify-between">
                   <div>
-                    {item.listing.listing_type === 'auction' || item.listing.listing_type === 'auction_buy_now' || item.listing.listing_type === 'auction_offers' ? (
-                      <>
-                        <p className="text-lg font-bold text-gray-900">
-                          ${(item.listing.current_bid || item.listing.starting_price || 0).toLocaleString()}
-                        </p>
-                        <p className="text-xs text-gray-500">
-                          {item.listing.bid_count || 0} bids
-                        </p>
-                      </>
-                    ) : (
-                      <p className="text-lg font-bold text-gray-900">
-                        ${(item.listing.fixed_price || 0).toLocaleString()}
-                      </p>
-                    )}
+                    <p className="text-lg font-bold text-gray-900">
+                      ${(item.listing.current_bid || item.listing.starting_price || 0).toLocaleString()}
+                    </p>
+                    <p className="text-xs text-gray-500">
+                      {item.listing.bid_count || 0} bids
+                    </p>
                   </div>
                   <div className="flex items-center gap-1 text-gray-400 text-sm">
                     <Eye className="h-4 w-4" />

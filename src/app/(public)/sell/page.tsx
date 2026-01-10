@@ -343,9 +343,7 @@ const onsiteAssistanceOptions = [
 
 const listingTypes = [
   { id: 'auction', label: 'Auction Only', description: 'Let buyers bid - 2-minute soft close' },
-  { id: 'auction_offers', label: 'Auction + Offers', description: 'Auction with the option to accept offers' },
-  { id: 'fixed_price', label: 'Fixed Price', description: 'Set price, first buyer wins' },
-  { id: 'fixed_price_offers', label: 'Fixed Price + Offers', description: 'Set price, accept offers' },
+  { id: 'auction_with_offers', label: 'Auction + Offers', description: 'Auction with the option to make offers' },
 ];
 
 const auctionDurations = [
@@ -483,7 +481,6 @@ export default function CreateListingPage() {
     listingType: 'auction',
     startingPrice: '',
     reservePrice: '',
-    buyNowPrice: '',
     auctionDuration: '7',
     acceptOffers: false,
     autoAcceptPrice: '',
@@ -639,9 +636,7 @@ export default function CreateListingPage() {
           status: 'draft',
           starting_price: formData.startingPrice ? parseFloat(formData.startingPrice) : null,
           reserve_price: formData.reservePrice ? parseFloat(formData.reservePrice) : null,
-          buy_now_price: formData.buyNowPrice ? parseFloat(formData.buyNowPrice) : null,
-          fixed_price: formData.listingType.includes('fixed') && formData.buyNowPrice ? parseFloat(formData.buyNowPrice) : null,
-          accept_offers: formData.listingType === 'auction_offers' || formData.listingType === 'fixed_price_offers' || formData.acceptOffers,
+          accept_offers: formData.listingType === 'auction_with_offers',
           auto_accept_price: formData.autoAcceptPrice ? parseFloat(formData.autoAcceptPrice) : null,
           auto_decline_price: formData.autoDeclinePrice ? parseFloat(formData.autoDeclinePrice) : null,
           make: formData.make || null,
@@ -802,9 +797,7 @@ export default function CreateListingPage() {
           status: listingStatus,
           starting_price: formData.startingPrice ? parseFloat(formData.startingPrice) : null,
           reserve_price: formData.reservePrice ? parseFloat(formData.reservePrice) : null,
-          buy_now_price: formData.buyNowPrice ? parseFloat(formData.buyNowPrice) : null,
-          fixed_price: formData.listingType.includes('fixed') ? parseFloat(formData.buyNowPrice) : null,
-          accept_offers: formData.listingType === 'auction_offers' || formData.listingType === 'fixed_price_offers' || formData.acceptOffers,
+          accept_offers: formData.listingType === 'auction_with_offers',
           auto_accept_price: formData.autoAcceptPrice ? parseFloat(formData.autoAcceptPrice) : null,
           auto_decline_price: formData.autoDeclinePrice ? parseFloat(formData.autoDeclinePrice) : null,
           start_time: startTime.toISOString(),
@@ -1819,7 +1812,7 @@ export default function CreateListingPage() {
               </h3>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {(formData.listingType === 'auction' || formData.listingType === 'auction_offers') && (
+                {(formData.listingType === 'auction' || formData.listingType === 'auction_with_offers') && (
                   <>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -1857,25 +1850,7 @@ export default function CreateListingPage() {
                   </>
                 )}
 
-                {(formData.listingType === 'fixed_price' || formData.listingType === 'fixed_price_offers') && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Price *
-                    </label>
-                    <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
-                      <input
-                        type="number"
-                        value={formData.buyNowPrice}
-                        onChange={(e) => updateFormData('buyNowPrice', e.target.value)}
-                        placeholder="0.00"
-                        className="w-full pl-8 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      />
-                    </div>
-                  </div>
-                )}
-
-                {(formData.listingType === 'auction' || formData.listingType === 'auction_offers') && (
+                {(formData.listingType === 'auction' || formData.listingType === 'auction_with_offers') && (
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       Auction Duration
@@ -1894,8 +1869,8 @@ export default function CreateListingPage() {
                 )}
               </div>
 
-              {/* Accept Offers info for auction_offers */}
-              {formData.listingType === 'auction_offers' && (
+              {/* Accept Offers info for auction_with_offers */}
+              {formData.listingType === 'auction_with_offers' && (
                 <div className="border-t pt-4">
                   <div className="bg-blue-50 rounded-lg p-4">
                     <p className="font-medium text-blue-900">Offers Enabled</p>
@@ -1904,23 +1879,6 @@ export default function CreateListingPage() {
                 </div>
               )}
 
-              {/* Accept Offers for fixed price */}
-              {formData.listingType === 'fixed_price_offers' && (
-                <div className="border-t pt-4">
-                  <label className="flex items-center gap-3 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={formData.acceptOffers}
-                      onChange={(e) => updateFormData('acceptOffers', e.target.checked)}
-                      className="w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                    />
-                    <div>
-                      <p className="font-medium text-gray-900">Accept Offers</p>
-                      <p className="text-sm text-gray-500">Allow buyers to make offers below listed price</p>
-                    </div>
-                  </label>
-                </div>
-              )}
             </div>
 
             {/* Payment Methods */}
@@ -2449,23 +2407,13 @@ export default function CreateListingPage() {
                       </p>
                     </div>
                   )}
-                  {formData.buyNowPrice && (
-                    <div>
-                      <p className="text-gray-500">
-                        {formData.listingType.includes('fixed') ? 'Price' : 'Buy Now Price'}
-                      </p>
-                      <p className="font-medium text-green-600">
-                        ${parseInt(formData.buyNowPrice).toLocaleString()}
-                      </p>
-                    </div>
-                  )}
                   {formData.reservePrice && (
                     <div>
                       <p className="text-gray-500">Reserve Price</p>
                       <p className="font-medium">${parseInt(formData.reservePrice).toLocaleString()}</p>
                     </div>
                   )}
-                  {(formData.listingType === 'auction' || formData.listingType === 'auction_offers') && (
+                  {(formData.listingType === 'auction' || formData.listingType === 'auction_with_offers') && (
                     <div>
                       <p className="text-gray-500">Duration</p>
                       <p className="font-medium">

@@ -27,8 +27,6 @@ interface Listing {
   year: number | null;
   listing_type: string;
   current_price: number | null;
-  buy_now_price: number | null;
-  fixed_price: number | null;
   starting_price: number;
   bid_count: number;
   view_count: number;
@@ -75,7 +73,7 @@ function MarketplaceContent() {
   const searchParams = useSearchParams();
   const urlSearchQuery = searchParams.get('search') || '';
   const urlCategory = searchParams.get('category') || 'all';
-  const urlType = searchParams.get('type') as 'all' | 'auction' | 'fixed_price' | null;
+  const urlType = searchParams.get('type') as 'all' | 'auction' | null; // fixed_price removed
   const urlSort = searchParams.get('sort') || '';
 
   const [listings, setListings] = useState<Listing[]>([]);
@@ -87,7 +85,7 @@ function MarketplaceContent() {
   const [searchQuery, setSearchQuery] = useState(urlSearchQuery);
   const [showFilters, setShowFilters] = useState(false);
   const [priceRange, setPriceRange] = useState({ min: '', max: '' });
-  const [listingTypeFilter, setListingTypeFilter] = useState<'all' | 'auction' | 'fixed_price'>(urlType || 'all');
+  const [listingTypeFilter, setListingTypeFilter] = useState<'all' | 'auction'>(urlType || 'all');
   const [statusFilter, setStatusFilter] = useState<'active' | 'closed' | 'all'>('active');
 
   // Update URL when filters change
@@ -174,12 +172,11 @@ function MarketplaceContent() {
           }
         }
 
-        // Apply listing type filter
+        // Apply listing type filter (all listings are now auctions)
         if (listingTypeFilter === 'auction') {
-          query = query.in('listing_type', ['auction', 'auction_buy_now']);
-        } else if (listingTypeFilter === 'fixed_price') {
-          query = query.in('listing_type', ['fixed_price', 'fixed_price_offers']);
+          query = query.in('listing_type', ['auction', 'auction_with_offers']);
         }
+        // 'fixed_price' filter is no longer supported - all listings are auctions
 
         // Apply sorting
         switch (sortBy) {
@@ -242,14 +239,14 @@ function MarketplaceContent() {
           if (priceRange.min) {
             const minPrice = parseInt(priceRange.min);
             filtered = filtered.filter(l => {
-              const price = l.current_price || l.fixed_price || l.buy_now_price || l.starting_price || 0;
+              const price = l.current_price || l.starting_price || 0;
               return price >= minPrice;
             });
           }
           if (priceRange.max) {
             const maxPrice = parseInt(priceRange.max);
             filtered = filtered.filter(l => {
-              const price = l.current_price || l.fixed_price || l.buy_now_price || l.starting_price || 0;
+              const price = l.current_price || l.starting_price || 0;
               return price <= maxPrice;
             });
           }
@@ -296,9 +293,6 @@ function MarketplaceContent() {
   };
 
   const getPrice = (listing: Listing) => {
-    if (listing.listing_type?.includes('fixed')) {
-      return listing.fixed_price || listing.buy_now_price || 0;
-    }
     return listing.current_price || listing.starting_price || 0;
   };
 
@@ -451,7 +445,7 @@ function MarketplaceContent() {
                       onChange={() => setListingTypeFilter('all')}
                       className="text-blue-600 focus:ring-blue-500"
                     />
-                    <span className="text-sm text-slate-700">All</span>
+                    <span className="text-sm text-slate-700">All Auctions</span>
                   </label>
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input
@@ -461,17 +455,7 @@ function MarketplaceContent() {
                       onChange={() => setListingTypeFilter('auction')}
                       className="text-blue-600 focus:ring-blue-500"
                     />
-                    <span className="text-sm text-slate-700">Auctions</span>
-                  </label>
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="radio"
-                      name="listingType"
-                      checked={listingTypeFilter === 'fixed_price'}
-                      onChange={() => setListingTypeFilter('fixed_price')}
-                      className="text-blue-600 focus:ring-blue-500"
-                    />
-                    <span className="text-sm text-slate-700">Buy Now</span>
+                    <span className="text-sm text-slate-700">Auctions (accepts offers)</span>
                   </label>
                 </div>
               </div>
@@ -614,14 +598,9 @@ function MarketplaceContent() {
 
                       {/* Badges */}
                       <div className="absolute top-3 left-3 flex flex-col gap-2">
-                        {listing.listing_type?.includes('auction') && isEndingSoon(listing.end_time) && (
+                        {isEndingSoon(listing.end_time) && (
                           <span className="bg-red-500 text-white text-xs font-semibold px-2.5 py-1 rounded-lg shadow-sm">
                             Ending Soon
-                          </span>
-                        )}
-                        {listing.listing_type?.includes('fixed') && (
-                          <span className="bg-green-500 text-white text-xs font-semibold px-2.5 py-1 rounded-lg shadow-sm">
-                            Buy Now
                           </span>
                         )}
                         {listing.reserve_price && !reserveMet(listing) && (
@@ -663,22 +642,11 @@ function MarketplaceContent() {
 
                       <div className="flex items-center justify-between">
                         <div>
-                          {listing.listing_type?.includes('auction') ? (
-                            <>
-                              <p className="text-xs text-stone-500">Current Bid</p>
-                              <p className="text-xl font-bold text-slate-900">
-                                ${getPrice(listing).toLocaleString()}
-                              </p>
-                              <p className="text-xs text-stone-500">{listing.bid_count || 0} bids</p>
-                            </>
-                          ) : (
-                            <>
-                              <p className="text-xs text-stone-500">Price</p>
-                              <p className="text-xl font-bold text-green-600">
-                                ${getPrice(listing).toLocaleString()}
-                              </p>
-                            </>
-                          )}
+                          <p className="text-xs text-stone-500">Current Bid</p>
+                          <p className="text-xl font-bold text-slate-900">
+                            ${getPrice(listing).toLocaleString()}
+                          </p>
+                          <p className="text-xs text-stone-500">{listing.bid_count || 0} bids</p>
                         </div>
 
                         {listing.end_time && (
@@ -691,11 +659,6 @@ function MarketplaceContent() {
                         )}
                       </div>
 
-                      {listing.buy_now_price && listing.listing_type === 'auction_buy_now' && (
-                        <p className="text-sm text-green-600 font-medium mt-3 pt-3 border-t border-stone-100">
-                          Buy Now: ${listing.buy_now_price.toLocaleString()}
-                        </p>
-                      )}
                     </div>
                   </Link>
                 ))}
@@ -754,22 +717,11 @@ function MarketplaceContent() {
                         </div>
 
                         <div className="text-right flex-shrink-0">
-                          {listing.listing_type?.includes('auction') ? (
-                            <>
-                              <p className="text-xs text-stone-500">Current Bid</p>
-                              <p className="text-xl font-bold text-slate-900">
-                                ${getPrice(listing).toLocaleString()}
-                              </p>
-                              <p className="text-xs text-stone-500">{listing.bid_count || 0} bids</p>
-                            </>
-                          ) : (
-                            <>
-                              <p className="text-xs text-stone-500">Price</p>
-                              <p className="text-xl font-bold text-green-600">
-                                ${getPrice(listing).toLocaleString()}
-                              </p>
-                            </>
-                          )}
+                          <p className="text-xs text-stone-500">Current Bid</p>
+                          <p className="text-xl font-bold text-slate-900">
+                            ${getPrice(listing).toLocaleString()}
+                          </p>
+                          <p className="text-xs text-stone-500">{listing.bid_count || 0} bids</p>
                           {listing.end_time && (
                             <p className={`text-sm mt-1 ${isEndingSoon(listing.end_time) ? 'text-red-600 font-semibold' : 'text-stone-500'}`}>
                               <Clock className="h-4 w-4 inline mr-1" />

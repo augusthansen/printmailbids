@@ -7,7 +7,6 @@ import { ChevronRight, ChevronLeft, Printer } from 'lucide-react';
 interface FeaturedListing {
   id: string;
   title: string;
-  fixed_price: number | null;
   starting_price: number | null;
   current_price: number | null;
   listing_type: string;
@@ -80,7 +79,7 @@ export function FeaturedCarousel({ listings }: FeaturedCarouselProps) {
 
   const currentListing = listings[currentIndex];
   const currentImage = currentListing?.images?.find(img => img.is_primary)?.url || currentListing?.images?.[0]?.url;
-  const currentPrice = currentListing?.fixed_price || currentListing?.current_price || currentListing?.starting_price || 0;
+  const currentPrice = currentListing?.current_price || currentListing?.starting_price || 0;
 
   return (
     <div

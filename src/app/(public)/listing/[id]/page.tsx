@@ -155,7 +155,9 @@ const bidIncrements = [
   { max: 250, increment: 1 },
   { max: 1000, increment: 10 },
   { max: 10000, increment: 50 },
-  { max: Infinity, increment: 100 },
+  { max: 100000, increment: 100 },
+  { max: 500000, increment: 500 },
+  { max: Infinity, increment: 1000 },
 ];
 
 // Soft-close window: 2 minutes (in milliseconds)
@@ -423,6 +425,11 @@ export default function ListingDetailPage() {
     ? bids.reduce((highest, bid) => bid.amount > highest.amount ? bid : highest, bids[0])
     : null;
   const userIsHighBidder = user?.id && highestBid?.bidder_id === user.id;
+
+  // Calculate effective minimum bid for the user (accounts for existing max bid)
+  const effectiveMinBid = userCurrentMaxBid > 0
+    ? userCurrentMaxBid + (bidIncrements.find(b => userCurrentMaxBid < b.max)?.increment || 1000)
+    : minBid;
 
   // Default platform terms if seller has no custom terms
   const defaultPlatformTerms = `PRINTMAILBIDS STANDARD TERMS
@@ -1303,7 +1310,7 @@ By placing a bid, you acknowledge that you have read, understood, and agree to t
               ) : (
                 <>
                   {/* Time remaining */}
-                  {listing.listing_type === 'auction' || listing.listing_type === 'auction_buy_now' || listing.listing_type === 'auction_offers' ? (
+                  {listing.listing_type === 'auction' || listing.listing_type === 'auction_with_offers' ? (
                     <>
                       {/* Soft-close indicator */}
                       {listing.end_time && isInSoftCloseWindow(listing.end_time) && (
@@ -1476,7 +1483,7 @@ By placing a bid, you acknowledge that you have read, understood, and agree to t
                               inputMode="numeric"
                               value={maxBidAmount}
                               onChange={(e) => setMaxBidAmount(formatWithCommas(e.target.value))}
-                              placeholder={`Min: $${minBid.toLocaleString()}`}
+                              placeholder={`Min: $${effectiveMinBid.toLocaleString()}`}
                               className="w-full pl-8 pr-20 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-lg"
                             />
                             {/* Increment/Decrement buttons */}
@@ -1559,42 +1566,7 @@ By placing a bid, you acknowledge that you have read, understood, and agree to t
                         </div>
                       )}
                     </>
-                  ) : (
-                    /* Fixed Price */
-                    <div className="mb-6">
-                      {listingIsClosed && isSeller && (
-                        <div className={`flex items-center justify-center gap-2 p-3 rounded-lg mb-4 ${
-                          listing.status === 'sold' ? 'bg-green-50 text-green-700' : 'bg-gray-50 text-gray-700'
-                        }`}>
-                          <Package className="h-5 w-5" />
-                          <span className="font-semibold capitalize">{listing.status}</span>
-                        </div>
-                      )}
-                      <span className="text-gray-500">{listingIsClosed ? 'Final Price' : 'Price'}</span>
-                      <p className="text-3xl font-bold text-gray-900">
-                        ${(listing.fixed_price || listing.buy_now_price || 0).toLocaleString()}
-                      </p>
-                    </div>
-                  )}
-
-                  {/* Buy Now - HIDDEN FOR NOW - keeping code for future use
-                  {!listingIsClosed && (listing.buy_now_price || listing.listing_type?.includes('fixed')) && (
-                    <button
-                      onClick={handleBuyNow}
-                      disabled={processingBuyNow}
-                      className="w-full py-3 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition-colors mb-4 disabled:opacity-50 flex items-center justify-center gap-2"
-                    >
-                      {processingBuyNow ? (
-                        <>
-                          <Loader2 className="h-5 w-5 animate-spin" />
-                          Processing...
-                        </>
-                      ) : (
-                        <>Buy Now — ${(listing.buy_now_price || listing.fixed_price || 0).toLocaleString()}</>
-                      )}
-                    </button>
-                  )}
-                  */}
+                  ) : null}
                 </>
               )}
 

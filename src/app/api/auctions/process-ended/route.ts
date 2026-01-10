@@ -52,7 +52,7 @@ export async function POST(request: Request) {
         end_time
       `)
       .eq('status', 'active')
-      .in('listing_type', ['auction', 'auction_buy_now'])
+      .in('listing_type', ['auction', 'auction_with_offers'])
       .lt('end_time', now);
 
     if (fetchError) {

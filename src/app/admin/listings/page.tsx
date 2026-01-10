@@ -22,8 +22,6 @@ interface Listing {
   status: string;
   starting_price: number | null;
   current_price: number | null;
-  fixed_price: number | null;
-  buy_now_price: number | null;
   bid_count: number;
   view_count: number;
   created_at: string;
@@ -170,12 +168,8 @@ export default function AdminListingsPage() {
     switch (type) {
       case 'auction':
         return <span className="text-xs text-cyan-400">Auction</span>;
-      case 'auction_buy_now':
-        return <span className="text-xs text-purple-400">Auction + Buy Now</span>;
-      case 'fixed_price':
-        return <span className="text-xs text-blue-400">Fixed Price</span>;
-      case 'fixed_price_offers':
-        return <span className="text-xs text-pink-400">Fixed + Offers</span>;
+      case 'auction_with_offers':
+        return <span className="text-xs text-purple-400">Auction + Offers</span>;
       default:
         return <span className="text-xs text-slate-400">{type}</span>;
     }
@@ -184,9 +178,6 @@ export default function AdminListingsPage() {
   function getPrice(listing: Listing) {
     if (listing.current_price) {
       return `$${listing.current_price.toLocaleString()} (${listing.bid_count} bids)`;
-    }
-    if (listing.fixed_price) {
-      return `$${listing.fixed_price.toLocaleString()}`;
     }
     if (listing.starting_price) {
       return `$${listing.starting_price.toLocaleString()} start`;
@@ -252,9 +243,7 @@ export default function AdminListingsPage() {
         >
           <option value="all">All Types</option>
           <option value="auction">Auction</option>
-          <option value="auction_buy_now">Auction + Buy Now</option>
-          <option value="fixed_price">Fixed Price</option>
-          <option value="fixed_price_offers">Fixed + Offers</option>
+          <option value="auction_with_offers">Auction + Offers</option>
         </select>
 
         <button

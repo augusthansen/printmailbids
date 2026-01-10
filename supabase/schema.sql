@@ -122,9 +122,7 @@ CREATE TYPE equipment_status AS ENUM (
 -- Listing type enum
 CREATE TYPE listing_type AS ENUM (
   'auction',
-  'fixed_price',
-  'fixed_price_offers',
-  'auction_buy_now'
+  'auction_with_offers'
 );
 
 -- Listing status enum

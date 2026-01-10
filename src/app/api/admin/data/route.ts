@@ -55,8 +55,6 @@ export async function GET(request: NextRequest) {
             status,
             starting_price,
             current_price,
-            fixed_price,
-            buy_now_price,
             bid_count,
             view_count,
             created_at,
