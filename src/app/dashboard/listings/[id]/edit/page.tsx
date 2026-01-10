@@ -476,7 +476,7 @@ export default function EditListingPage() {
       setError('Description is required to publish');
       return;
     }
-    if ((listing.listing_type === 'auction' || listing.listing_type === 'auction_buy_now' || listing.listing_type === 'auction_offers') && !formData.starting_price) {
+    if ((listing.listing_type === 'auction' || listing.listing_type === 'auction_buy_now') && !formData.starting_price) {
       setError('Starting price is required for auctions');
       return;
     }
@@ -1294,7 +1294,7 @@ export default function EditListingPage() {
               </p>
             </div>
 
-            {(listing?.listing_type === 'auction' || listing?.listing_type === 'auction_buy_now' || listing?.listing_type === 'auction_offers') && (
+            {(listing?.listing_type === 'auction' || listing?.listing_type === 'auction_buy_now') && (
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">

@@ -111,7 +111,7 @@ export default function SellerPage() {
   const displayedListings = activeTab === 'active' ? activeListings : soldListings;
 
   const getListingPrice = (listing: Listing) => {
-    if (listing.listing_type === 'auction' || listing.listing_type === 'auction_buy_now' || listing.listing_type === 'auction_offers') {
+    if (listing.listing_type === 'auction' || listing.listing_type === 'auction_buy_now') {
       return listing.current_bid || listing.starting_price || 0;
     }
     return listing.fixed_price || listing.buy_now_price || 0;
@@ -285,7 +285,7 @@ export default function SellerPage() {
                 const imageUrl = getPrimaryImage(listing);
                 const price = getListingPrice(listing);
                 const timeLeft = listing.end_time ? getTimeRemaining(listing.end_time) : null;
-                const isAuction = listing.listing_type === 'auction' || listing.listing_type === 'auction_buy_now' || listing.listing_type === 'auction_offers';
+                const isAuction = listing.listing_type === 'auction' || listing.listing_type === 'auction_buy_now';
 
                 return (
                   <Link

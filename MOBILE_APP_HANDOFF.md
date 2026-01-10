@@ -1238,14 +1238,14 @@ function useWatchlist(userId: string) {
 
 ## Vercel Cron Jobs
 
-The web app has these automated jobs:
+The web app has these automated jobs (limited to 2 for Vercel Hobby plan):
 
 | Job | Schedule | Purpose |
 |-----|----------|---------|
-| `/api/auctions/process-ended` | Every 5 min | Award won auctions, create invoices |
-| `/api/listings/activate-scheduled` | Every 5 min | Publish scheduled listings |
-| `/api/emails/daily-digest` | 1 PM UTC | Send daily listing digest |
-| `/api/emails/weekly-seller-summary` | Monday 2 PM | Send seller performance summary |
+| `/api/emails/daily-digest` | 1 PM UTC daily | Send daily listing digest |
+| `/api/auctions/process-ended` | 3 PM UTC daily | Award won auctions, create invoices |
+
+**Note:** Due to Vercel Hobby plan limits (2 cron jobs max), scheduled listing activation and weekly seller summaries are not currently automated. These can be manually triggered or upgraded with a paid plan.
 
 ---
 

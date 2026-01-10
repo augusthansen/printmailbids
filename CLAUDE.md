@@ -77,10 +77,26 @@ PrintMailBids is a full-featured online marketplace for printing, mailing, and i
 - **Soft-Close Protection**: 2-minute extension when bids received near end time
 - **Bid Status**: `active`, `outbid`, `winning`, `won`, `lost`, `cancelled`
 
+### Place Bid Button Visibility
+
+The Place Bid button is shown when ALL conditions are met:
+
+| Condition | Requirement |
+|-----------|-------------|
+| Listing Status | Must be `active` (not `sold` or `ended`) |
+| Listing Type | Must be `auction` or `auction_buy_now` |
+| User Auth | User must be logged in |
+| Not Own Listing | User cannot bid on their own listing |
+
+Additional validations on click:
+- Phone verification required before placing bid
+- Bid amount must meet minimum increment
+- Seller terms must be accepted (if applicable)
+
 ### Payment & Invoicing
 
 - **Commission Structure**:
-  - Default buyer premium: 5%
+  - Default buyer premium: 8%
   - Default seller commission: 8%
   - Custom rates per seller supported
 - **Payment Methods**: Credit card (Stripe), ACH, Wire transfer, Check
@@ -206,7 +222,8 @@ PrintMailBids is a full-featured online marketplace for printing, mailing, and i
 ### Supabase Auth
 
 - Email/password authentication
-- Magic link sign-in
+- Magic link sign-in via email
+- Google OAuth support
 - Session managed in cookies
 - JWT tokens for API authentication
 
@@ -293,12 +310,12 @@ calculateFees(saleAmount, rates) // Calculate buyer/seller amounts
 
 ```
 Sale Amount: $1,000
-Buyer Premium (5%): +$50
-Total Buyer Pays: $1,050
+Buyer Premium (8%): +$80
+Total Buyer Pays: $1,080
 
 Seller Commission (8%): -$80
 Seller Receives: $920
-Platform Earnings: $130
+Platform Earnings: $160
 ```
 
 ## Environment Variables
@@ -392,6 +409,28 @@ Located in `/scripts/`:
 ## Equipment Categories
 
 The platform supports 7 main equipment categories for printing, mailing, and industrial equipment.
+
+## Troubleshooting
+
+### Place Bid Button Not Showing
+
+Check these conditions:
+1. **Listing Status**: Must be `active` - check `listings.status` in database
+2. **Listing Type**: Must be `auction` or `auction_buy_now` - check `listings.listing_type`
+3. **End Time**: Listing must not have passed its `end_time`
+4. **User Not Seller**: User cannot bid on their own listing
+
+### Listing Type UI vs Database
+
+The sell page UI shows "Auction + Offers" option which is stored as:
+- `listing_type: 'auction'` (database)
+- `accept_offers: true` (flag)
+
+The database only supports these `listing_type` values:
+- `auction`
+- `fixed_price`
+- `fixed_price_offers`
+- `auction_buy_now`
 
 ## Additional Documentation
 
