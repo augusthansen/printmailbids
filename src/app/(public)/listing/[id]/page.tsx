@@ -426,6 +426,11 @@ export default function ListingDetailPage() {
     : null;
   const userIsHighBidder = user?.id && highestBid?.bidder_id === user.id;
 
+  // Calculate effective minimum bid for the user (accounts for existing max bid)
+  const effectiveMinBid = userCurrentMaxBid > 0
+    ? userCurrentMaxBid + (bidIncrements.find(b => userCurrentMaxBid < b.max)?.increment || 1000)
+    : minBid;
+
   // Default platform terms if seller has no custom terms
   const defaultPlatformTerms = `PRINTMAILBIDS STANDARD TERMS
 
@@ -1478,7 +1483,7 @@ By placing a bid, you acknowledge that you have read, understood, and agree to t
                               inputMode="numeric"
                               value={maxBidAmount}
                               onChange={(e) => setMaxBidAmount(formatWithCommas(e.target.value))}
-                              placeholder={`Min: $${minBid.toLocaleString()}`}
+                              placeholder={`Min: $${effectiveMinBid.toLocaleString()}`}
                               className="w-full pl-8 pr-20 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-lg"
                             />
                             {/* Increment/Decrement buttons */}
