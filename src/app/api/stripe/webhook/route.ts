@@ -3,6 +3,7 @@ import { stripe } from '@/lib/stripe/server';
 import { createClient } from '@supabase/supabase-js';
 import Stripe from 'stripe';
 import { sendReceiptEmail, sendPaymentReceivedSellerEmail } from '@/lib/email';
+import notifications from '@/lib/notifications';
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -183,28 +184,28 @@ async function handleCheckoutComplete(session: Stripe.Checkout.Session) {
     console.error('Failed to create payment record:', paymentError);
   }
 
-  // Create notification for seller
-  if (sellerId) {
-    const amount = invoice?.total_amount ? `$${invoice.total_amount.toLocaleString()}` : 'Payment';
-    await supabaseAdmin.from('notifications').insert({
-      user_id: sellerId,
-      type: 'payment_received',
-      title: 'Payment Received',
-      message: `${amount} payment received for invoice #${invoiceId.slice(0, 8)}. The item is ready to be shipped.`,
-      related_type: 'invoice',
-      related_id: invoiceId,
-    });
+  // Notify seller of payment received (with push notification)
+  if (sellerId && invoice?.listing?.id) {
+    const listingTitle = invoice.listing?.title || 'Item';
+    await notifications.paymentReceived(
+      sellerId,
+      invoice.listing.id,
+      listingTitle,
+      invoiceId,
+      invoice.total_amount || 0
+    );
   }
 
-  // Create notification for buyer
-  if (buyerId) {
-    await supabaseAdmin.from('notifications').insert({
-      user_id: buyerId,
+  // Notify buyer of payment confirmed (with push notification)
+  if (buyerId && invoice?.listing?.id) {
+    const { sendNotification } = await import('@/lib/notifications');
+    await sendNotification({
+      userId: buyerId,
       type: 'payment_confirmed',
       title: 'Payment Confirmed',
-      message: `Your payment for invoice #${invoiceId.slice(0, 8)} has been processed successfully. The seller will prepare your item for shipping.`,
-      related_type: 'invoice',
-      related_id: invoiceId,
+      body: `Your payment has been processed successfully. The seller will prepare your item for shipping.`,
+      listingId: invoice.listing.id,
+      invoiceId,
     });
   }
 

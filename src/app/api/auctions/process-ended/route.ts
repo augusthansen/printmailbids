@@ -6,6 +6,7 @@ import {
 } from '@/lib/email';
 import { getCommissionRates, calculateFees } from '@/lib/commissions';
 import { generateInvoiceNumber } from '@/lib/invoice';
+import notifications from '@/lib/notifications';
 
 // Lazy initialization to avoid build-time errors
 let supabase: SupabaseClient | null = null;
@@ -149,25 +150,23 @@ export async function POST(request: Request) {
             .eq('listing_id', auction.id)
             .neq('id', winningBid.id);
 
-          // Notify the winner
-          await supabase.from('notifications').insert({
-            user_id: winningBid.bidder_id,
-            type: 'auction_won',
-            title: 'Congratulations! You won the auction!',
-            body: `You won "${auction.title}" with a bid of $${saleAmount.toLocaleString()}. Total due (including ${buyerPremiumPercent}% buyer premium): $${totalAmount.toLocaleString()}. Payment is due by ${paymentDueDate.toLocaleDateString()}.`,
-            listing_id: auction.id,
-            invoice_id: invoice.id,
-          });
+          // Notify the winner (with push notification)
+          await notifications.auctionWon(
+            winningBid.bidder_id,
+            auction.id,
+            auction.title,
+            saleAmount,
+            invoice.id
+          );
 
-          // Notify the seller
-          await supabase.from('notifications').insert({
-            user_id: auction.seller_id,
-            type: 'auction_ended',
-            title: 'Your auction has ended - SOLD!',
-            body: `"${auction.title}" sold for $${saleAmount.toLocaleString()}. Your payout after commission: $${sellerPayout.toLocaleString()}.`,
-            listing_id: auction.id,
-            invoice_id: invoice.id,
-          });
+          // Notify the seller (with push notification)
+          await notifications.auctionEnded(
+            auction.seller_id,
+            auction.id,
+            auction.title,
+            true, // sold
+            saleAmount
+          );
 
           // Send emails to winner and seller
           const { data: buyerProfile } = await supabase
@@ -235,16 +234,14 @@ export async function POST(request: Request) {
               .eq('listing_id', auction.id);
           }
 
-          // Notify the seller
-          await supabase.from('notifications').insert({
-            user_id: auction.seller_id,
-            type: 'auction_ended',
-            title: 'Your auction has ended',
-            body: reason === 'no_bids'
-              ? `"${auction.title}" ended with no bids.`
-              : `"${auction.title}" ended but the reserve price was not met. Highest bid: $${currentPrice.toLocaleString()}.`,
-            listing_id: auction.id,
-          });
+          // Notify the seller (with push notification)
+          await notifications.auctionEnded(
+            auction.seller_id,
+            auction.id,
+            auction.title,
+            false, // not sold
+            currentPrice
+          );
 
           // Email the seller about auction ending without sale
           const { data: sellerProfileNoSale } = await supabase
@@ -265,7 +262,7 @@ export async function POST(request: Request) {
             }).catch(console.error);
           }
 
-          // Notify bidders if reserve not met
+          // Notify bidders if reserve not met (with push notifications)
           if (winningBid && reason === 'reserve_not_met') {
             // Get all unique bidders
             const { data: bidders } = await supabase
@@ -275,15 +272,14 @@ export async function POST(request: Request) {
 
             const uniqueBidderIds = [...new Set(bidders?.map(b => b.bidder_id) || [])];
 
-            for (const bidderId of uniqueBidderIds) {
-              await supabase.from('notifications').insert({
-                user_id: bidderId,
-                type: 'auction_ended',
-                title: 'Auction ended - Reserve not met',
-                body: `The auction for "${auction.title}" has ended but the reserve price was not met.`,
-                listing_id: auction.id,
-              });
-            }
+            // Use sendNotificationToMany for efficiency
+            const { sendNotificationToMany } = await import('@/lib/notifications');
+            await sendNotificationToMany(uniqueBidderIds, {
+              type: 'auction_ended',
+              title: 'Auction ended - Reserve not met',
+              body: `The auction for "${auction.title}" has ended but the reserve price was not met.`,
+              listingId: auction.id,
+            });
           }
 
           results.push({
