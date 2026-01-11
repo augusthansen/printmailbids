@@ -362,9 +362,19 @@ export async function POST(request: NextRequest) {
       notifications.reserveMet(listing.seller_id, listingId, listing.title, reservePrice).catch(console.error);
     }
 
+    // Log notification decision conditions
+    console.log('[Bid API] Notification conditions:', {
+      triggeredAutoBidForPrevious,
+      outbidPreviousHigh,
+      currentHighBidderId,
+      currentUserId: user.id,
+      isDifferentUser: currentHighBidderId !== user.id,
+    });
+
     // Notify if user was immediately outbid
     if (triggeredAutoBidForPrevious) {
       // Send outbid notification with push
+      console.log('[Bid API] User was immediately outbid by proxy, sending notification to:', user.id);
       notifications.outbid(user.id, listingId, listing.title, finalPrice).catch(console.error);
 
       // Send outbid email to current user (if they have email notifications enabled)
@@ -388,7 +398,15 @@ export async function POST(request: NextRequest) {
     } else if (outbidPreviousHigh && currentHighBidderId && currentHighBidderId !== user.id) {
       // Only notify the previous high bidder if they're not the current user
       // Send outbid notification with push
-      notifications.outbid(currentHighBidderId, listingId, listing.title, actualBidAmount).catch(console.error);
+      console.log('[Bid API] Sending outbid notification:', {
+        previousHighBidderId: currentHighBidderId,
+        listingId,
+        listingTitle: listing.title,
+        newHighBid: actualBidAmount,
+      });
+      notifications.outbid(currentHighBidderId, listingId, listing.title, actualBidAmount).catch((err) => {
+        console.error('[Bid API] Failed to send outbid notification:', err);
+      });
 
       // Send outbid email to previous high bidder (if they have email notifications enabled)
       const { data: prevBidderProfile } = await adminClient
