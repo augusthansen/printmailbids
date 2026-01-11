@@ -377,7 +377,16 @@ export async function POST(request: NextRequest) {
     if (triggeredAutoBidForPrevious) {
       // Send outbid notification with push
       console.log('[Bid API] BRANCH 1: User was immediately outbid by proxy, sending notification to current user:', user.id);
-      notifications.outbid(user.id, listingId, listing.title, finalPrice).catch(console.error);
+      notifications.outbid(user.id, listingId, listing.title, finalPrice)
+        .then((result) => {
+          console.log('[Bid API] BRANCH 1 notification result:', {
+            success: result.success,
+            pushSent: result.pushSent,
+            notificationId: result.notificationId,
+            error: result.error,
+          });
+        })
+        .catch(console.error);
 
       // Send outbid email to current user (if they have email notifications enabled)
       const { data: userProfile } = await adminClient
@@ -407,9 +416,18 @@ export async function POST(request: NextRequest) {
         listingTitle: listing.title,
         newHighBid: actualBidAmount,
       });
-      notifications.outbid(currentHighBidderId, listingId, listing.title, actualBidAmount).catch((err) => {
-        console.error('[Bid API] Failed to send outbid notification:', err);
-      });
+      notifications.outbid(currentHighBidderId, listingId, listing.title, actualBidAmount)
+        .then((result) => {
+          console.log('[Bid API] BRANCH 2 notification result:', {
+            success: result.success,
+            pushSent: result.pushSent,
+            notificationId: result.notificationId,
+            error: result.error,
+          });
+        })
+        .catch((err) => {
+          console.error('[Bid API] Failed to send outbid notification:', err);
+        });
 
       // Send outbid email to previous high bidder (if they have email notifications enabled)
       const { data: prevBidderProfile } = await adminClient
