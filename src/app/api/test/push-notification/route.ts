@@ -1,17 +1,14 @@
 /**
  * Test API for Push Notifications
  *
- * This endpoint allows testing push notifications in development.
- * REMOVE OR PROTECT THIS ENDPOINT BEFORE PRODUCTION!
+ * This endpoint allows authenticated users to test push notifications on their own device.
+ * Users can only send test notifications to themselves, so this is safe to expose.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import notifications from '@/lib/notifications';
-
-// Only allow in development or for admins
-const IS_DEV = process.env.NODE_ENV === 'development';
 
 export async function POST(request: NextRequest) {
   try {
@@ -40,19 +37,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Check if user is admin (in production, only admins can test)
-    if (!IS_DEV) {
-      const { data: profile } = await adminClient
-        .from('profiles')
-        .select('is_admin')
-        .eq('id', user.id)
-        .single();
-
-      if (!profile?.is_admin) {
-        return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
-      }
-    }
-
+    // User can only send test notifications to themselves - no admin check needed
     const { type, listingTitle } = await request.json();
 
     // Send test notification based on type
