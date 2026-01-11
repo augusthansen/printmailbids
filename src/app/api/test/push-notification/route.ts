@@ -41,9 +41,10 @@ export async function POST(request: NextRequest) {
     const { type, listingTitle } = await request.json();
 
     // Send test notification based on type
+    let result;
     switch (type) {
       case 'outbid':
-        await notifications.outbid(
+        result = await notifications.outbid(
           user.id,
           'test-listing-id',
           listingTitle || 'Test Equipment Listing',
@@ -52,7 +53,7 @@ export async function POST(request: NextRequest) {
         break;
 
       case 'new_bid':
-        await notifications.newBid(
+        result = await notifications.newBid(
           user.id,
           'test-listing-id',
           listingTitle || 'Test Equipment Listing',
@@ -61,7 +62,7 @@ export async function POST(request: NextRequest) {
         break;
 
       case 'auction_won':
-        await notifications.auctionWon(
+        result = await notifications.auctionWon(
           user.id,
           'test-listing-id',
           listingTitle || 'Test Equipment Listing',
@@ -71,7 +72,7 @@ export async function POST(request: NextRequest) {
         break;
 
       case 'new_offer':
-        await notifications.newOffer(
+        result = await notifications.newOffer(
           user.id,
           'test-listing-id',
           listingTitle || 'Test Equipment Listing',
@@ -81,7 +82,7 @@ export async function POST(request: NextRequest) {
         break;
 
       case 'offer_accepted':
-        await notifications.offerAccepted(
+        result = await notifications.offerAccepted(
           user.id,
           'test-listing-id',
           listingTitle || 'Test Equipment Listing',
@@ -92,7 +93,7 @@ export async function POST(request: NextRequest) {
         break;
 
       case 'offer_countered':
-        await notifications.offerCountered(
+        result = await notifications.offerCountered(
           user.id,
           'test-listing-id',
           listingTitle || 'Test Equipment Listing',
@@ -102,7 +103,7 @@ export async function POST(request: NextRequest) {
         break;
 
       case 'payment_reminder':
-        await notifications.paymentReminder(
+        result = await notifications.paymentReminder(
           user.id,
           'test-listing-id',
           listingTitle || 'Test Equipment Listing',
@@ -112,7 +113,7 @@ export async function POST(request: NextRequest) {
         break;
 
       case 'item_shipped':
-        await notifications.itemShipped(
+        result = await notifications.itemShipped(
           user.id,
           'test-listing-id',
           listingTitle || 'Test Equipment Listing',
@@ -130,9 +131,13 @@ export async function POST(request: NextRequest) {
         }, { status: 400 });
     }
 
+    // Return detailed result for debugging
     return NextResponse.json({
       success: true,
       message: `Test "${type}" notification sent to ${user.email}`,
+      pushSent: result?.pushSent || false,
+      notificationId: result?.notificationId,
+      error: result?.error,
     });
 
   } catch (error) {
