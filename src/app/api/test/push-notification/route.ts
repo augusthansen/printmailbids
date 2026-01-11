@@ -40,13 +40,18 @@ export async function POST(request: NextRequest) {
     // User can only send test notifications to themselves - no admin check needed
     const { type, listingTitle } = await request.json();
 
+    // Use undefined for IDs so they become null in the database (UUID columns can't accept fake strings)
+    const testListingId = undefined;
+    const testInvoiceId = undefined;
+    const testOfferId = undefined;
+
     // Send test notification based on type
     let result;
     switch (type) {
       case 'outbid':
         result = await notifications.outbid(
           user.id,
-          'test-listing-id',
+          testListingId as unknown as string,
           listingTitle || 'Test Equipment Listing',
           5000
         );
@@ -55,7 +60,7 @@ export async function POST(request: NextRequest) {
       case 'new_bid':
         result = await notifications.newBid(
           user.id,
-          'test-listing-id',
+          testListingId as unknown as string,
           listingTitle || 'Test Equipment Listing',
           4500
         );
@@ -64,50 +69,50 @@ export async function POST(request: NextRequest) {
       case 'auction_won':
         result = await notifications.auctionWon(
           user.id,
-          'test-listing-id',
+          testListingId as unknown as string,
           listingTitle || 'Test Equipment Listing',
           5000,
-          'test-invoice-id'
+          testInvoiceId as unknown as string
         );
         break;
 
       case 'new_offer':
         result = await notifications.newOffer(
           user.id,
-          'test-listing-id',
+          testListingId as unknown as string,
           listingTitle || 'Test Equipment Listing',
           3500,
-          'test-offer-id'
+          testOfferId as unknown as string
         );
         break;
 
       case 'offer_accepted':
         result = await notifications.offerAccepted(
           user.id,
-          'test-listing-id',
+          testListingId as unknown as string,
           listingTitle || 'Test Equipment Listing',
           3500,
-          'test-offer-id',
-          'test-invoice-id'
+          testOfferId as unknown as string,
+          testInvoiceId
         );
         break;
 
       case 'offer_countered':
         result = await notifications.offerCountered(
           user.id,
-          'test-listing-id',
+          testListingId as unknown as string,
           listingTitle || 'Test Equipment Listing',
           4000,
-          'test-offer-id'
+          testOfferId as unknown as string
         );
         break;
 
       case 'payment_reminder':
         result = await notifications.paymentReminder(
           user.id,
-          'test-listing-id',
+          testListingId as unknown as string,
           listingTitle || 'Test Equipment Listing',
-          'test-invoice-id',
+          testInvoiceId as unknown as string,
           3
         );
         break;
@@ -115,9 +120,9 @@ export async function POST(request: NextRequest) {
       case 'item_shipped':
         result = await notifications.itemShipped(
           user.id,
-          'test-listing-id',
+          testListingId as unknown as string,
           listingTitle || 'Test Equipment Listing',
-          'test-invoice-id'
+          testInvoiceId as unknown as string
         );
         break;
 
