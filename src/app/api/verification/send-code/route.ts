@@ -9,6 +9,12 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
+// Create auth client for verifying tokens
+const supabaseAuth = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
+
 // Generate a 6-digit verification code (cryptographically secure)
 function generateCode(): string {
   // Use fixed code for testing (works in any environment when DEV_VERIFICATION_CODE is set)
@@ -23,11 +29,29 @@ function generateCode(): string {
 
 export async function POST(request: NextRequest) {
   try {
-    const { phone, userId } = await request.json();
+    const body = await request.json();
+    const { phone } = body;
+    let userId = body.userId;
+
+    // If no userId provided, try to get it from Bearer token
+    if (!userId) {
+      const authHeader = request.headers.get('Authorization');
+      if (authHeader?.startsWith('Bearer ')) {
+        const token = authHeader.substring(7);
+        const { data: { user }, error: authError } = await supabaseAuth.auth.getUser(token);
+        if (authError || !user) {
+          return NextResponse.json(
+            { error: 'Invalid or expired authentication token' },
+            { status: 401 }
+          );
+        }
+        userId = user.id;
+      }
+    }
 
     if (!phone || !userId) {
       return NextResponse.json(
-        { error: 'Phone number and user ID are required' },
+        { error: 'Phone number is required and you must be authenticated' },
         { status: 400 }
       );
     }

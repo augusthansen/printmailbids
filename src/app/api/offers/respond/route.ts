@@ -8,6 +8,7 @@ import {
   sendCounterOfferEmail,
 } from '@/lib/email';
 import { getCommissionRates, calculateFees } from '@/lib/commissions';
+import notifications from '@/lib/notifications';
 
 const COUNTER_OFFER_EXPIRY_HOURS = 48;
 const MAX_COUNTER_OFFERS = 3; // Max back-and-forth counters
@@ -16,11 +17,29 @@ type ResponseAction = 'accept' | 'decline' | 'counter';
 
 export async function POST(request: NextRequest) {
   try {
-    // Get authenticated user (seller)
-    const supabase = await createClient();
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    // Get authenticated user - try Bearer token first (for mobile app), then cookies (for web)
+    let user = null;
+    const adminClient = createAdminClient();
 
-    if (authError || !user) {
+    const authHeader = request.headers.get('Authorization');
+    if (authHeader?.startsWith('Bearer ')) {
+      const token = authHeader.substring(7);
+      const { data: { user: tokenUser }, error: tokenError } = await adminClient.auth.getUser(token);
+      if (!tokenError && tokenUser) {
+        user = tokenUser;
+      }
+    }
+
+    // Fall back to cookie-based auth (web app)
+    if (!user) {
+      const supabase = await createClient();
+      const { data: { user: cookieUser }, error: authError } = await supabase.auth.getUser();
+      if (!authError && cookieUser) {
+        user = cookieUser;
+      }
+    }
+
+    if (!user) {
       return NextResponse.json({ error: 'You must be logged in' }, { status: 401 });
     }
 
@@ -38,8 +57,6 @@ export async function POST(request: NextRequest) {
     if (!['accept', 'decline', 'counter'].includes(action)) {
       return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
     }
-
-    const adminClient = createAdminClient();
 
     // Get the offer with listing details
     const { data: offer, error: offerError } = await adminClient
@@ -162,22 +179,24 @@ export async function POST(request: NextRequest) {
         .eq('status', 'pending')
         .neq('id', offerId);
 
-      // Notify both parties
-      await adminClient.from('notifications').insert({
-        user_id: offer.buyer_id,
-        type: 'offer_accepted',
-        title: 'Offer Accepted!',
-        body: `Your offer of $${offerAmount.toLocaleString()} for "${listing?.title}" has been accepted! Please proceed to payment.`,
-        listing_id: offer.listing_id,
-      });
+      // Notify both parties (with push)
+      notifications.offerAccepted(
+        offer.buyer_id,
+        offer.listing_id,
+        listing?.title || 'Unknown',
+        offerAmount,
+        offerId,
+        invoice?.id
+      ).catch(console.error);
 
-      await adminClient.from('notifications').insert({
-        user_id: offer.seller_id,
-        type: 'offer_accepted',
-        title: 'Offer Accepted',
-        body: `You accepted an offer of $${offerAmount.toLocaleString()} for "${listing?.title}".`,
-        listing_id: offer.listing_id,
-      });
+      notifications.offerAccepted(
+        offer.seller_id,
+        offer.listing_id,
+        listing?.title || 'Unknown',
+        offerAmount,
+        offerId,
+        invoice?.id
+      ).catch(console.error);
 
       // Email the buyer about accepted offer
       if (offer.buyer?.email) {
@@ -217,16 +236,14 @@ export async function POST(request: NextRequest) {
         })
         .eq('id', offerId);
 
-      // Notify the person who made the offer that it was declined
+      // Notify the person who made the offer that it was declined (with push)
       const declinedUserId = offerMadeByBuyer ? offer.buyer_id : offer.seller_id;
-      const declinedByLabel = offerMadeByBuyer ? 'The seller' : 'The buyer';
-      await adminClient.from('notifications').insert({
-        user_id: declinedUserId,
-        type: 'offer_declined',
-        title: 'Offer Declined',
-        body: `${declinedByLabel} declined your ${offerMadeBySeller ? 'counter-' : ''}offer of $${Number(offer.amount).toLocaleString()} for "${offer.listing?.title}".`,
-        listing_id: offer.listing_id,
-      });
+      notifications.offerDeclined(
+        declinedUserId,
+        offer.listing_id,
+        offer.listing?.title || 'Unknown',
+        offerId
+      ).catch(console.error);
 
       // Email the person whose offer was declined (only if it was the buyer's offer)
       if (offerMadeByBuyer && offer.buyer?.email) {
@@ -305,17 +322,16 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Failed to create counter-offer' }, { status: 500 });
       }
 
-      // Notify the other party of counter-offer
+      // Notify the other party of counter-offer (with push)
       // If seller is countering, notify buyer. If buyer is countering back, notify seller.
       const notifyUserId = isSeller ? offer.buyer_id : offer.seller_id;
-      const counterFromLabel = isSeller ? 'seller' : 'buyer';
-      await adminClient.from('notifications').insert({
-        user_id: notifyUserId,
-        type: 'counter_offer',
-        title: 'Counter Offer Received',
-        body: `The ${counterFromLabel} countered with $${counterAmount.toLocaleString()} for "${offer.listing?.title}". Expires in ${COUNTER_OFFER_EXPIRY_HOURS} hours.`,
-        listing_id: offer.listing_id,
-      });
+      notifications.offerCountered(
+        notifyUserId,
+        offer.listing_id,
+        offer.listing?.title || 'Unknown',
+        counterAmount,
+        counterOffer?.id || offerId
+      ).catch(console.error);
 
       // Email the person receiving the counter-offer
       // Get the profile of the person who needs to receive the counter email

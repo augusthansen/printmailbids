@@ -1,29 +1,31 @@
 import crypto from 'crypto';
 
 /**
- * Generate a unique invoice number with format: INV-YYYYMMDD-XXXX
- * Uses cryptographically secure random bytes for the suffix
+ * Generate a unique invoice number with format: PMB-YYXXXX
+ * YY = 2-digit year, XXXX = 4 random hex characters
+ * Example: PMB-26A3F2
  */
 export function generateInvoiceNumber(): string {
-  const date = new Date();
-  const dateStr = date.toISOString().slice(0, 10).replace(/-/g, '');
-  const random = crypto.randomBytes(3).toString('hex').toUpperCase().slice(0, 4);
-  return `INV-${dateStr}-${random}`;
+  const year = new Date().getFullYear().toString().slice(-2);
+  const random = crypto.randomBytes(2).toString('hex').toUpperCase();
+  return `PMB-${year}${random}`;
 }
 
 /**
- * Validate invoice number format
+ * Validate invoice number format (supports both old and new formats)
  */
 export function isValidInvoiceNumber(invoiceNumber: string): boolean {
-  const pattern = /^INV-\d{8}-[A-F0-9]{4}$/;
-  return pattern.test(invoiceNumber);
+  const newPattern = /^PMB-\d{2}[A-F0-9]{4}$/;
+  const oldPattern = /^INV-\d{8}-[A-F0-9]{4}$/;
+  return newPattern.test(invoiceNumber) || oldPattern.test(invoiceNumber);
 }
 
 /**
- * Extract the date from an invoice number
+ * Extract the date from an invoice number (only works for old format)
  */
 export function getInvoiceDate(invoiceNumber: string): Date | null {
-  if (!isValidInvoiceNumber(invoiceNumber)) {
+  const oldPattern = /^INV-\d{8}-[A-F0-9]{4}$/;
+  if (!oldPattern.test(invoiceNumber)) {
     return null;
   }
   const dateStr = invoiceNumber.slice(4, 12);

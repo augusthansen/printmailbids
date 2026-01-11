@@ -10,6 +10,9 @@ interface Profile {
   full_name?: string;
   company_name?: string;
   avatar_url?: string;
+  phone_verified?: boolean;
+  onboarding_completed?: boolean;
+  onboarding_skipped?: boolean;
 }
 
 // Cache for auth state to persist across component mounts
@@ -41,7 +44,7 @@ export function useAuth() {
 
       const profilePromise = supabase
         .from('profiles')
-        .select('is_seller, is_admin, full_name, company_name, avatar_url')
+        .select('is_seller, is_admin, full_name, company_name, avatar_url, phone_verified, onboarding_completed, onboarding_skipped')
         .eq('id', userId)
         .single();
 
@@ -218,5 +221,17 @@ export function useAuth() {
   const profileName = profile?.full_name || profile?.company_name || null;
   const avatarUrl = profile?.avatar_url || null;
 
-  return { user, loading, signOut, isSeller, isAdmin, profile, profileName, avatarUrl };
+  // Determine if user needs onboarding:
+  // - Has a profile
+  // - Hasn't completed onboarding
+  // - Hasn't skipped onboarding
+  // Note: We show onboarding even if full_name is set from signup,
+  // to allow users to upload avatar and verify phone
+  const needsOnboarding = !!(
+    profile &&
+    !profile.onboarding_completed &&
+    !profile.onboarding_skipped
+  );
+
+  return { user, loading, signOut, isSeller, isAdmin, profile, profileName, avatarUrl, needsOnboarding };
 }

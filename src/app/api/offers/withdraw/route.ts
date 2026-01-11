@@ -4,11 +4,29 @@ import { createAdminClient } from '@/lib/supabase/admin';
 
 export async function POST(request: NextRequest) {
   try {
-    // Get authenticated user
-    const supabase = await createClient();
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    // Get authenticated user - try Bearer token first (for mobile app), then cookies (for web)
+    let user = null;
+    const adminClient = createAdminClient();
 
-    if (authError || !user) {
+    const authHeader = request.headers.get('Authorization');
+    if (authHeader?.startsWith('Bearer ')) {
+      const token = authHeader.substring(7);
+      const { data: { user: tokenUser }, error: tokenError } = await adminClient.auth.getUser(token);
+      if (!tokenError && tokenUser) {
+        user = tokenUser;
+      }
+    }
+
+    // Fall back to cookie-based auth (web app)
+    if (!user) {
+      const supabase = await createClient();
+      const { data: { user: cookieUser }, error: authError } = await supabase.auth.getUser();
+      if (!authError && cookieUser) {
+        user = cookieUser;
+      }
+    }
+
+    if (!user) {
       return NextResponse.json({ error: 'You must be logged in' }, { status: 401 });
     }
 
@@ -17,8 +35,6 @@ export async function POST(request: NextRequest) {
     if (!offerId) {
       return NextResponse.json({ error: 'Missing offerId' }, { status: 400 });
     }
-
-    const adminClient = createAdminClient();
 
     // Get the offer
     const { data: offer, error: offerError } = await adminClient

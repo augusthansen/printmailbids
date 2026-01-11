@@ -7,15 +7,39 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
+// Create auth client for verifying tokens
+const supabaseAuth = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
+
 const MAX_ATTEMPTS = 5;
 
 export async function POST(request: NextRequest) {
   try {
-    const { code, userId } = await request.json();
+    const body = await request.json();
+    const { code } = body;
+    let userId = body.userId;
+
+    // If no userId provided, try to get it from Bearer token
+    if (!userId) {
+      const authHeader = request.headers.get('Authorization');
+      if (authHeader?.startsWith('Bearer ')) {
+        const token = authHeader.substring(7);
+        const { data: { user }, error: authError } = await supabaseAuth.auth.getUser(token);
+        if (authError || !user) {
+          return NextResponse.json(
+            { error: 'Invalid or expired authentication token' },
+            { status: 401 }
+          );
+        }
+        userId = user.id;
+      }
+    }
 
     if (!code || !userId) {
       return NextResponse.json(
-        { error: 'Verification code and user ID are required' },
+        { error: 'Verification code is required and you must be authenticated' },
         { status: 400 }
       );
     }

@@ -2,10 +2,13 @@ import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { NextRequest, NextResponse } from 'next/server';
 import { sendOutbidEmail } from '@/lib/email';
+import notifications from '@/lib/notifications';
 
 // Disable caching for this API route
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
+
+// API Version: v5 - Fixed reserve not met winning logic
 
 // Soft-close window: 2 minutes (in milliseconds)
 const SOFT_CLOSE_WINDOW_MS = 2 * 60 * 1000;
@@ -149,18 +152,37 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: `Minimum bid is $${minBid.toLocaleString()}` }, { status: 400 });
     }
 
-    // Get current highest bid
-    const { data: currentHighestBids } = await adminClient
+    // Get current winning bid (by status, or highest max_bid as fallback)
+    const { data: winningBids } = await adminClient
       .from('bids')
       .select('*')
       .eq('listing_id', listingId)
-      .order('amount', { ascending: false })
+      .eq('status', 'winning')
       .limit(1);
 
-    const currentHighestBid = currentHighestBids?.[0] as Bid | undefined;
+    // If no winning bid found, get the one with highest max_bid
+    let currentHighestBid = winningBids?.[0] as Bid | undefined;
+
+    if (!currentHighestBid) {
+      const { data: highestMaxBids } = await adminClient
+        .from('bids')
+        .select('*')
+        .eq('listing_id', listingId)
+        .order('max_bid', { ascending: false })
+        .limit(1);
+      currentHighestBid = highestMaxBids?.[0] as Bid | undefined;
+    }
+
     const currentHighBidderMaxBid = currentHighestBid?.max_bid || 0;
     const currentHighBidderId = currentHighestBid?.bidder_id;
     const currentHighAmount = currentHighestBid?.amount || 0;
+
+    console.log('[Bid API] Current winning bid:', {
+      bidderId: currentHighBidderId,
+      amount: currentHighAmount,
+      maxBid: currentHighBidderMaxBid,
+      newUserMaxBid: userMaxBid
+    });
 
     // Check if reserve is met
     const reservePrice = listing.reserve_price || 0;
@@ -172,14 +194,18 @@ export async function POST(request: NextRequest) {
     let triggeredAutoBidForPrevious = false;
 
     if (!currentHighestBid) {
-      // No existing bids
+      // No existing bids - this bidder is automatically winning
       if (reservePrice > 0 && userMaxBid >= reservePrice) {
+        // User's max meets reserve - show reserve price
         actualBidAmount = reservePrice;
       } else if (reservePrice > 0) {
+        // Reserve not met - show user's full bid (transparency before reserve)
         actualBidAmount = userMaxBid;
       } else {
+        // No reserve - start at starting price (proxy bidding)
         actualBidAmount = listing.starting_price || minBid;
       }
+      outbidPreviousHigh = true; // First bidder is the winner
     } else if (currentHighBidderId === user.id) {
       // User is already the high bidder
       if (userMaxBid <= currentHighBidderMaxBid) {
@@ -189,6 +215,7 @@ export async function POST(request: NextRequest) {
       }
 
       if (!reserveIsMet && reservePrice > 0) {
+        // Reserve not met yet - show bid up to reserve or max
         if (userMaxBid >= reservePrice) {
           actualBidAmount = reservePrice;
         } else {
@@ -207,34 +234,49 @@ export async function POST(request: NextRequest) {
           message: `Your maximum bid has been updated to $${userMaxBid.toLocaleString()}`,
           currentPrice: currentHighAmount,
           bidCount: listing.bid_count,
+          reserveMet: reserveIsMet,
         });
       }
-    } else if (!reserveIsMet) {
-      if (userMaxBid >= reservePrice && reservePrice > 0) {
+    } else if (!reserveIsMet && reservePrice > 0) {
+      // Reserve not met - show actual bids (no proxy bidding yet)
+      // Before reserve is met, the winner is simply whoever has the highest bid AMOUNT
+      if (userMaxBid >= reservePrice) {
         actualBidAmount = reservePrice;
-        outbidPreviousHigh = userMaxBid > currentHighBidderMaxBid;
       } else {
         actualBidAmount = userMaxBid;
-        outbidPreviousHigh = actualBidAmount > currentHighAmount;
       }
+      // New bidder wins if their bid amount is higher than current displayed price
+      outbidPreviousHigh = actualBidAmount > currentHighAmount;
     } else if (userMaxBid > currentHighBidderMaxBid) {
+      // Reserve met, new bidder outbids current high bidder's max
+      // Proxy bidding: show one increment above previous max
       actualBidAmount = getMinNextBid(currentHighBidderMaxBid);
       outbidPreviousHigh = true;
-    } else if (userMaxBid === currentHighBidderMaxBid) {
-      actualBidAmount = userMaxBid;
-      triggeredAutoBidForPrevious = true;
     } else {
-      actualBidAmount = userMaxBid;
+      // Reserve met, new bidder's max <= current high bidder's max
+      // Proxy bidding will respond
+      actualBidAmount = minBid;
       triggeredAutoBidForPrevious = true;
     }
 
     // Create the new user's bid
+    const bidStatus = outbidPreviousHigh ? 'winning' : 'outbid';
+    console.log('[Bid API v5] Creating bid:', {
+      outbidPreviousHigh,
+      bidStatus,
+      hasCurrentHighestBid: !!currentHighestBid,
+      actualBidAmount,
+      userMaxBid,
+      currentHighAmount,
+      reserveIsMet
+    });
+
     const { error: bidError } = await adminClient.from('bids').insert({
       listing_id: listingId,
       bidder_id: user.id,
       amount: actualBidAmount,
       max_bid: userMaxBid,
-      status: outbidPreviousHigh ? 'winning' : 'outbid',
+      status: bidStatus,
       is_auto_bid: isAutoBid,
     });
 
@@ -248,8 +290,17 @@ export async function POST(request: NextRequest) {
 
     const reserveNowMet = actualBidAmount >= reservePrice;
 
+    // If the new bidder is winning, update ALL other bids on this listing to 'outbid'
+    if (outbidPreviousHigh) {
+      await adminClient
+        .from('bids')
+        .update({ status: 'outbid' })
+        .eq('listing_id', listingId)
+        .neq('bidder_id', user.id);
+    }
+
     // If the previous high bidder's proxy should respond
-    if (triggeredAutoBidForPrevious && currentHighestBid && reserveNowMet) {
+    if (triggeredAutoBidForPrevious && currentHighestBid) {
       const autoBidAmount = getMinNextBid(actualBidAmount);
       if (autoBidAmount <= currentHighBidderMaxBid) {
         await adminClient.from('bids').insert({
@@ -303,44 +354,27 @@ export async function POST(request: NextRequest) {
       // Don't fail the bid, but log the error
     }
 
-    // Notify seller of new bid
-    await adminClient.from('notifications').insert({
-      user_id: listing.seller_id,
-      type: 'new_bid',
-      title: 'New bid on your listing',
-      body: `Someone bid $${finalPrice.toLocaleString()} on "${listing.title}"`,
-      listing_id: listingId,
-    });
+    // Notify seller of new bid (with push notification)
+    notifications.newBid(listing.seller_id, listingId, listing.title, finalPrice).catch(console.error);
 
     // Notify seller when reserve is met for the first time
     if (!reserveIsMet && reserveNowMet && reservePrice > 0) {
-      await adminClient.from('notifications').insert({
-        user_id: listing.seller_id,
-        type: 'reserve_met',
-        title: 'Reserve price met!',
-        body: `The reserve price of $${reservePrice.toLocaleString()} has been met on "${listing.title}". Your item will sell when the auction ends.`,
-        listing_id: listingId,
-      });
+      notifications.reserveMet(listing.seller_id, listingId, listing.title, reservePrice).catch(console.error);
     }
 
     // Notify if user was immediately outbid
     if (triggeredAutoBidForPrevious) {
-      await adminClient.from('notifications').insert({
-        user_id: user.id,
-        type: 'outbid',
-        title: 'You have been outbid',
-        body: `Your bid on "${listing.title}" was outbid by a proxy bid. Current high: $${finalPrice.toLocaleString()}`,
-        listing_id: listingId,
-      });
+      // Send outbid notification with push
+      notifications.outbid(user.id, listingId, listing.title, finalPrice).catch(console.error);
 
-      // Send outbid email to current user
+      // Send outbid email to current user (if they have email notifications enabled)
       const { data: userProfile } = await adminClient
         .from('profiles')
-        .select('email, full_name')
+        .select('email, full_name, notify_email')
         .eq('id', user.id)
         .single();
 
-      if (userProfile?.email) {
+      if (userProfile?.email && userProfile?.notify_email !== false) {
         sendOutbidEmail({
           to: userProfile.email,
           userName: userProfile.full_name || '',
@@ -353,23 +387,17 @@ export async function POST(request: NextRequest) {
       }
     } else if (outbidPreviousHigh && currentHighBidderId && currentHighBidderId !== user.id) {
       // Only notify the previous high bidder if they're not the current user
-      // (Don't notify someone that they outbid themselves)
-      await adminClient.from('notifications').insert({
-        user_id: currentHighBidderId,
-        type: 'outbid',
-        title: 'You have been outbid',
-        body: `Someone outbid you on "${listing.title}". New high bid: $${actualBidAmount.toLocaleString()}`,
-        listing_id: listingId,
-      });
+      // Send outbid notification with push
+      notifications.outbid(currentHighBidderId, listingId, listing.title, actualBidAmount).catch(console.error);
 
-      // Send outbid email to previous high bidder
+      // Send outbid email to previous high bidder (if they have email notifications enabled)
       const { data: prevBidderProfile } = await adminClient
         .from('profiles')
-        .select('email, full_name')
+        .select('email, full_name, notify_email')
         .eq('id', currentHighBidderId)
         .single();
 
-      if (prevBidderProfile?.email) {
+      if (prevBidderProfile?.email && prevBidderProfile?.notify_email !== false) {
         sendOutbidEmail({
           to: prevBidderProfile.email,
           userName: prevBidderProfile.full_name || '',

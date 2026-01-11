@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { sendOfferReceivedEmail, sendOfferAcceptedEmail } from '@/lib/email';
 import { getCommissionRates, calculateFees } from '@/lib/commissions';
+import notifications from '@/lib/notifications';
 import crypto from 'crypto';
 
 // Configuration
@@ -11,11 +12,29 @@ const OFFER_EXPIRY_HOURS = 48;
 
 export async function POST(request: NextRequest) {
   try {
-    // Get authenticated user
-    const supabase = await createClient();
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    // Get authenticated user - try Bearer token first (for mobile app), then cookies (for web)
+    let user = null;
+    const adminClient = createAdminClient();
 
-    if (authError || !user) {
+    const authHeader = request.headers.get('Authorization');
+    if (authHeader?.startsWith('Bearer ')) {
+      const token = authHeader.substring(7);
+      const { data: { user: tokenUser }, error: tokenError } = await adminClient.auth.getUser(token);
+      if (!tokenError && tokenUser) {
+        user = tokenUser;
+      }
+    }
+
+    // Fall back to cookie-based auth (web app)
+    if (!user) {
+      const supabase = await createClient();
+      const { data: { user: cookieUser }, error: authError } = await supabase.auth.getUser();
+      if (!authError && cookieUser) {
+        user = cookieUser;
+      }
+    }
+
+    if (!user) {
       return NextResponse.json({ error: 'You must be logged in to make an offer' }, { status: 401 });
     }
 
@@ -29,8 +48,6 @@ export async function POST(request: NextRequest) {
     if (isNaN(offerAmount) || offerAmount <= 0) {
       return NextResponse.json({ error: 'Invalid offer amount' }, { status: 400 });
     }
-
-    const adminClient = createAdminClient();
 
     // Get the listing
     const { data: listing, error: listingError } = await adminClient
@@ -176,23 +193,25 @@ export async function POST(request: NextRequest) {
         .update({ status: 'sold', updated_at: new Date().toISOString() })
         .eq('id', listingId);
 
-      // Notify buyer of auto-acceptance
-      await adminClient.from('notifications').insert({
-        user_id: user.id,
-        type: 'offer_accepted',
-        title: 'Offer Accepted!',
-        body: `Your offer of $${offerAmount.toLocaleString()} for "${listing.title}" has been automatically accepted! Please proceed to payment.`,
-        listing_id: listingId,
-      });
+      // Notify buyer of auto-acceptance (with push)
+      notifications.offerAccepted(
+        user.id,
+        listingId,
+        listing.title,
+        offerAmount,
+        offer.id,
+        invoice?.id
+      ).catch(console.error);
 
-      // Notify seller
-      await adminClient.from('notifications').insert({
-        user_id: listing.seller_id,
-        type: 'offer_accepted',
-        title: 'Offer Auto-Accepted',
-        body: `An offer of $${offerAmount.toLocaleString()} for "${listing.title}" was automatically accepted based on your settings.`,
-        listing_id: listingId,
-      });
+      // Notify seller (with push)
+      notifications.offerAccepted(
+        listing.seller_id,
+        listingId,
+        listing.title,
+        offerAmount,
+        offer.id,
+        invoice?.id
+      ).catch(console.error);
 
       // Get buyer profile for email
       const { data: buyerProfileAuto } = await adminClient
@@ -223,14 +242,14 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Normal pending offer - notify seller
-    await adminClient.from('notifications').insert({
-      user_id: listing.seller_id,
-      type: 'new_offer',
-      title: 'New Offer Received',
-      body: `You received an offer of $${offerAmount.toLocaleString()} for "${listing.title}". Expires in ${OFFER_EXPIRY_HOURS} hours.`,
-      listing_id: listingId,
-    });
+    // Normal pending offer - notify seller (with push)
+    notifications.newOffer(
+      listing.seller_id,
+      listingId,
+      listing.title,
+      offerAmount,
+      offer.id
+    ).catch(console.error);
 
     // Get buyer profile for email
     const { data: buyerProfile } = await adminClient

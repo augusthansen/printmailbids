@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import Image from 'next/image';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import {
   LayoutDashboard,
   Package,
@@ -26,6 +26,7 @@ import {
 import { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { createClient } from '@/lib/supabase/client';
+import OnboardingModal from '@/components/OnboardingModal';
 
 interface SidebarLink {
   href: string;
@@ -83,8 +84,11 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
-  const { user, loading, signOut, isSeller, isAdmin, profileName, avatarUrl } = useAuth();
+  const router = useRouter();
+  const { user, loading, signOut, isSeller, isAdmin, profileName, avatarUrl, needsOnboarding } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [showOnboarding, setShowOnboarding] = useState(false);
+  const [onboardingDismissed, setOnboardingDismissed] = useState(false);
   const [badges, setBadges] = useState<Record<string, number>>({
     notifications: 0,
     purchases: 0,
@@ -162,6 +166,25 @@ export default function DashboardLayout({
       ...section,
       links: section.links.filter(link => !link.sellerOnly || canSell),
     }));
+
+  // Show onboarding modal for new users
+  useEffect(() => {
+    if (!loading && user && needsOnboarding && !onboardingDismissed) {
+      setShowOnboarding(true);
+    }
+  }, [loading, user, needsOnboarding, onboardingDismissed]);
+
+  const handleOnboardingComplete = () => {
+    setShowOnboarding(false);
+    setOnboardingDismissed(true);
+    // Refresh the page to get updated profile
+    router.refresh();
+  };
+
+  const handleOnboardingSkip = () => {
+    setShowOnboarding(false);
+    setOnboardingDismissed(true);
+  };
 
   // Show loading state while auth is initializing
   if (loading) {
@@ -357,6 +380,16 @@ export default function DashboardLayout({
           {children}
         </main>
       </div>
+
+      {/* Onboarding Modal for new users */}
+      {showOnboarding && user && (
+        <OnboardingModal
+          userId={user.id}
+          userEmail={user.email}
+          onComplete={handleOnboardingComplete}
+          onSkip={handleOnboardingSkip}
+        />
+      )}
     </div>
   );
 }
