@@ -369,12 +369,14 @@ export async function POST(request: NextRequest) {
       currentHighBidderId,
       currentUserId: user.id,
       isDifferentUser: currentHighBidderId !== user.id,
+      willNotifyCurrentUser: triggeredAutoBidForPrevious,
+      willNotifyPreviousHighBidder: !triggeredAutoBidForPrevious && outbidPreviousHigh && currentHighBidderId && currentHighBidderId !== user.id,
     });
 
-    // Notify if user was immediately outbid
+    // Notify if user was immediately outbid (their bid was lower than existing proxy bid)
     if (triggeredAutoBidForPrevious) {
       // Send outbid notification with push
-      console.log('[Bid API] User was immediately outbid by proxy, sending notification to:', user.id);
+      console.log('[Bid API] BRANCH 1: User was immediately outbid by proxy, sending notification to current user:', user.id);
       notifications.outbid(user.id, listingId, listing.title, finalPrice).catch(console.error);
 
       // Send outbid email to current user (if they have email notifications enabled)
@@ -398,8 +400,9 @@ export async function POST(request: NextRequest) {
     } else if (outbidPreviousHigh && currentHighBidderId && currentHighBidderId !== user.id) {
       // Only notify the previous high bidder if they're not the current user
       // Send outbid notification with push
-      console.log('[Bid API] Sending outbid notification:', {
+      console.log('[Bid API] BRANCH 2: New bidder won, sending outbid notification to previous high bidder:', {
         previousHighBidderId: currentHighBidderId,
+        currentUserId: user.id,
         listingId,
         listingTitle: listing.title,
         newHighBid: actualBidAmount,
