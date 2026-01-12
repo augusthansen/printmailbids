@@ -179,24 +179,30 @@ export async function POST(request: NextRequest) {
         .eq('status', 'pending')
         .neq('id', offerId);
 
-      // Notify both parties (with push)
-      notifications.offerAccepted(
-        offer.buyer_id,
-        offer.listing_id,
-        listing?.title || 'Unknown',
-        offerAmount,
-        offerId,
-        invoice?.id
-      ).catch(console.error);
-
-      notifications.offerAccepted(
-        offer.seller_id,
-        offer.listing_id,
-        listing?.title || 'Unknown',
-        offerAmount,
-        offerId,
-        invoice?.id
-      ).catch(console.error);
+      // Notify both parties (with push) - await to ensure they complete before response
+      try {
+        const [buyerNotif, sellerNotif] = await Promise.all([
+          notifications.offerAccepted(
+            offer.buyer_id,
+            offer.listing_id,
+            listing?.title || 'Unknown',
+            offerAmount,
+            offerId,
+            invoice?.id
+          ),
+          notifications.offerAccepted(
+            offer.seller_id,
+            offer.listing_id,
+            listing?.title || 'Unknown',
+            offerAmount,
+            offerId,
+            invoice?.id
+          ),
+        ]);
+        console.log('[Accept Offer] Notifications sent:', { buyerNotif, sellerNotif });
+      } catch (notifError) {
+        console.error('[Accept Offer] Failed to send notifications:', notifError);
+      }
 
       // Email the buyer about accepted offer
       if (offer.buyer?.email) {
@@ -238,12 +244,17 @@ export async function POST(request: NextRequest) {
 
       // Notify the person who made the offer that it was declined (with push)
       const declinedUserId = offerMadeByBuyer ? offer.buyer_id : offer.seller_id;
-      notifications.offerDeclined(
-        declinedUserId,
-        offer.listing_id,
-        offer.listing?.title || 'Unknown',
-        offerId
-      ).catch(console.error);
+      try {
+        const notifResult = await notifications.offerDeclined(
+          declinedUserId,
+          offer.listing_id,
+          offer.listing?.title || 'Unknown',
+          offerId
+        );
+        console.log('[Decline Offer] Notification result:', notifResult);
+      } catch (notifError) {
+        console.error('[Decline Offer] Failed to send notification:', notifError);
+      }
 
       // Email the person whose offer was declined (only if it was the buyer's offer)
       if (offerMadeByBuyer && offer.buyer?.email) {
@@ -325,13 +336,18 @@ export async function POST(request: NextRequest) {
       // Notify the other party of counter-offer (with push)
       // If seller is countering, notify buyer. If buyer is countering back, notify seller.
       const notifyUserId = isSeller ? offer.buyer_id : offer.seller_id;
-      notifications.offerCountered(
-        notifyUserId,
-        offer.listing_id,
-        offer.listing?.title || 'Unknown',
-        counterAmount,
-        counterOffer?.id || offerId
-      ).catch(console.error);
+      try {
+        const notifResult = await notifications.offerCountered(
+          notifyUserId,
+          offer.listing_id,
+          offer.listing?.title || 'Unknown',
+          counterAmount,
+          counterOffer?.id || offerId
+        );
+        console.log('[Counter Offer] Notification result:', notifResult);
+      } catch (notifError) {
+        console.error('[Counter Offer] Failed to send notification:', notifError);
+      }
 
       // Email the person receiving the counter-offer
       // Get the profile of the person who needs to receive the counter email
