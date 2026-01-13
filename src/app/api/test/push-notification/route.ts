@@ -5,6 +5,8 @@
  * Users can only send test notifications to themselves, so this is safe to expose.
  */
 
+const API_VERSION = '2.0'; // Supports custom title/body
+
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
@@ -71,7 +73,10 @@ export async function POST(request: NextRequest) {
 
       return NextResponse.json({
         success: true,
+        apiVersion: API_VERSION,
         message: `Custom test notification sent to ${user.email}`,
+        customTitle: title,
+        customBody: body,
         pushSent: result?.pushSent || false,
         notificationId: result?.notificationId,
         error: result?.error,
