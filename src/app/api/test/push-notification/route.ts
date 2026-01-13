@@ -38,15 +38,51 @@ export async function POST(request: NextRequest) {
     }
 
     // User can only send test notifications to themselves - no admin check needed
-    const { type, listingTitle } = await request.json();
+    const { type, listingTitle, title, body } = await request.json();
 
     // Use undefined for IDs so they become null in the database (UUID columns can't accept fake strings)
     const testListingId = undefined;
     const testInvoiceId = undefined;
     const testOfferId = undefined;
 
+    // Import sendNotification for custom notifications
+    const { sendNotification } = await import('@/lib/notifications');
+
     // Send test notification based on type
     let result;
+
+    // Handle custom title/body for testing specific notification flows
+    if (title && body) {
+      // First get user's push preferences for debugging
+      const { data: profile } = await adminClient
+        .from('profiles')
+        .select('notify_push, expo_push_token')
+        .eq('id', user.id)
+        .single();
+
+      result = await sendNotification({
+        userId: user.id,
+        type: type || 'payment_reminder',
+        title,
+        body,
+        listingId: testListingId,
+        invoiceId: testInvoiceId,
+      });
+
+      return NextResponse.json({
+        success: true,
+        message: `Custom test notification sent to ${user.email}`,
+        pushSent: result?.pushSent || false,
+        notificationId: result?.notificationId,
+        error: result?.error,
+        debug: {
+          notify_push: profile?.notify_push,
+          hasToken: !!profile?.expo_push_token,
+          tokenPrefix: profile?.expo_push_token?.substring(0, 25),
+        },
+      });
+    }
+
     switch (type) {
       case 'outbid':
         result = await notifications.outbid(
