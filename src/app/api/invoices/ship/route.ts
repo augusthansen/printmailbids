@@ -95,8 +95,12 @@ export async function POST(request: NextRequest) {
     }
 
     // Send push notification to buyer
-    const listingTitle = (invoice.listing as { id: string; title: string })?.title || 'Your item';
-    const listingId = (invoice.listing as { id: string; title: string })?.id;
+    // Handle both array and single object cases for the listing relation
+    const listingData = Array.isArray(invoice.listing)
+      ? invoice.listing[0]
+      : invoice.listing as { id: string; title: string } | null;
+    const listingTitle = listingData?.title || 'Your item';
+    const listingId = listingData?.id;
 
     if (listingId) {
       await notifications.itemShipped(
