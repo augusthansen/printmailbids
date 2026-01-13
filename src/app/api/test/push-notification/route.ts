@@ -5,7 +5,7 @@
  * Users can only send test notifications to themselves, so this is safe to expose.
  */
 
-const API_VERSION = '2.0'; // Supports custom title/body
+const API_VERSION = '2.1'; // Supports custom title/body - force redeploy
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
